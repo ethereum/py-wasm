@@ -104,7 +104,7 @@ new version explicitly, like `make release bump="--new-version 4.0.0-alpha.1 dev
 
 **metering.py**: Injects a function call before each sequence of unbranching instructions, along with the sum of the costs of instructions in the sequence. Also injects helper functions such as the metering function which adds to the current cycle count, and traps when we exceed a limit.
 
-Before metering (see fibonacci.wastfor more):
+Before metering (see fibonacci.wastfor more).
 ```
   (func (;0;) (type 0) (param i32) (result i32)
     (local i32 i32 i32)
@@ -139,7 +139,7 @@ Before metering (see fibonacci.wastfor more):
 ```
 
 
-After metering (see fibonacci_metered.wast for more):
+After metering (see fibonacci_metered.wast for more). Each instruction costs 1.
 ```
   (func (;0;) (type 0) (param i32) (result i32)
     (local i32 i32 i32)
@@ -179,7 +179,7 @@ After metering (see fibonacci_metered.wast for more):
     get_local 1)
 ```
 
-**index.html**: Demo running metered fibonacci function in fibonacci_metered.py, with arbitrary argument and max cycles. Arbitrary precision integers are stored as a string or as a sequence of i32s. The i32s can be passed to and from a webassembly file. Helper code is in both JavaScript and WebAssembly.
+**index.html**: Demo running fibonacci_metered.wasm, with arbitrary argument and cycles limit, and a trap if the cycles limit is exceeded. Arbitrary precision integers are stored as a string or as a sequence of i32s, and are imported and exported to and from fibonacci_metered.wasm.
 
 **fibonacci...**: Various versions of our demo fibonacci function.
 
