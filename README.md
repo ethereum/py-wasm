@@ -99,12 +99,10 @@ new version explicitly, like `make release bump="--new-version 4.0.0-alpha.1 dev
 
 # Legacy 
 
-*WARNING: This is an early demo in need of a code review.*
-  
-**pyWebAssembly.py**: Closely follows "WebAssembly Specification, Release 1.0, Dec 13, 2017". Implements Chapter 5, along with necessary parts of Chapters 2 and 4. The resulting recursive-descent parser takes a .wasm file and builds a syntax tree out of Python tuples, lists, and dicts. This file includes an inverse of a canonical form of each function, allowing mapping a syntax tree back to a .wasm file. Functions from the specification are named `spec_<func>(...)` and their inverses are named `spec_<func>_inv(...)`.
+**pyWebAssembly.py**: Closely follows "WebAssembly Specification, Release 1.0, Dec 13, 2017". Implements Chapter 5, along with necessary parts of Chapters 2 and 4. The resulting recursive-descent parser takes a .wasm file and builds a syntax tree out of Python tuples, lists, and dicts. This process is reversible back to a .wasm file. Functions from the specification are named `spec_<func>(...)` and their "inverses" are named `spec_<func>_inv(...)`.
 
 
-**metering.py**: Injects a function call before each sequence of unbranching instructions. This metering function adds to the current cycle count, and traps when we exceed a limit.
+**metering.py**: Injects a function call before each sequence of unbranching instructions, along with the sum of the costs of instructions in the sequence. Also injects helper functions such as the metering function which adds to the current cycle count, and traps when we exceed a limit.
 
 Before metering (see fibonacci.wastfor more):
 ```
@@ -181,25 +179,16 @@ After metering (see fibonacci_metered.wast for more):
     get_local 1)
 ```
 
-**index.html**: Test for metered fibonacci function in fibonacci_metered.py.
+**index.html**: Demo running metered fibonacci function in fibonacci_metered.py, with arbitrary argument and max cycles. Arbitrary precision integers are stored as a string or as a sequence of i32s. The i32s can be passed to and from a webassembly file. Helper code is in both JavaScript and WebAssembly.
 
+**fibonacci...**: Various versions of our demo fibonacci function.
 
-
-**fibonacci...**: Various versions of a fibonacci function.
-
-Notes:
-
- * Because JavaScript does not support 64-bit integers, we allow passing i64 arguments to WebAssembly as two i32s. Helper code is available in both JavaScript and Web
- * Arbitrary precision integers are stored as a string or as a sequence of i32s. The i32s can be passed to and from a webassembly file.
 
 TODO:
 
  * Floating point canonicalization code injector.
  * Interpretter as described in chapter 4.
  * Support text format as described in chapter 6.
-
-
-
 
 
 
