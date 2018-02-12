@@ -1,0 +1,252 @@
+<!--
+this file:
+  - arbitrary precision integers as strings and as arrays 32-bit integers
+  - testing webassembly functions with metering
+-->
+
+
+<html>
+
+<head>
+
+  <script>
+
+function init(){
+  if (!('WebAssembly' in window)) {
+    document.getElementById("wasm_support").innerHTML="WebAssembly is not supported by your browser";
+    //alert('you need a browser with wasm support enabled :(');
+  }
+}
+
+
+
+/*
+digitString is string of from {0,1,...,9}
+  represent number, starting with most significant value
+  should start with least significant value, then .reverse() before printing, but then awkward negative sign at end
+
+i32Array is array of 32-bit integers
+  represent number, starting with most significant value
+*/
+
+
+//TODO: test this
+function digitString2ui32Array(mystr){
+  if (mystr=="0")
+    return [0,0,0,0];
+  let bits=[];
+  let remainder=0;
+  while(mystr!=''){
+    [mystr,remainder]=div_digitString_num(mystr,2);
+    bits.push(remainder);
+  }
+  let ui32=[];
+  let idx=0;
+  let cur=0;
+  for (let i=0;i<bits.length;i++){
+    cur+=bits[i]<<idx;
+    idx+=1;
+    if (idx==32){
+      ui32.push(cur);
+      cur=0;
+      idx=0;
+    }
+  }
+  if(cur || ui32.length==0)
+    ui32.push(cur);
+  return ui32;
+}
+//digitString2i32Array("100");
+
+
+function ui32Array2digitString(arr){
+  let result="";
+  let idx=0
+  for(let i=0;i<arr.length;i++){
+    for (let j=0;j<32;j++){
+      if (arr[i]&(1<<j))
+        result=add_digitStrings(result,pow2_stringDigits(idx));
+      idx++
+    }
+  }
+  return result;
+}
+
+function sub_digitStrings(lhs,rhs){
+  //assume lhs > rhs, both positive
+}
+
+function subtract_i32Arrays(lhs,rhs){
+}
+
+function div_digitString_num(s,n){
+  let quotient="";
+  let d=0,q=0,r=0;
+  let firstNonzeroFlag=false;
+  for (let i=0;i<s.length;i++){
+    d=d*10+parseInt(s[i]);
+    q=(d/n)>>0;
+    r=d%n;
+    if (q!=0)
+      firstNonzeroFlag=true;
+    if (firstNonzeroFlag)
+      quotient=quotient+(q).toString();
+    d=r;
+  }
+  return [quotient,r];
+}
+
+function mult_digitString_digit(s,d){
+  //console.log(s,d);
+  let result = "";
+  let cur="";
+  for (let i=s.length-1;i>=0;i--){
+    let zeros="";
+    for(let j=i;j<s.length-1;j++) //inefficient
+      zeros+="0";
+    result=add_digitStrings(result,(d*s[i]).toString()+zeros);
+  }
+  return result;
+}
+
+function pow2_stringDigits(power){ //power is >=0
+  let result ="1";
+  for (let i=0;i<power;i++){
+    result=mult_digitString_digit(result,2);
+  }
+  return result;
+}
+
+function add_digitStrings(s1,s2){
+  //console.log(s1,s2);
+  let i1=s1.length-1;
+  let i2=s2.length-1;
+  let result=""
+  let r=0;
+  for(;i1>=0 && i2>=0;i1--,i2--){
+    r+=parseInt(s1[i1])+parseInt(s2[i2]);
+    result=(r%10).toString()+result;
+    r=r/10>>0;
+  }
+  for(;i1>=0;i1--){
+    r+=parseInt(s1[i1]);
+    result=(r%10).toString()+result;
+    r=r/10>>0;
+  }
+  for(;i2>=0;i2--){
+    r+=parseInt(s2[i2]);
+    result=(r%10).toString()+result;
+    r=r/10>>0;
+  }
+  if (r){
+    result=r.toString()+result;
+  }
+  return result;
+}
+
+function lessthan_i32Arrays(lhs,rhs){
+  //maybe same as lessthan_digitStrings, if i32Arrays have idx 0 as most significant
+}
+
+function lessthan_digitStrings(lhs,rhs){
+  if (lhs.length<rhs.length)
+    return true;
+  if (lhs.length>rhs.length)
+    return false;
+  for (let i=0;i<lhs.length;i++){
+    if (lhs[i]<rhs[i])
+      return true;
+    if (lhs[i]>rhs[i])
+      return false;
+  }
+  return false; //flip to true for <=
+}
+
+
+
+
+
+
+function run_wasm_xhr_custom(){
+  let filename = document.getElementById('input_wasm_filename').value;
+  let funcname = document.getElementById('input_wasm_funcname').value;
+  let arg = document.getElementById('input_wasm_arg').value;
+  var t0 = performance.now();
+  console.log("run_wasm_xhr("+filename+","+funcname+","+arg+")");
+  var xhr = new XMLHttpRequest();
+  xhr.open('GET', filename, true); //method, url, async
+  xhr.responseType = 'arraybuffer';
+  xhr.send();
+  xhr.onload = function(){
+    //prepare imports
+    var imports = {};
+    //create instance, and its callback
+    WebAssembly.instantiate(xhr.response, imports).then(results => {
+      //get number of ints needed to init max_cycles
+      var numCyclesChunks = results.instance.exports.get_num_max_cycles_chunks();
+      var arr = digitString2ui32Array(document.getElementById('input_wasm_max_cycles').value); //"1000000000000000");
+      if(arr.length!=numCyclesChunks){
+        if(arr.length<numCyclesChunks){
+          for(let i=arr.length;i<=numCyclesChunks;i++)
+            arr.push(0);
+        }
+        else{
+          console.log("error, argument is too big, must be <2^128");
+          return 1;
+        }
+      }
+      //set max cycles into globals
+      for(let i=0;i<=numCyclesChunks;i++)
+        results.instance.exports.set_max_cycles(i,arr[i]);
+      //EXECUTE
+      if (funcname=="fib"){
+        console.log(' output: ' + results.instance.exports[funcname](parseInt(arg)));
+      }
+      if (funcname=="fibi32i32"){
+        //first set arg as global
+        let argarr = digitString2ui32Array(arg);
+        if(argarr.length>2){
+          console.log("error: argument too big");
+          return 1;
+        }
+        if(argarr.length<2)
+          for(let i=argarr.length;i<2;i++)
+            argarr.push(0);
+        console.log(argarr);
+        //compute
+        results.instance.exports[funcname](argarr[0],argarr[1]);
+        //get output and print
+        let resultarr=[];
+        resultarr.push(results.instance.exports.get_result_64(0));
+        resultarr.push(results.instance.exports.get_result_64(1));
+        console.log(' output: ', resultarr, ui32Array2digitString(resultarr));
+      }
+      //get num cycles remaining
+      arr_after = []
+      for (var i=0;i<numCyclesChunks;i++) arr_after.push(results.instance.exports["get_max_cycles"](i)>>>0)
+      str_after = ui32Array2digitString(arr_after);
+      //str_before_minus_after = sub_digitStrings(arg,str_after);
+      //console.log("cycles_used:",str_before_minus_after)
+      console.log("cycles_remaining:",str_after);
+      var t1 = performance.now();
+      console.log("runtime: " + (t1 - t0) + " millisecs.")
+    });
+  }
+}
+
+
+
+  </script>
+</head>
+
+<body onload="init()">
+<div id="wasm_support"></div>
+  filename: <input type="text" size="20" id="input_wasm_filename" value="fibonacci_metered.wasm"><br>
+  funcname: <input type="text" size="20" id="input_wasm_funcname" value="fib"><br>
+  arg(<2^32): <input type="text" size="20" id="input_wasm_arg" value="10"><br>
+  max_cycles(<2^128): <input type="text" size="20" id="input_wasm_max_cycles" value="1000"><br>
+  <input type="button" id="button_run_wasm_xhr_custom" onclick="run_wasm_xhr_custom();"  value="run filename.wasm funcname(arg)"/>
+
+
+</body>
+</html>
