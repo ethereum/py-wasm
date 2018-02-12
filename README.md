@@ -190,8 +190,13 @@ After metering (see fibonacci_metered.wast for more):
 Notes:
 
  * Because JavaScript does not support 64-bit integers, we allow passing i64 arguments to WebAssembly as two i32s. Helper code is available in both JavaScript and Web
+ * Arbitrary precision integers are stored as a string or as a sequence of i32s. The i32s can be passed to and from a webassembly file.
 
+TODO:
 
+ * Floating point canonicalization code injector.
+ * Interpretter as described in chapter 4.
+ * Support text format as described in chapter 6.
 
 
 
