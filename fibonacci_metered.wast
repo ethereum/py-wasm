@@ -6,6 +6,8 @@
   (type (;4;) (func (result i32)))
   (func (;0;) (type 0) (param i32) (result i32)
     (local i32 i32 i32)
+    i32.const 3
+    call 1
     i32.const 1
     set_local 1
     block  ;; label = @1
@@ -39,6 +41,8 @@
         br_if 0 (;@2;)
       end
     end
+    i32.const 1
+    call 1
     get_local 1)
   (func (;1;) (type 1) (param i32)
     (local i32)

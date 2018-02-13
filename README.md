@@ -104,7 +104,7 @@ new version explicitly, like `make release bump="--new-version 4.0.0-alpha.1 dev
 
 **metering.py**: Injects a function call before each sequence of unbranching instructions, along with the sum of the costs of instructions in the sequence. Also injects helper functions such as the metering function which adds to the current cycle count, and traps when we exceed a limit.
 
-Before metering (see fibonacci.wastfor more).
+Before metering (see `fibonacci.wast` for more).
 ```
   (func (;0;) (type 0) (param i32) (result i32)
     (local i32 i32 i32)
@@ -139,10 +139,12 @@ Before metering (see fibonacci.wastfor more).
 ```
 
 
-After metering (see fibonacci_metered.wast for more). Each instruction costs 1.
+After metering (see `fibonacci_metered.wast` for more). Notice injected `i32.cost n` `call 1` where n is sum of costs of following instructions (each instruction currently costs 1).
 ```
   (func (;0;) (type 0) (param i32) (result i32)
     (local i32 i32 i32)
+    i32.const 3
+    call 1
     i32.const 1
     set_local 1
     block  ;; label = @1
@@ -176,6 +178,8 @@ After metering (see fibonacci_metered.wast for more). Each instruction costs 1.
         br_if 0 (;@2;)
       end
     end
+    i32.const 1
+    call 1
     get_local 1)
 ```
 

@@ -3,6 +3,45 @@
 from pyWebAssembly import *
 
 
+
+
+#cost of each intstruction
+instr_cost = {
+'unreachable':1,'nop':1,
+'block':1, 'loop':1, 'if':1, 'else':1, 'end':1,
+'br':1, 'br_if':1, 'br_table':1,
+'return':1, 'call':1, 'call_indirect':1,
+
+'drop':1,'select':1,
+
+'get_local':1, 'set_local':1, 'tee_local':1, 'get_global':1, 'set_global':1,
+
+'i32.load':1, 'i64.load':1, 'f32.load':1, 'f64.load':1, 'i32.load8_s':1, 'i32.load8_u':1, 'i32.load16_s':1, 'i32.load16_u':1, 'i64.load8_s':1, 'i64.load8_u':1, 'i64.load16_s':1, 'i64.load16_u':1, 'i64.load32_s':1, 'i64.load32_u':1, 'i32.store':1, 'i64.store':1, 'f32.store':1, 'f64.store':1, 'i32.store8':1, 'i32.store16':1, 'i64.store8':1, 'i64.store16':1, 'i64.store32':1,
+'current_memory':1,'grow_memory':1,
+
+'i32.const':1, 'i64.const':1, 'f32.const':1, 'f64.const':1,
+
+'i32.eqz':1, 'i32.eq':1, 'i32.ne':1, 'i32.lt_s':1, 'i32.lt_u':1, 'i32.gt_s':1, 'i32.gt_u':1, 'i32.le_s':1, 'i32.le_u':1, 'i32.ge_s':1, 'i32.ge_u':1,
+
+'i64.eqz':1, 'i64.eq':1, 'i64.ne':1, 'i64.lt_s':1, 'i64.lt_u':1, 'i64.gt_s':1, 'i64.gt_u':1, 'i64.le_s':1, 'i64.le_u':1, 'i64.ge_s':1, 'i64.ge_u':1,
+
+'f32.eq':1, 'f32.ne':1, 'f32.lt':1, 'f32.gt':1, 'f32.le':1, 'f32.ge':1,
+
+'f64.eq':1, 'f64.ne':1, 'f64.lt':1, 'f64.gt':1, 'f64.le':1, 'f64.ge':1,
+
+'i32.clz':1, 'i32.ctz':1, 'i32.popcnt':1, 'i32.add':1, 'i32.sub':1, 'i32.mul':1, 'i32.div_s':1, 'i32.div_u':1, 'i32.rem_s':1, 'i32.rem_u':1, 'i32.and':1, 'i32.or':1, 'i32.xor':1, 'i32.shl':1, 'i32.shr_s':1, 'i32.shr_u':1, 'i32.rotl':1, 'i32.rotr':1,
+
+'i64.clz':1, 'i64.ctz':1, 'i64.popcnt':1, 'i64.add':1, 'i64.sub':1, 'i64.mul':1, 'i64.div_s':1, 'i64.div_u':1, 'i64.rem_s':1, 'i64.rem_u':1, 'i64.and':1, 'i64.or':1, 'i64.xor':1, 'i64.shl':1, 'i64.shr_s':1, 'i64.shr_u':1, 'i64.rotl':1, 'i64.rotr':1,
+
+'f32.abs':1, 'f32.neg':1, 'f32.ceil':1, 'f32.floor':1, 'f32.trunc':1, 'f32.nearest':1, 'f32.sqrt':1, 'f32.add':1, 'f32.sub':1, 'f32.mul':1, 'f32.div':1, 'f32.min':1, 'f32.max':1, 'f32.copysign':1, 'f64.abs':1,
+
+'f64.neg':1, 'f32.min':1, 'f32.max':1, 'f32.copysign':1, 'f64.abs':1, 'f64.neg':1, 'f64.ceil':1, 'f64.floor':1, 'f64.trunc':1, 'f64.nearest':1, 'f64.sqrt':1, 'f64.add':1, 'f64.sub':1, 'f64.mul':1, 'f64.div':1, 'f64.min':1, 'f64.max':1, 'f64.copysign':1,
+
+'i32.wrap/i64':1, 'i32.trunc_s/f32':1, 'i32.trunc_u/f32':1, 'i32.trunc_s/f64':1, 'i32.trunc_u/f64':1, 'i64.extend_s/i32':1, 'i64.extend_u/i32':1, 'i64.trunc_s/f32':1, 'i64.trunc_u/f32':1, 'i64.trunc_s/f64':1, 'i64.trunc_u/f64':1, 'f32.convert_s/i32':1, 'f32.convert_u/i32':1, 'f32.convert_s/i64':1, 'f32.convert_u/i64':1, 'f32.demote/f64':1, 'f64.convert_s/i32':1, 'f64.convert_u/i32':1, 'f64.convert_s/i64':1, 'f64.convert_u/i64':1, 'f64.promote/f32':1, 'i32.reinterpret/f32':1, 'i64.reinterpret/f64':1, 'f32.reinterpret/i32':1, 'f64.reinterpret/i64':1
+}
+
+
+
 def test_injecting(mod):
   #test metering injection to each func
   for f in mod["funcs"]:
@@ -15,12 +54,13 @@ def test_injecting(mod):
     #print_tree_expr(f["body"])
 
 
+
 def inject_sparecycles_stuff(mod):
   #floating point correction
   #inject metering calls into each function, do this before injecting the metering func since never-ending recursion
   for f in mod["funcs"]:
     #for e in f["body"]:
-    inject_metering_expr(f["body"],len(mod["funcs"])) #len(mod["funcs"]) is idx of metering func in wasm
+    f["body"]=inject_metering_expr(f["body"],len(mod["funcs"])) #len(mod["funcs"]) is idx of metering func in wasm
   #inject globals for cycles_remaining
   global_idx_cycles = len(mod["globals"])
   mod["globals"]+=[{'type': ('var', 'i32'), 'init': [('i32.const', 0)]}, {'type': ('var', 'i32'), 'init': [('i32.const', 0)]}, {'type': ('var', 'i32'), 'init': [('i32.const', 0)]}, {'type': ('var', 'i32'), 'init': [('i32.const', 0)]}]
@@ -83,41 +123,6 @@ def inject_metering_expr(expr,meteringFuncIdx):
   return expr
 
 
-
-#cost of each intstruction
-instr_cost = {
-'unreachable':1,'nop':1,
-'block':1, 'loop':1, 'if':1, 'else':1, 'end':1,
-'br':1, 'br_if':1, 'br_table':1,
-'return':1, 'call':1, 'call_indirect':1,
-
-'drop':1,'select':1,
-
-'get_local':1, 'set_local':1, 'tee_local':1, 'get_global':1, 'set_global':1,
-
-'i32.load':1, 'i64.load':1, 'f32.load':1, 'f64.load':1, 'i32.load8_s':1, 'i32.load8_u':1, 'i32.load16_s':1, 'i32.load16_u':1, 'i64.load8_s':1, 'i64.load8_u':1, 'i64.load16_s':1, 'i64.load16_u':1, 'i64.load32_s':1, 'i64.load32_u':1, 'i32.store':1, 'i64.store':1, 'f32.store':1, 'f64.store':1, 'i32.store8':1, 'i32.store16':1, 'i64.store8':1, 'i64.store16':1, 'i64.store32':1,
-'current_memory':1,'grow_memory':1,
-
-'i32.const':1, 'i64.const':1, 'f32.const':1, 'f64.const':1,
-
-'i32.eqz':1, 'i32.eq':1, 'i32.ne':1, 'i32.lt_s':1, 'i32.lt_u':1, 'i32.gt_s':1, 'i32.gt_u':1, 'i32.le_s':1, 'i32.le_u':1, 'i32.ge_s':1, 'i32.ge_u':1,
-
-'i64.eqz':1, 'i64.eq':1, 'i64.ne':1, 'i64.lt_s':1, 'i64.lt_u':1, 'i64.gt_s':1, 'i64.gt_u':1, 'i64.le_s':1, 'i64.le_u':1, 'i64.ge_s':1, 'i64.ge_u':1,
-
-'f32.eq':1, 'f32.ne':1, 'f32.lt':1, 'f32.gt':1, 'f32.le':1, 'f32.ge':1,
-
-'f64.eq':1, 'f64.ne':1, 'f64.lt':1, 'f64.gt':1, 'f64.le':1, 'f64.ge':1,
-
-'i32.clz':1, 'i32.ctz':1, 'i32.popcnt':1, 'i32.add':1, 'i32.sub':1, 'i32.mul':1, 'i32.div_s':1, 'i32.div_u':1, 'i32.rem_s':1, 'i32.rem_u':1, 'i32.and':1, 'i32.or':1, 'i32.xor':1, 'i32.shl':1, 'i32.shr_s':1, 'i32.shr_u':1, 'i32.rotl':1, 'i32.rotr':1,
-
-'i64.clz':1, 'i64.ctz':1, 'i64.popcnt':1, 'i64.add':1, 'i64.sub':1, 'i64.mul':1, 'i64.div_s':1, 'i64.div_u':1, 'i64.rem_s':1, 'i64.rem_u':1, 'i64.and':1, 'i64.or':1, 'i64.xor':1, 'i64.shl':1, 'i64.shr_s':1, 'i64.shr_u':1, 'i64.rotl':1, 'i64.rotr':1,
-
-'f32.abs':1, 'f32.neg':1, 'f32.ceil':1, 'f32.floor':1, 'f32.trunc':1, 'f32.nearest':1, 'f32.sqrt':1, 'f32.add':1, 'f32.sub':1, 'f32.mul':1, 'f32.div':1, 'f32.min':1, 'f32.max':1, 'f32.copysign':1, 'f64.abs':1,
-
-'f64.neg':1, 'f32.min':1, 'f32.max':1, 'f32.copysign':1, 'f64.abs':1, 'f64.neg':1, 'f64.ceil':1, 'f64.floor':1, 'f64.trunc':1, 'f64.nearest':1, 'f64.sqrt':1, 'f64.add':1, 'f64.sub':1, 'f64.mul':1, 'f64.div':1, 'f64.min':1, 'f64.max':1, 'f64.copysign':1,
-
-'i32.wrap/i64':1, 'i32.trunc_s/f32':1, 'i32.trunc_u/f32':1, 'i32.trunc_s/f64':1, 'i32.trunc_u/f64':1, 'i64.extend_s/i32':1, 'i64.extend_u/i32':1, 'i64.trunc_s/f32':1, 'i64.trunc_u/f32':1, 'i64.trunc_s/f64':1, 'i64.trunc_u/f64':1, 'f32.convert_s/i32':1, 'f32.convert_u/i32':1, 'f32.convert_s/i64':1, 'f32.convert_u/i64':1, 'f32.demote/f64':1, 'f64.convert_s/i32':1, 'f64.convert_u/i32':1, 'f64.convert_s/i64':1, 'f64.convert_u/i64':1, 'f64.promote/f32':1, 'i32.reinterpret/f32':1, 'i64.reinterpret/f64':1, 'f32.reinterpret/i32':1, 'f64.reinterpret/i64':1
-}
 
 
 def parse_wasm_and_inject_and_generate(filename):
