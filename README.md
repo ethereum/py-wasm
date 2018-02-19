@@ -104,7 +104,6 @@ new version explicitly, like `make release bump="--new-version 4.0.0-alpha.1 dev
 
 **metering.py**: Injects a function call before each sequence of unbranching instructions, whose argument is the sum of costs of instructions in the sequence. Also injects helper functions, including the metering function which updates the cycle count and traps when a limit is exceeded.
 
-The original C fibonacci function:
 
 Before metering (see `fibonacci.wast` for full module, and the original fibonacci function in C).
 ```
