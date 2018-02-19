@@ -42,53 +42,15 @@ instr_cost = {
 
 
 
-def test_injecting(mod):
-  #test metering injection to each func
-  for f in mod["funcs"]:
-    #print("\n")
-    #pretty_print(f["body"])
-    #print(f["body"])
-    #print_tree_expr(f["body"])
-    f["body"]=inject_metering_expr(f["body"],1000)
-    #print()
-    #print_tree_expr(f["body"])
 
-
-
-def inject_sparecycles_stuff(mod):
-  #floating point correction
-  #inject metering calls into each function, do this before injecting the metering func since never-ending recursion
+def inject_metering_calls_to_each_function(mod):
   for f in mod["funcs"]:
     #for e in f["body"]:
     f["body"]=inject_metering_expr(f["body"],len(mod["funcs"])) #len(mod["funcs"]) is idx of metering func in wasm
-  #inject globals for cycles_remaining
-  global_idx_cycles = len(mod["globals"])
-  mod["globals"]+=[{'type': ('var', 'i32'), 'init': [('i32.const', 0)]}, {'type': ('var', 'i32'), 'init': [('i32.const', 0)]}, {'type': ('var', 'i32'), 'init': [('i32.const', 0)]}, {'type': ('var', 'i32'), 'init': [('i32.const', 0)]}]
-  #inject function to perform metering
-  mod["types"]+=[(['i32'],[])]
-  mod["funcs"]+=[{'type': len(mod["types"])-1, 'locals': [['i32']], 'body': [('get_global', 0+global_idx_cycles), ('set_local', 1), ('get_global', 0+global_idx_cycles), ('get_local', 0), ('i32.sub',), ('set_global', 0+global_idx_cycles), ('get_global', 0+global_idx_cycles), ('get_local', 1), ('i32.gt_u',), ('if', None, [('get_global', 1+global_idx_cycles), ('set_local', 1), ('get_global', 1+global_idx_cycles), ('i32.const', 1), ('i32.sub',), ('set_global', 1+global_idx_cycles), ('get_global', 1+global_idx_cycles), ('get_local', 1), ('i32.gt_u',), ('if', None, [('get_global', 2+global_idx_cycles), ('set_local', 1), ('get_global', 2+global_idx_cycles), ('i32.const', 1), ('i32.sub',), ('set_global', 2+global_idx_cycles), ('get_global', 2+global_idx_cycles), ('get_local', 1), ('i32.gt_u',), ('if', None, [('get_global', 3+global_idx_cycles), ('set_local', 1), ('get_global', 3+global_idx_cycles), ('i32.const', 1), ('i32.sub',), ('set_global', 3+global_idx_cycles), ('get_global', 3+global_idx_cycles), ('get_local', 1), ('i32.gt_u',), ('if', None, [('unreachable',)])])])])]}]
-  #inject function to get cycles remaining
-  mod["types"]+=[(['i32'], ['i32'])]
-  mod["funcs"]+=[{'type': len(mod["types"])-1, 'locals': [], 'body': [('get_local', 0), ('i32.const', 0), ('i32.eq',), ('if', 'i32', [('get_global', 0+global_idx_cycles)], [('get_local', 0), ('i32.const', 1), ('i32.eq',), ('if', 'i32', [('get_global', 1+global_idx_cycles)], [('get_local', 0), ('i32.const', 2), ('i32.eq',), ('if', 'i32', [('get_global', 2+global_idx_cycles)], [('get_global', 3+global_idx_cycles)])])])]}]
-  mod["exports"]+=[{'name': 'get_max_cycles', 'desc': {'func': len(mod["funcs"])-1}}]
-  #inject function to set max_cycles
-  mod["types"]+=[(['i32','i32'],[])]
-  mod["funcs"]+=[{'type': len(mod["types"])-1, 'locals': [], 'body': [('get_local', 0), ('i32.const', 0), ('i32.eq',), ('if', None, [('get_local', 1), ('set_global', 0+global_idx_cycles)], [('get_local', 0), ('i32.const', 1), ('i32.eq',), ('if', None, [('get_local', 1), ('set_global', 1+global_idx_cycles)], [('get_local', 0), ('i32.const', 2), ('i32.eq',), ('if', None, [('get_local', 1), ('set_global', 2+global_idx_cycles)], [('get_local', 1), ('set_global', 3+global_idx_cycles)])])])]}]
-  mod["exports"]+=[{'name': 'set_max_cycles', 'desc': {'func': len(mod["funcs"])-1}}]
-  #inject function to get num chunks for max_cycles
-  mod["types"]+=[([],['i32'])]
-  mod["funcs"]+=[{'type': len(mod["types"])-1, 'locals': [], 'body': [('i32.const', 4)]}]
-  mod["exports"]+=[{'name': 'get_num_max_cycles_chunks', 'desc': {'func': len(mod["funcs"])-1}}]
-  #print(mod["types"])
-  #print(mod["funcs"])
-  #print(mod["exports"])
 
 
 
-
-
-
-#inject metering recursively
+#THIS IS THE IMPORTANT FUNCTION; RECURSIVELY INJECTS METERING CALLS
 def inject_metering_expr(expr,meteringFuncIdx):
   #inject to beginning of list
   #expr=[("i32.const",0),("call",meteringFuncIdx)]+expr
@@ -124,23 +86,171 @@ def inject_metering_expr(expr,meteringFuncIdx):
 
 
 
+def inject_helper_functions(mod):
+  #inject globals for cycles_remaining
+  global_idx_cycles = len(mod["globals"])
+  mod["globals"]+=[{'type': ('var', 'i32'), 'init': [('i32.const', 0)]}, {'type': ('var', 'i32'), 'init': [('i32.const', 0)]}, {'type': ('var', 'i32'), 'init': [('i32.const', 0)]}, {'type': ('var', 'i32'), 'init': [('i32.const', 0)]}]
+  #inject function to perform metering
+  mod["types"]+=[(['i32'],[])]
+  mod["funcs"]+=[{'type': len(mod["types"])-1, 'locals': [['i32']], 'body': [('get_global', 0+global_idx_cycles), ('set_local', 1), ('get_global', 0+global_idx_cycles), ('get_local', 0), ('i32.sub',), ('set_global', 0+global_idx_cycles), ('get_global', 0+global_idx_cycles), ('get_local', 1), ('i32.gt_u',), ('if', None, [('get_global', 1+global_idx_cycles), ('set_local', 1), ('get_global', 1+global_idx_cycles), ('i32.const', 1), ('i32.sub',), ('set_global', 1+global_idx_cycles), ('get_global', 1+global_idx_cycles), ('get_local', 1), ('i32.gt_u',), ('if', None, [('get_global', 2+global_idx_cycles), ('set_local', 1), ('get_global', 2+global_idx_cycles), ('i32.const', 1), ('i32.sub',), ('set_global', 2+global_idx_cycles), ('get_global', 2+global_idx_cycles), ('get_local', 1), ('i32.gt_u',), ('if', None, [('get_global', 3+global_idx_cycles), ('set_local', 1), ('get_global', 3+global_idx_cycles), ('i32.const', 1), ('i32.sub',), ('set_global', 3+global_idx_cycles), ('get_global', 3+global_idx_cycles), ('get_local', 1), ('i32.gt_u',), ('if', None, [('unreachable',)])])])])]}]
+  """
+  (func (;1;) (type 1) (param i32)
+    (local i32)
+    get_global 0
+    set_local 1
+    get_global 0
+    get_local 0
+    i32.sub
+    set_global 0
+    get_global 0
+    get_local 1
+    i32.gt_u
+    if  ;; label = @1
+      get_global 1
+      set_local 1
+      get_global 1
+      i32.const 1
+      i32.sub
+      set_global 1
+      get_global 1
+      get_local 1
+      i32.gt_u
+      if  ;; label = @2
+        get_global 2
+        set_local 1
+        get_global 2
+        i32.const 1
+        i32.sub
+        set_global 2
+        get_global 2
+        get_local 1
+        i32.gt_u
+        if  ;; label = @3
+          get_global 3
+          set_local 1
+          get_global 3
+          i32.const 1
+          i32.sub
+          set_global 3
+          get_global 3
+          get_local 1
+          i32.gt_u
+          if  ;; label = @4
+            unreachable
+          end
+        end
+      end
+    end)
+  """
+  #inject function to get cycles remaining
+  mod["types"]+=[(['i32'], ['i32'])]
+  mod["funcs"]+=[{'type': len(mod["types"])-1, 'locals': [], 'body': [('get_local', 0), ('i32.const', 0), ('i32.eq',), ('if', 'i32', [('get_global', 0+global_idx_cycles)], [('get_local', 0), ('i32.const', 1), ('i32.eq',), ('if', 'i32', [('get_global', 1+global_idx_cycles)], [('get_local', 0), ('i32.const', 2), ('i32.eq',), ('if', 'i32', [('get_global', 2+global_idx_cycles)], [('get_global', 3+global_idx_cycles)])])])]}]
+  mod["exports"]+=[{'name': 'get_max_cycles', 'desc': {'func': len(mod["funcs"])-1}}]
+  """
+  (func (;2;) (type 2) (param i32) (result i32)
+    get_local 0
+    i32.const 0
+    i32.eq
+    if (result i32)  ;; label = @1
+      get_global 0
+    else
+      get_local 0
+      i32.const 1
+      i32.eq
+      if (result i32)  ;; label = @2
+        get_global 1
+      else
+        get_local 0
+        i32.const 2
+        i32.eq
+        if (result i32)  ;; label = @3
+          get_global 2
+        else
+          get_global 3
+        end
+      end
+    end)
+  """
+  #inject function to set max_cycles
+  mod["types"]+=[(['i32','i32'],[])]
+  mod["funcs"]+=[{'type': len(mod["types"])-1, 'locals': [], 'body': [('get_local', 0), ('i32.const', 0), ('i32.eq',), ('if', None, [('get_local', 1), ('set_global', 0+global_idx_cycles)], [('get_local', 0), ('i32.const', 1), ('i32.eq',), ('if', None, [('get_local', 1), ('set_global', 1+global_idx_cycles)], [('get_local', 0), ('i32.const', 2), ('i32.eq',), ('if', None, [('get_local', 1), ('set_global', 2+global_idx_cycles)], [('get_local', 1), ('set_global', 3+global_idx_cycles)])])])]}]
+  mod["exports"]+=[{'name': 'set_max_cycles', 'desc': {'func': len(mod["funcs"])-1}}]
+  """
+  (func (;3;) (type 3) (param i32 i32)
+    get_local 0
+    i32.const 0
+    i32.eq
+    if  ;; label = @1
+      get_local 1
+      set_global 0
+    else
+      get_local 0
+      i32.const 1
+      i32.eq
+      if  ;; label = @2
+        get_local 1
+        set_global 1
+      else
+        get_local 0
+        i32.const 2
+        i32.eq
+        if  ;; label = @3
+          get_local 1
+          set_global 2
+        else
+          get_local 1
+          set_global 3
+        end
+      end
+    end)
+  """
+  #inject function to get num chunks for max_cycles
+  mod["types"]+=[([],['i32'])]
+  mod["funcs"]+=[{'type': len(mod["types"])-1, 'locals': [], 'body': [('i32.const', 4)]}]
+  mod["exports"]+=[{'name': 'get_num_max_cycles_chunks', 'desc': {'func': len(mod["funcs"])-1}}]
+  """
+  (func (;4;) (type 4) (result i32)
+    i32.const 4)
+  """
+  #print(mod["types"])
+  #print(mod["funcs"])
+  #print(mod["exports"])
 
-def parse_wasm_and_inject_and_generate(filename):
-  f = open(filename, 'rb')
-  wasm = memoryview(f.read())
-  f.close()
-  mod = spec_module(wasm)
+
+
+
+
+def tests(mod):
   #print_tree(mod)
   #print_sections(mod)
-  #print_tree(mod["funcs"])
-  inject_sparecycles_stuff(mod)
+  print_tree(mod["funcs"])
   #print_sections(mod)
-  spec_module_inv_to_file(mod,filename.split('.')[0]+"_metered.wasm")
+  #test metering injection to each func
+  for f in mod["funcs"]:
+    #print("\n")
+    #pretty_print(f["body"])
+    #print(f["body"])
+    #print_tree_expr(f["body"])
+    f["body"]=inject_metering_expr(f["body"],1000)
+    #print()
+    #print_tree_expr(f["body"])
+
+
+
+
+def parse_wasm_and_inject_and_generate(filename):
+  with open(filename, 'rb') as f:
+    wasm = memoryview(f.read())
+    mod = spec_module(wasm)
+    inject_metering_calls_to_each_function(mod)
+    #must inject above metering calls before injecting helper functions
+    inject_helper_functions(mod)
+    spec_module_inv_to_file(mod,filename.split('.')[0]+"_metered.wasm")
 
 
 if __name__ == "__main__":
   import sys
-  if len(sys.argv)==1:
+  if len(sys.argv)!=2:
     print("Argument should be <filename>.wasm")
   else:
     parse_wasm_and_inject_and_generate(sys.argv[1])

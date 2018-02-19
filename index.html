@@ -21,6 +21,8 @@ function init(){
 
 
 /*
+SOME FUNCTIONS TO HANDLE ARBITRARY PRECISION INTEGERS
+
 digitString is string of from {0,1,...,9}
   represent number, starting with most significant value
   should start with least significant value, then .reverse() before printing, but then awkward negative sign at end
@@ -28,7 +30,6 @@ digitString is string of from {0,1,...,9}
 i32Array is array of 32-bit integers
   represent number, starting with most significant value
 */
-
 
 //TODO: test this
 function digitString2ui32Array(mystr){
@@ -72,10 +73,12 @@ function ui32Array2digitString(arr){
   return result;
 }
 
+//TODO
 function sub_digitStrings(lhs,rhs){
   //assume lhs > rhs, both positive
 }
 
+//TODO
 function subtract_i32Arrays(lhs,rhs){
 }
 
@@ -165,26 +168,30 @@ function lessthan_digitStrings(lhs,rhs){
 
 
 
-
+/*
+TEST WEBASSEMBLY METERING
+*/
 
 function run_wasm_xhr_custom(){
   let filename = document.getElementById('input_wasm_filename').value;
   let funcname = document.getElementById('input_wasm_funcname').value;
   let arg = document.getElementById('input_wasm_arg').value;
-  var t0 = performance.now();
+  let max_cycles = document.getElementById('input_wasm_max_cycles').value
+  let t0 = performance.now();
   console.log("run_wasm_xhr("+filename+","+funcname+","+arg+")");
-  var xhr = new XMLHttpRequest();
+  document.getElementById("div_results").innerHTML = "";
+  let xhr = new XMLHttpRequest();
   xhr.open('GET', filename, true); //method, url, async
   xhr.responseType = 'arraybuffer';
   xhr.send();
   xhr.onload = function(){
     //prepare imports
-    var imports = {};
+    let imports = {};
     //create instance, and its callback
-    WebAssembly.instantiate(xhr.response, imports).then(results => {
+    WebAssembly.instantiate(xhr.response, imports).then(module => {
       //get number of ints needed to init max_cycles
-      var numCyclesChunks = results.instance.exports.get_num_max_cycles_chunks();
-      var arr = digitString2ui32Array(document.getElementById('input_wasm_max_cycles').value); //"1000000000000000");
+      let numCyclesChunks = module.instance.exports.get_num_max_cycles_chunks();
+      let arr = digitString2ui32Array(max_cycles);
       if(arr.length!=numCyclesChunks){
         if(arr.length<numCyclesChunks){
           for(let i=arr.length;i<=numCyclesChunks;i++)
@@ -197,41 +204,36 @@ function run_wasm_xhr_custom(){
       }
       //set max cycles into globals
       for(let i=0;i<=numCyclesChunks;i++)
-        results.instance.exports.set_max_cycles(i,arr[i]);
+        module.instance.exports.set_max_cycles(i,arr[i]);
       //EXECUTE
-      if (funcname=="fib"){
-        console.log(' output: ' + results.instance.exports[funcname](parseInt(arg)));
-      }
-      if (funcname=="fibi32i32"){
-        //first set arg as global
-        let argarr = digitString2ui32Array(arg);
-        if(argarr.length>2){
-          console.log("error: argument too big");
-          return 1;
-        }
-        if(argarr.length<2)
-          for(let i=argarr.length;i<2;i++)
-            argarr.push(0);
-        console.log(argarr);
-        //compute
-        results.instance.exports[funcname](argarr[0],argarr[1]);
-        //get output and print
-        let resultarr=[];
-        resultarr.push(results.instance.exports.get_result_64(0));
-        resultarr.push(results.instance.exports.get_result_64(1));
-        console.log(' output: ', resultarr, ui32Array2digitString(resultarr));
-      }
-      //get num cycles remaining
+      try {
+        let output = module.instance.exports[funcname](parseInt(arg));  //default is one arg, adjust here for different arguments
+      console.log(' output: ' + output);
+      document.getElementById("div_results").innerHTML += ' output: ' + output + "<br>";
+      //get num cycles remaining from module
       arr_after = []
-      for (var i=0;i<numCyclesChunks;i++) arr_after.push(results.instance.exports["get_max_cycles"](i)>>>0)
+      for (let i=0;i<numCyclesChunks;i++) arr_after.push(module.instance.exports["get_max_cycles"](i)>>>0)
       str_after = ui32Array2digitString(arr_after);
-      //str_before_minus_after = sub_digitStrings(arg,str_after);
-      //console.log("cycles_used:",str_before_minus_after)
       console.log("cycles_remaining:",str_after);
-      var t1 = performance.now();
-      console.log("runtime: " + (t1 - t0) + " millisecs.")
+      document.getElementById("div_results").innerHTML += "cycles remaining:"+ str_after+"<br>";
+      //compute num cycles used
+      //let num_cycles_used = sub_digitStrings(max_cycles,str_after);  // this function not implemented yet
+      //console.log("cycles used: " + num_cycles_used);  
+      //runtime
+      let t1 = performance.now();
+      console.log("runtime: " + (t1 - t0) + " millisecs.");
+      document.getElementById("div_results").innerHTML += "runtime:" + (t1 - t0).toFixed(2) + " millisecs.";
+      console.log(WebAssembly.RuntimeError.prototype.toString());
+      }
+      catch(err) {
+        document.getElementById("div_results").innerHTML += err;
+      }
     });
   }
+
+  //if (document.getElementById("div_results").innerHTML === "") {
+  //  document.getElementById("div_results").innerHTML = "LIMIT EXCEEDED!";
+  //}
 }
 
 
@@ -240,13 +242,15 @@ function run_wasm_xhr_custom(){
 </head>
 
 <body onload="init()">
-<div id="wasm_support"></div>
+<div id="wasm_support" align="center"></div>
+<div align="center">
   filename: <input type="text" size="20" id="input_wasm_filename" value="fibonacci_metered.wasm"><br>
   funcname: <input type="text" size="20" id="input_wasm_funcname" value="fib"><br>
-  arg(<2^32): <input type="text" size="20" id="input_wasm_arg" value="10"><br>
-  max_cycles(<2^128): <input type="text" size="20" id="input_wasm_max_cycles" value="1000"><br>
+  arg (<2^32): <input type="text" size="20" id="input_wasm_arg" value="10"><br>
+  max_cycles (<2^128): <input type="text" size="20" id="input_wasm_max_cycles" value="1000"><br>
   <input type="button" id="button_run_wasm_xhr_custom" onclick="run_wasm_xhr_custom();"  value="run filename.wasm funcname(arg)"/>
-
+</div>
+<div id="div_results" align="center"></div>
 
 </body>
 </html>

@@ -1243,15 +1243,14 @@ def print_sections(mod):
 
 
 def parse_wasm(filename):
-  f = open(filename, 'rb')
-  wasm = memoryview(f.read())
-  f.close()
-  mod = spec_module(wasm)
-  #print_tree(mod)
-  #print_sections(mod)
-  #print_tree(mod["funcs"])
-  #print_sections(mod)
-  spec_module_inv_to_file(mod,filename.split('.')[0]+"_generated.wasm") 
+  with open(filename, 'rb') as f:
+    wasm = memoryview(f.read())
+    mod = spec_module(wasm)
+    #print_tree(mod)
+    #print_sections(mod)
+    #print_tree(mod["funcs"])
+    #print_sections(mod)
+    spec_module_inv_to_file(mod,filename.split('.')[0]+"_generated.wasm") 
 
 
 
@@ -1260,7 +1259,7 @@ def parse_wasm(filename):
 
 if __name__ == "__main__":
   import sys
-  if len(sys.argv)==1:
+  if len(sys.argv)!=2:
     print("Argument should be <filename>.wasm")
   else:
     parse_wasm(sys.argv[1])
