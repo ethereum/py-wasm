@@ -20,7 +20,7 @@ TODO:
 differences from spec:
  - when some syntax is eg importdesc,exportdesc,externval,extertype,...  eg  func functype  I make it into dictionary {"func":functype}  NO, I AM CHANGING THIS
  - instead of calling eg  func(), I use a list comprehension to choose all that have "func"
- - instead of holding types and values in the stack eg i32.const 5, I just hold value 5
+ - instead of holding types and values in the stack eg i32.const 5, I just hold value 5. This is everywhere including locals, globals, value stack. So may not be able to get type just from store.
  - store is modified in each call, ie old copy is modified
 """
 
@@ -86,7 +86,7 @@ def spec_expon_inv(expon):
 # 3.4.10 MODULE
 
 def spec_validate_module(mod):
-  if verbose>=1: print("spec_validate_module(",mod,")")
+  if verbose>=1: print("spec_validate_module(",")")
   #print(mod["imports"])
   #print(mod["imports"])
   #this is incomplete, just has enough for spec_instantiate()
@@ -99,7 +99,7 @@ def spec_validate_module(mod):
   etstar = []
   for export in mod["exports"]:
     if export["desc"][0] == "func":
-      etstar.append( ["func",mod["types"][export["desc"][1]]] )
+      etstar.append( mod["types"][ mod["funcs"][export["desc"][1]]["type"] ])
     elif export["desc"][0] == "table":
       etstar.append( ["table",mod["tables"][export["desc"][1]]["type"]] )
     elif export["desc"][0] == "mem":
@@ -223,6 +223,15 @@ def spec_bytest(t,i):
   else:
     return None
 
+def spec_bytest_inv(t,i):
+  if verbose>=1: print("spec_bytest_inv(",t,i,")")
+  if t[0]=='i':
+    return spec_bytesiN_inv(int(t[1:3]),i)
+  elif t[0]=='f':
+    return spec_bytesfN_inv(int(t[1:3]),i)
+  else:
+    return None
+
 def spec_bytesiN(N,i):
   if verbose>=1: print("spec_bytesiN(",N,i,")")
   bits = spec_littleendian(spec_bitsiN(N,i))
@@ -235,7 +244,7 @@ def spec_bytesiN(N,i):
 def spec_bytesiN_inv(N,bytes_):
   if verbose>=1: print("spec_bytesiN_inv(",N,bytes_,")")
   bits=""
-  for byte in range(len(bytes_)):
+  for byte in bytes_:
     bits += spec_ibitsN(8,byte)
   return spec_ibitsN_inv(N,bits)
 
@@ -732,7 +741,8 @@ def spec_get_local(config):
   S = config["S"]
   F = config["F"]
   x = config["instrstar"][config["idx"]][1]
-  val = F["locals"][x]
+  #print(F)
+  val = F[-1]["locals"][x]
   config["operand_stack"].append(val)
   config["idx"] += 1
 
@@ -742,13 +752,12 @@ def spec_set_local(config):
   F = config["F"]
   x = config["instrstar"][config["idx"]][1]
   val = config["operand_stack"].pop()
-  F["locals"][x] = val
+  F[-1]["locals"][x] = val
   config["idx"] += 1
 
 def spec_tee_local(config):
   if verbose>=1: print("spec_tee_local(",")")
   S = config["S"]
-  F = config["F"]
   x = config["instrstar"][config["idx"]][1]
   operand_stack = config["operand_stack"]
   val = operand_stack.pop()
@@ -762,7 +771,7 @@ def spec_get_global(config):
   S = config["S"]
   F = config["F"]
   x = config["instrstar"][config["idx"]][1]
-  a = F["module"]["globaladdrs"][x]
+  a = F[-1]["module"]["globaladdrs"][x]
   glob = S["globals"][a]
   val = glob["value"]
   config["operand_stack"].append(val)
@@ -773,7 +782,7 @@ def spec_set_global(config):
   S = config["S"]
   F = config["F"]
   x = config["instrstar"][config["idx"]][1]
-  a = F["module"]["globaladdrs"][x]
+  a = F[-1]["module"]["globaladdrs"][x]
   glob = S["globals"][a]
   val = config["operand_stack"].pop()
   glob["value"] = val
@@ -788,8 +797,10 @@ def spec_tload(config):
   if verbose>=1: print("spec_tload(",")")
   S = config["S"]
   F = config["F"]
-  instr = config["instrstar"]["idx"][1]
-  memarg = config["instrstar"]["idx"][1]
+  instr = config["instrstar"][config["idx"]][0]
+  memarg = config["instrstar"][config["idx"]][1]
+  print(instr)
+  print(memarg)
   t = instr[:3]
   sxflag = False
   if instr[3:] != ".load":  # eg i32.load8_s
@@ -798,21 +809,28 @@ def spec_tload(config):
     N=int(instr[8:9].strip("_"))
   else:
     N=int(t[1:])
-  a = F["module"]["memaddrs"][0]
+  print(N)
+  print(sxflag)
+  a = F[-1]["module"]["memaddrs"][0]
   mem = S["mems"][a]
   i = config["operand_stack"].pop()
+  #print(type(i))
+  #print(type(memarg["offset"]))
   ea = i+memarg["offset"] 
   if N==None:
     sxflag = False
     N = int(t[1:])
   if ea+N//8 > len(mem["data"]):
     return "trap"
+  print(ea,ea+N//8)
   bstar = mem["data"][ea:ea+N//8]
+  print(bstar)
   if sxflag:
     n = spec_bytesiN_inv(N,bstar)
     c = spec_extend_sMN(N,int(N),i)
   else:
     c = spec_bytest_inv(t,bstar)
+  print("c: ",c)
   config["operand_stack"].append(c)
   config["idx"] += 1
 
@@ -828,7 +846,7 @@ def spec_tstore(config):
     N=int(instr[10:])
   else:
     N=int(t[1:])
-  a = F["module"]["memaddrs"][0]
+  a = F[-1]["module"]["memaddrs"][0]
   mem = S["mems"][a]
   c = config["operand_stack"].pop()
   i = config["operand_stack"].pop()
@@ -847,7 +865,7 @@ def spec_memorysize(config):
   if verbose>=1: print("spec_memorysize(",")")
   S = config["S"]
   F = config["F"]
-  a = F["module"]["memaddrs"][0]
+  a = F[-1]["module"]["memaddrs"][0]
   mem = S["mems"][a]
   sz = len(mem["data"])//65536  #page size = 64 Ki = 65536
   config["operand_stack"].append(sz)
@@ -857,7 +875,7 @@ def spec_memorygrow(config):
   if verbose>=1: print("spec_memorygrow(",")")
   S = config["S"]
   F = config["F"]
-  a = F["module"]["memaddrs"][0]
+  a = F[-1]["module"]["memaddrs"][0]
   mem = S["mems"][a]
   sz = len(mem["data"])//65536  #page size = 64 Ki = 65536
   n = config["operand_stack"].pop()
@@ -955,7 +973,7 @@ def spec_br(config, l = None):
   control_stack = config["control_stack"]
   if l == None:
     l = config["instrstar"][config["idx"]][1]
-  print("l=",l)
+  #print("l=",l)
   L = control_stack[-1*(l+1)]
   n = L["arity"]
   valn = operand_stack[-1*n:]
@@ -963,9 +981,9 @@ def spec_br(config, l = None):
   operand_stack += valn
   #control_stack is more complicated since loop end
   if "loop_flag" in L: #loop, special end, don't delete it
-    print("it is a loop")
+    #print("it is a loop")
     if l>0:
-      print("deleting stack from ",-1*l)
+      #print("deleting stack from ",-1*l)
       del control_stack[-1*l:]
     config["instrstar"],config["idx"] = L["continuation"]
     config["idx"] = 0
@@ -995,8 +1013,8 @@ def spec_return(config):
   if verbose>=1: print("spec_return(",")")
   operand_stack = config["operand_stack"]
   F = config["F"]
-  n = F["arity"]
-  height = f["height"]
+  n = F[-1]["arity"]
+  height = F[-1]["height"]
   valn = operand_stack[-1*n:]
   operand_stack = operand_stack[:height]
   operand_stack += valn
@@ -1006,20 +1024,21 @@ def spec_return(config):
 def spec_call(config):
   if verbose>=1: print("spec_call(",")")
   F = config["F"]
-  instr = config["instrstar"][F["idx"]]
+  S = config["S"]
+  instr = config["instrstar"][S["idx"]]
   operand_stack = config["operand_stack"]
   x = instr[1]
-  a = F["module"]["funcadders"][x]
+  a = F[-1]["module"]["funcadders"][x]
   spec_invokeopcode(S,operand_stack,a)
   config["idx"] += 1
 
 def spec_call_indirect(config):
   S = config["S"]
   F = config["F"]
-  ta = F["module"]["tableaddrs"][0]
+  ta = F[-1]["module"]["tableaddrs"][0]
   tab = S["tables"][ta]
   x = S["instrstar"][S["idx"]][1]
-  ftexpect = F["module"]["types"][x]
+  ftexpect = F[-1]["module"]["types"][x]
   i = S["operand_stack"].pop()
   if len(tab["elem"])<=x:
     return "trap"
@@ -1046,6 +1065,7 @@ def spec_invokeopcode(config, a=None):
   if verbose>=1: print("spec_invokeopcode(",")")
   # a is optional address
   S = config["S"]
+  F = config["F"]
   operand_stack  = config["operand_stack"]
   if a==None:
     a = config["instrstar"][config["idx"]][1] #immediate
@@ -1056,12 +1076,13 @@ def spec_invokeopcode(config, a=None):
   valn = operand_stack[-1*len(t1n):]
   del operand_stack[-1*len(t1n):]
   val0star = [0]*len(tstar)
-  F = { "module": f["module"], "locals": valn+val0star }
+  F += [{ "module": f["module"], "locals": valn+val0star, "arity":len(t2m), "height":len(operand_stack) }]
   arity = len(t2m)
   config_new = {"S":S,"F":F,"instrstar":instrstarend,"idx":0,"operand_stack":[],"control_stack":[]}
   #frame_stack += [{"frame":F, "arity":arity}] #an activation is really frame_n {frame} where n is arity
   spec_expr(config_new)
   operand_stack += config_new["operand_stack"]
+  F.pop()
   return operand_stack
 
 
@@ -1258,7 +1279,7 @@ opcode2exec = {
 
 global_count = 0
 
-# this executes instr* end. It deviates from the spec.
+# this executes instr* end. This deviates from the spec.
 def spec_expr(config):
   if verbose>=1: print("spec_expr(",")")
   S = config["S"]
@@ -1268,15 +1289,15 @@ def spec_expr(config):
   #iterate over list of instructions and nested lists of instructions
   instrstar = config["instrstar"]
   idx = config["idx"]
-  print(instrstar)
+  #print(instrstar)
   while 1:
     instr = config["instrstar"][config["idx"]][0]  # idx<len(instrs) since instrstar[-1]=="end" which changes instrstar
     immediate = "" if len(config["instrstar"][config["idx"]])==1 else config["instrstar"][config["idx"]][1]
     global global_count
     global_count+=1
-    print(global_count,config["idx"])
-    print(config["instrstar"])
-    print(instr,immediate)
+    #print(global_count,config["idx"])
+    #print(config["instrstar"])
+    #print(instr,immediate)
     if instr == "end":
       if control_stack:
         L = control_stack.pop()
@@ -1286,10 +1307,10 @@ def spec_expr(config):
     else:
       ret = opcode2exec[instr][0](config)
       if ret in {"fail","return","trap"}: return ret
-    print("locals",F["locals"])
-    print("operand_stack",config["operand_stack"])
-    print("control_stack",len(config["control_stack"]),config["control_stack"])
-    print()
+    #print("locals",F[-1]["locals"])
+    #print("operand_stack",config["operand_stack"])
+    #print("control_stack",len(config["control_stack"]),config["control_stack"])
+    #print()
     #print("control_stack",config["control_stack"])
 
 
@@ -1479,7 +1500,7 @@ def spec_instantiate(S,module,externvaln):
   # 5
   valstar = []
   moduleinstim = {"globaladdrs":[externval[1] for externval in externvaln if "gloabls"==exterval[0]]}
-  Fim = {"module":moduleinstim, "locals":[]}
+  Fim = {"module":moduleinstim, "locals":[], "arity":1, "height":0}
   framestack = []
   framestack += [Fim]
   for globali in module["globals"]:
@@ -1489,14 +1510,15 @@ def spec_instantiate(S,module,externvaln):
   # 6
   S,moduleinst = spec_allocmodule(S,module,externvaln,valstar)
   # 7
-  F={"module":moduleinst, "locals":[]}
+  F={"module":moduleinst, "locals":[], "arity":1, "height":0}
   # 8
   framestack += [F]
   # 9
   tableinst = []
   eo = []
   for elemi in module["elem"]:
-    eovali = spec_evaluate_expr(framestack,elemi["offset"])
+    config = {"S":S,"F":framestack,"instrstar":elemi["offset"],"idx":0,"operand_stack":[],"control_stack":[]}
+    eovali = spec_expr(config)[0]
     eoi = eovali
     eo+=[eoi]
     tableidxi = elemi["table"]
@@ -1509,7 +1531,8 @@ def spec_instantiate(S,module,externvaln):
   meminst = []
   do = []
   for datai in module["data"]:
-    dovali = spec_evaluate_expr(framestack,datai["offset"])
+    config = {"S":S,"F":framestack,"instrstar":datai["offset"],"idx":0,"operand_stack":[],"control_stack":[]}
+    dovali = spec_expr(config)[0]
     doi = dovali
     do+=[doi]
     memidxi = datai["data"]
@@ -1529,7 +1552,7 @@ def spec_instantiate(S,module,externvaln):
   # 14
   for i,datai in enumerate(module["data"]):
     for j,bij in enumerate(datai["init"]):
-      meminst[i][do[i]+j] = bij
+      meminst[i]["data"][do[i]+j] = bij
   # 15
   ret = None
   if module["start"]:
@@ -1558,8 +1581,14 @@ def spec_invoke(S,funcaddr,valn):
     if vali[0][:3]!=ti: return -1
   # 6
   operand_stack = []
-  for val in valn:
-    operand_stack += [val[1]]
+  for ti,vali in zip(t1n,valn):
+    #print(ti,vali,type(vali[1]))
+    arg=vali[1]
+    if type(arg)==str:
+      if ti[0]=="i": arg = int(arg)
+      if ti[0]=="f": arg = float(arg)
+    #print(type(arg))
+    operand_stack += [arg]
   # 7
   config = {"S":S,"F":[],"instrstar":funcinst["code"]["body"],"idx":0,"operand_stack":operand_stack,"control_stack":[]}
   valresm = spec_invokeopcode(config,funcaddr)
@@ -2747,29 +2776,180 @@ def parse_module(codepointstar):
   return -1
 
 def validate_module(module):
-  mod = spec_validate_module(module)
-  return mod
+  ret = spec_validate_module(module)
+  if ret == -1: return "error"
+  return None
 
-def instantiate_module(module):
-  S,F,ret = spec_instantiate(S,mod,externvaln)
-  modinst = F["module"]
-  if S and modinst:
-    return S, modinst
-  else
-    return -1
+def instantiate_module(store,module,externvalstar):
+  store,F,ret = spec_instantiate(store,module,externvalstar)
+  modinst = store["funcs"][0]["module"] #TODO: this will fail if first func is host func, or no funcs
+  if store and modinst:
+    return store, modinst
+  else:
+    return store,"error"
 
 def module_imports(module):
-  pass
+  externtypestar, extertypeprimestar = spec_validate_module(mod)
+  importstar = module["imports"]
+  if len(importstar) != len(externtypestar): return "error"
+  result = []
+  for i in range(len(importstar)):
+    importi = importstar[i]
+    externtypei = externtypestar[i]
+    resutli = [immporti["module"],importi["name"],externtypei] 
+    result += resulti
+  return result
 
- 
+def module_exports(module):
+  externtypestar, extertypeprimestar = spec_validate_module(mod)
+  exportstar = module["exports"]
+  if len(exportstar) != len(externtypeprimestar): return "error"
+  result = []
+  for i in range(len(importstar)):
+    exporti = exportstar[i]
+    externtypeprimei = externtypeprimestar[i]
+    resutli = [exporti["name"],externtypeprimei] 
+    result += resulti
+  return result
 
 
+# 7.1.3 EXPORTS
 
+def get_export(moduleinst, name):
+  # assume valid so all export names are unique
+  for exportinsti in moduleinst["exports"]:
+    if name == exportinsti["name"]:
+      return exportinsti["value"]
+  return "error"
 
+# 7.1.4 FUNCTIONS
 
+def alloc_func(store, functype, hostfunc):
+  store, funcaddr = spec_allochostfunc(store,functype,hostfunc)
+  return store, funcaddr
 
+def type_func(store,funcaddr):
+  if len(store["funcs"]) <= funcaddr: return "error"
+  functype = store["funcs"][funcaddr]
+  return functype
 
+def invoke_func(store,funcaddr,valstar):
+  ret = spec_invoke(store,funcaddr,valstar)
+  return store,ret
+  
+# 7.1.4 TABLES
 
+def alloc_table(store, tabletype):
+  store,tableaddr = spec_alloctable(store,tabletype)
+  return store,tableaddr
+
+def type_table(store,tableaddr):
+  if len(store["tables"]) <= tableaddr: return "error"
+  tableinst = store["tables"][tableaddr]
+  max_ = tableinst["max"]
+  min_ = len(tableinst["elem"]) #TODO: is this min OK? no other way to get min
+  tabletype = [{"min":min_, "max":max_}, "anyfunc"]
+  return tabletype
+
+def read_table(store,tableaddr,i):
+  if len(store["tables"]) < tableaddr: return "error"
+  if type(i)!=int or i < 0: return "error"
+  ti = store["tables"][tableaddr]
+  if i >= len(ti["elem"]): return "error"
+  return ti["elem"][i]
+
+def write_table(store,tableaddr,i,funcaddr):
+  if len(store["tables"]) <= tableaddr: return "error"
+  if type(i)!=int or i < 0: return "error"
+  ti = store["tables"][tableaddr]
+  if i >= len(ti["elem"]): return "error"
+  ti["elem"][i] = funcaddr
+  return store
+
+def size_table(store, tableaddr):
+  if len(store["tables"]) <= tableaddr: return "error"
+  return len(store["tables"][tableaddr]["elem"])
+
+def grow_table(store, tableaddr, n):
+  if len(store["tables"]) <= tableaddr: return "error"
+  if type(n)!=int or n < 0: return -1
+  store["tables"][tableaddr]["elem"] += [{"elem":[], "max":None} for i in range(n)]  # see spec \S 4.2.7 Table Instances for discussion on uninitialized table elements.
+  return store
+
+# 7.1.6 MEMORIES
+
+def alloc_mem(store, memtype):
+  store, memaddr = allocmem(store,memtype)
+  return store, memaddr
+
+def type_mem(store, memaddr):
+  if len(store["mems"]) <= memaddr: return "error"
+  meminst = store["mems"][memaddr]
+  max_ = meminst["max"]
+  min_ = len(meminst["data"])//65536  #page size = 64 Ki = 65536 #TODO: is this min OK? no other way to get min
+
+def read_mem(store, memaddr, i):
+  if len(store["mems"]) <= memaddr: return "error"
+  if type(i)!=int or i < 0: return "error"
+  mi = store["mems"][memaddr]
+  if i >= len(mi["data"]): return "error"
+  return mi["data"][i]
+
+def write_mem(store,memaddr,i,byte):
+  if len(store["mems"]) <= memaddr: return "error"
+  if type(i)!=int or i < 0: return "error"
+  mi = store["mems"][memaddr]
+  if i >= len(mi["data"]): return "error"
+  mi["data"][i] = byte
+  return store
+
+def size_mem(store,memaddr):
+  if len(store["mems"]) <= memaddr: return "error"
+  return len(store["mems"][memaddr])//65536  #page size = 64 Ki = 65536
+
+def grow_mem(store,memaddr,n):
+  if len(store["mems"]) <= memaddr: return "error"
+  if type(n)!=int or n < 0: return "error"
+  ret = spec_growmem(store["mems"][a],n)
+  if ret==-1: return "error"
+  return store
+
+# 7.1.7 GLOBALS
+  
+def alloc_global(store,globaltype,val):
+  store,globaladdr = spec_allocglobal(store,globaltype,val)
+  return store,globaladdr
+
+def type_global(store, globaladdr):
+  if len(store["globals"]) <= globaladdr: return "error"
+  globalinst = store["globals"][globaladdr]
+  mut = globalinst["mut"]
+  valtype = None # TODO: I don't store eg i32.const, just the value
+  return [mut, valtype]
+
+def read_global(store, globaladdr):
+  if len(store["globals"]) <= globaladdr: return "error"
+  gi = store["globals"][globaladdr]
+  return gi["value"]
+  
+def write_global(store,globaladdr,val):
+  if len(store["globals"]) <= globaladdr: return "error"
+  gi = store["globals"][globaladdr]
+  if gi["mut"] != "var": return "error"
+  gi["value"] = val
+  return store
+  
+  
+  
+  
+  
+
+  
+  
+
+  
+  
+  
 
 
 
