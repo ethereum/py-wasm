@@ -26,7 +26,7 @@ differences from spec:
 
 
 
-verbose = 1
+verbose = 0
 
 
 ###############
@@ -173,9 +173,10 @@ def spec_ibitsN(N,i):
   if verbose>=1: print("spec_ibitsN(",N,i,")")
   return bin(i)[2:].zfill(N)
 
-def spec_ibitsN_inv(N,i):
-  if verbose>=1: print("spec_ibitsN_inv(",N,i,")")
-  return int(i,2)
+def spec_ibitsN_inv(N,bits):
+  if verbose>=1: print("spec_ibitsN_inv(",N,bits,")")
+  #print(i)
+  return int(bits,2)
 
 
 # Floating-Point
@@ -234,7 +235,8 @@ def spec_bytest_inv(t,i):
 
 def spec_bytesiN(N,i):
   if verbose>=1: print("spec_bytesiN(",N,i,")")
-  bits = spec_littleendian(spec_bitsiN(N,i))
+  #bits = spec_littleendian(spec_bitsiN(N,i))
+  bits = spec_bitsiN(N,i)
   #convert bits to bytes
   bytes_ = bytearray()
   for byteIdx in range(0,len(bits),8):
@@ -246,6 +248,7 @@ def spec_bytesiN_inv(N,bytes_):
   bits=""
   for byte in bytes_:
     bits += spec_ibitsN(8,byte)
+  #bits = spec_littleendian(bits)
   return spec_ibitsN_inv(N,bits)
 
 def spec_bytesfN(N,z):
@@ -262,7 +265,7 @@ def spec_bytesfN_inv(N,d):
 def spec_littleendian(d):
   if verbose>=1: print("spec_littleendian(",d,")")
   #same behavior for both 32 and 64-bit values
-  if len(d)==0: ''
+  if len(d)==0: return ''
   d18 = d[:8]
   d2Nm8 = d[8:]
   return d18 + spec_littleendian(d2Nm8)
@@ -307,7 +310,7 @@ def spec_signed_iN_inv(N,i):
     return None
 
 def spec_iaddN(N,i1,i2):
-  if verbose>=1: print("spec_iadN(",N,i1,i2,")")
+  if verbose>=1: print("spec_iaddN(",N,i1,i2,")")
   return (i1+i2) % 2**N
 
 def spec_isubN(N,i1,i2):
@@ -393,7 +396,7 @@ def spec_irotrN(N,i1,i2):
 def spec_iclzN(N,i):
   if verbose>=1: print("spec_iclzN(",N,i,")")
   k = 0
-  for b in ibitsN(N,i):
+  for b in spec_ibitsN(N,i):
     if b=='0':
       k+=1
     else:
@@ -403,7 +406,7 @@ def spec_iclzN(N,i):
 def spec_ictzN(N,i):
   if verbose>=1: print("spec_ictzN(",N,i,")")
   k = 0
-  for b in reversed(ibitsN(N,i)):
+  for b in reversed(spec_ibitsN(N,i)):
     if b=='0':
       k+=1
     else:
@@ -413,7 +416,7 @@ def spec_ictzN(N,i):
 def spec_ipopcntN(N,i):
   if verbose>=1: print("spec_ipopcntN(",N,i,")")
   k = 0
-  for b in ibitsN(N,i):
+  for b in spec_ibitsN(N,i):
     if b=='1':
       k+=1
   return k
@@ -506,69 +509,78 @@ def spec_ige_sN(N,i1,i2):
 
 # 4.3.3 FLOATING-POINT OPERATIONS
 
-#TODO
 
+def spec_fabsN(N,z):
+  if z<0:
+    return -1*z
+  else:
+    return z
 
-def spec_fabsN():
-  pass
+def spec_fnegN(N,z):
+  return -1*z
 
-def spec_fnegN():
-  pass
+def spec_fceilN(N,z):
+  #TODO
+  return z
 
-def spec_fceilN():
-  pass
+def spec_ffloorN(N,z):
+  #TODO
+  return z
 
-def spec_ffloorN():
-  pass
+def spec_ftruncN(N,z):
+  #TODO
+  return z
 
-def spec_ftruncN():
-  pass
+def spec_fnearestN(N,z):
+  #TODO
+  return z
 
-def spec_fnearestN():
-  pass
+def spec_fsqrtN(N,z):
+  return z
 
-def spec_fsqrtN():
-  pass
+def spec_faddN(N,z1,z2):
+  return z1+z2
 
-def spec_faddN():
-  pass
+def spec_fsubN(N,z1,z2):
+  return z1-z2
 
-def spec_fsubN():
-  pass
+def spec_fmulN(N,z1,z2):
+  return z1*z2
 
-def spec_fmulN():
-  pass
+def spec_fdivN(N,z1,z2):
+  return z1/z2
 
-def spec_fdivN():
-  pass
+def spec_fminN(N,z1,z2):
+  if z1 < z2: return z1
+  else: return z2
 
-def spec_fminN():
-  pass
+def spec_fmaxN(N,z1,z2):
+  if z1 > z2: return z1
+  else: return z2
 
-def spec_fmaxN():
-  pass
+def spec_fcopysignN(N,z1,z2):
+  if (z1>0 and z2>0) or (z1<=0 and z2<=0):
+    return z1
+  else:
+    return -1*z1
 
-def spec_fcopysignN():
-  pass
+def spec_feqN(N,z1,z2):
+  return z1==z2
 
+def spec_fneN(N,z1,z2):
+  return z1 != z2
 
-def spec_feqN():
-  pass
+def spec_fltN(N,z1,z2):
+  return z1 < z2
 
-def spec_fneN():
-  pass
+def spec_fgtN(N,z1,z2):
+  return z1 > z2
 
-def spec_fltN():
-  pass
+def spec_fleN(N,z1,z2):
+  return z1 <= z2
 
-def spec_fgtN():
-  pass
-
-def spec_fleN():
-  pass
-
-def spec_fgeN():
-  pass
+def spec_fgeN(N,z1,z2):
+  return z1 >= z2
 
 
 
@@ -799,18 +811,18 @@ def spec_tload(config):
   F = config["F"]
   instr = config["instrstar"][config["idx"]][0]
   memarg = config["instrstar"][config["idx"]][1]
-  print(instr)
-  print(memarg)
+  #print(instr)
+  #print(memarg)
   t = instr[:3]
   sxflag = False
   if instr[3:] != ".load":  # eg i32.load8_s
     if instr[-1] == "s":
       sxflag = True
-    N=int(instr[8:9].strip("_"))
+    N=int(instr[8:10].strip("_"))
   else:
     N=int(t[1:])
-  print(N)
-  print(sxflag)
+  #print(N)
+  #print(sxflag)
   a = F[-1]["module"]["memaddrs"][0]
   mem = S["mems"][a]
   i = config["operand_stack"].pop()
@@ -822,15 +834,25 @@ def spec_tload(config):
     N = int(t[1:])
   if ea+N//8 > len(mem["data"]):
     return "trap"
-  print(ea,ea+N//8)
+  #print(ea,ea+N//8)
   bstar = mem["data"][ea:ea+N//8]
-  print(bstar)
+  bstar = reversed(bstar) # since little endian
+  #bitstring=""
+  #for by in bstar:
+  #  bitstring += bin(by)[2:].rjust(8, '0')
+  #print(bitstring)
+  #bitstring = spec_littleendian(bitstring)
+  #print(bitstring)
+  #bstar = bytearray()
+  #for i in range(len(bitstring)//8):
+  #  bstar += bytearray([int(bitstring[i*8:i*8+8],2)])
+  #print(bstar)
   if sxflag:
     n = spec_bytesiN_inv(N,bstar)
     c = spec_extend_sMN(N,int(N),i)
   else:
     c = spec_bytest_inv(t,bstar)
-  print("c: ",c)
+  #print("c: ",c)
   config["operand_stack"].append(c)
   config["idx"] += 1
 
@@ -973,17 +995,23 @@ def spec_br(config, l = None):
   control_stack = config["control_stack"]
   if l == None:
     l = config["instrstar"][config["idx"]][1]
+  #print(config["instrstar"][config["idx"]][0])
+  #print(config["instrstar"][config["idx"]][1])
   #print("l=",l)
+  print(l)
+  print(control_stack)
   L = control_stack[-1*(l+1)]
   n = L["arity"]
-  valn = operand_stack[-1*n:]
+  valn = []
+  if n>0:
+    valn = operand_stack[-1*n:]
   del operand_stack[ L["height"]: ]
   operand_stack += valn
   #control_stack is more complicated since loop end
   if "loop_flag" in L: #loop, special end, don't delete it
     #print("it is a loop")
     if l>0:
-      #print("deleting stack from ",-1*l)
+      print("deleting stack from ",-1*l)
       del control_stack[-1*l:]
     config["instrstar"],config["idx"] = L["continuation"]
     config["idx"] = 0
@@ -999,9 +1027,10 @@ def spec_br_if(config):
 
 def spec_br_table(config):
   if verbose>=1: print("spec_br_table(",")")
-  lstar = config["instrstar"][1]
-  lN = config["instrstar"][2]
+  lstar = config["instrstar"][config["idx"]][1]
+  lN = config["instrstar"][config["idx"]][2]
   i = config["operand_stack"].pop()
+  #print(lstar,lN)
   if i < len(lstar):
     li = lstar[i]
     spec_br(config,li)
@@ -1025,11 +1054,11 @@ def spec_call(config):
   if verbose>=1: print("spec_call(",")")
   F = config["F"]
   S = config["S"]
-  instr = config["instrstar"][S["idx"]]
+  instr = config["instrstar"][config["idx"]]
   operand_stack = config["operand_stack"]
   x = instr[1]
-  a = F[-1]["module"]["funcadders"][x]
-  spec_invokeopcode(S,operand_stack,a)
+  a = F[-1]["module"]["funcaddrs"][x]
+  spec_invokeopcode(config,a)
   config["idx"] += 1
 
 def spec_call_indirect(config):
@@ -1049,7 +1078,7 @@ def spec_call_indirect(config):
   ftactual = f["type"]
   if ftexpect != ftactual:
     return "trap"
-  spec_invokeopcode(config,a=a)
+  spec_invokeopcode(config,a)
   config["idx"] += 1
 
 
@@ -1066,7 +1095,10 @@ def spec_invokeopcode(config, a=None):
   # a is optional address
   S = config["S"]
   F = config["F"]
+  instrstar = config["instrstar"]
+  idx = config["idx"]
   operand_stack  = config["operand_stack"]
+  #print("operand_stack before:",operand_stack)
   if a==None:
     a = config["instrstar"][config["idx"]][1] #immediate
   f = S["funcs"][a]
@@ -1074,14 +1106,18 @@ def spec_invokeopcode(config, a=None):
   tstar = f["code"]["locals"]
   instrstarend = f["code"]["body"]
   valn = operand_stack[-1*len(t1n):]
-  del operand_stack[-1*len(t1n):]
+  if len(t1n)>0:
+    del operand_stack[-1*len(t1n):]
+  #print("operand_stack before:",operand_stack)
   val0star = [0]*len(tstar)
-  F += [{ "module": f["module"], "locals": valn+val0star, "arity":len(t2m), "height":len(operand_stack) }]
+  F += [{ "module": f["module"], "locals": valn+val0star, "arity":len(t2m), "height":len(operand_stack), "continuation":[instrstar, idx] }]
   arity = len(t2m)
   config_new = {"S":S,"F":F,"instrstar":instrstarend,"idx":0,"operand_stack":[],"control_stack":[]}
   #frame_stack += [{"frame":F, "arity":arity}] #an activation is really frame_n {frame} where n is arity
   spec_expr(config_new)
   operand_stack += config_new["operand_stack"]
+  #print("operand_stack after:",operand_stack)
+  config["instrstar"], config["idx"] = F[-1]["continuation"]
   F.pop()
   return operand_stack
 
@@ -1289,6 +1325,7 @@ def spec_expr(config):
   #iterate over list of instructions and nested lists of instructions
   instrstar = config["instrstar"]
   idx = config["idx"]
+  if len(instrstar)==0: return operand_stack
   #print(instrstar)
   while 1:
     instr = config["instrstar"][config["idx"]][0]  # idx<len(instrs) since instrstar[-1]=="end" which changes instrstar
@@ -1308,10 +1345,10 @@ def spec_expr(config):
       ret = opcode2exec[instr][0](config)
       if ret in {"fail","return","trap"}: return ret
     #print("locals",F[-1]["locals"])
-    #print("operand_stack",config["operand_stack"])
+    if verbose >= 2: print("operand_stack",config["operand_stack"])
     #print("control_stack",len(config["control_stack"]),config["control_stack"])
     #print()
-    #print("control_stack",config["control_stack"])
+    if verbose >= 2: print("control_stack",config["control_stack"])
 
 
 #############
@@ -1510,7 +1547,7 @@ def spec_instantiate(S,module,externvaln):
   # 6
   S,moduleinst = spec_allocmodule(S,module,externvaln,valstar)
   # 7
-  F={"module":moduleinst, "locals":[], "arity":1, "height":0}
+  F={"module":moduleinst, "locals":[]} #, "arity":1, "height":0}
   # 8
   framestack += [F]
   # 9
@@ -2782,7 +2819,7 @@ def validate_module(module):
 
 def instantiate_module(store,module,externvalstar):
   store,F,ret = spec_instantiate(store,module,externvalstar)
-  modinst = store["funcs"][0]["module"] #TODO: this will fail if first func is host func, or no funcs
+  modinst = F["module"] #store["funcs"][0]["module"] #TODO: this will fail if first func is host func, or no funcs
   if store and modinst:
     return store, modinst
   else:
