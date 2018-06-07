@@ -3,7 +3,7 @@
 import sys
 sys.path.append('..')
 
-from pyWebAssembly import *
+from pywebassembly import *
 
 
 
