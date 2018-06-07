@@ -195,23 +195,23 @@ def test_opcode_register(test,store,modules,registered_modules,moduleinst):
 #assertion opcodes  `assert_<blah>`
 
 def test_opcode_assertion(test,store,modules,registered_modules,moduleinst):
-  if "filename" in test and test["type"]=="assert_return": #second part temporary
+  if "filename" in test and test["type"] in {"assert_return","assert_trap"}: #second part temporary
     store,moduleinst = test_opcode_module(test,store,modules,registered_modules)
   ret = None
   if test["type"] == "assert_return":
     ret = test_opcode_assert_return(test,store,modules,registered_modules,moduleinst)
   elif test["type"] == "assert_return_canonical_nan":
-    ret = test_opcode_assert_return_canonical_nan()
+    ret = test_opcode_assert_return_canonical_nan(test,store,modules,registered_modules,moduleinst)
   elif test["type"] == "assert_return_arithmetic_nan":
-    ret = test_opcode_assert_return_arithmetic_nan()
+    ret = test_opcode_assert_return_arithmetic_nan(test,store,modules,registered_modules,moduleinst)
   elif test["type"] == "assert_trap":
-    ret = test_opcode_assert_trap()
+    ret = test_opcode_assert_trap(test,store,modules,registered_modules,moduleinst)
   elif test["type"] == "assert_malformed":
-    ret = test_opcode_assert_malformed()
+    ret = test_opcode_assert_malformed(test,store,modules,registered_modules,moduleinst)
   elif test["type"] == "assert_invalid":
-    ret = test_opcode_assert_invalid()
+    ret = test_opcode_assert_invalid(test,store,modules,registered_modules,moduleinst)
   elif test["type"] == "assert_unlinkable":
-    ret = test_opcode_assert_unlinkable()
+    ret = test_opcode_assert_unlinkable(test,store,modules,registered_modules,moduleinst)
   return ret
 
 def test_opcode_assert_return(test,store,modules,registered_modules,moduleinst):
@@ -234,22 +234,31 @@ def test_opcode_assert_return(test,store,modules,registered_modules,moduleinst):
       return "failure"
   return "success"
 
-def test_opcode_assert_return_canonical_nan():
+def test_opcode_assert_return_canonical_nan(test,store,modules,registered_modules,moduleinst):
   return "failure"
 
-def test_opcode_assert_return_arithmetic_nan():
+def test_opcode_assert_return_arithmetic_nan(test,store,modules,registered_modules,moduleinst):
   return "failure"
 
-def test_opcode_assert_trap():
+def test_opcode_assert_trap(test,store,modules,registered_modules,moduleinst):
+  if "action" in test:
+    ret = test_opcode_action(test,store,modules,registered_modules,moduleinst)
+  elif "module" in test:
+    _,ret = test_opcode_module(test,store,modules,registered_modules)
+  if ret=="trap":
+    print("assert_trap SUCCESS")
+    return "success"
+  else:
+    print("assert_trap FAILURE")
+    return "failure"
+
+def test_opcode_assert_malformed(test,store,modules,registered_modules,moduleinst):
   return "failure"
 
-def test_opcode_assert_malformed():
+def test_opcode_assert_invalid(test,store,modules,registered_modules,moduleinst):
   return "failure"
 
-def test_opcode_assert_invalid():
-  return "failure"
-
-def test_opcode_assert_unlinkable():
+def test_opcode_assert_unlinkable(test,store,modules,registered_modules,moduleinst):
   return "failure"
 
 
@@ -363,7 +372,7 @@ def run_test_file(jsonfilename):
       num_tests_passed+=1
     elif test["type"][:7] == "assert_":		#assertion
       ret = test_opcode_assertion(test,store,modules,registered_modules,moduleinst)
-      if test["type"] != "assert_return": num_tests_tried -= 1	#hack to only count assert_return for not
+      if test["type"] not in {"assert_return","assert_trap"}: num_tests_tried -= 1	#hack to only count assert_... that are implemented
       if ret=="success": num_tests_passed+=1
   if verbose>-1: print("\nPassed",num_tests_passed,"out of",num_tests_tried,"tests   (actually ",len(tests),"total tests, some test opcodes not implemented yet)")
 

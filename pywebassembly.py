@@ -990,7 +990,6 @@ def spec_memorygrow(config):
 def spec_nop(config):
   if verbose>=1: print("spec_nop(",")")
   config["idx"] += 1
-  pass
 
 def spec_unreachable(config):
   if verbose>=1: print("spec_unreachable(",")")
@@ -1122,8 +1121,8 @@ def spec_return(config):
     valn = operand_stack[-1*n:]
   del operand_stack[ height: ]
   operand_stack += valn
-  operand_stack = operand_stack[:height]
-  operand_stack += valn
+  #operand_stack = operand_stack[:height]
+  #operand_stack += valn
   return "return"
 
 
@@ -1135,7 +1134,8 @@ def spec_call(config):
   operand_stack = config["operand_stack"]
   x = instr[1]
   a = F[-1]["module"]["funcaddrs"][x]
-  spec_invokeopcode(config,a)
+  ret = spec_invokeopcode(config,a)
+  if ret=="trap": return ret
   config["idx"] += 1
 
 def spec_call_indirect(config):
@@ -1147,8 +1147,10 @@ def spec_call_indirect(config):
   x = config["instrstar"][config["idx"]][1]
   ftexpect = F[-1]["module"]["types"][x]
   i = config["operand_stack"].pop()
-  if len(tab["elem"])<=x:
+  if len(tab["elem"])<=i:
     return "trap"
+  #print("i",i)
+  #print("len(tab[\"elen\"])",len(tab["elem"]))
   if tab["elem"][i] == None:
     return "trap"
   a = tab["elem"][i]
@@ -1156,7 +1158,8 @@ def spec_call_indirect(config):
   ftactual = f["type"]
   if ftexpect != ftactual:
     return "trap"
-  spec_invokeopcode(config,a)
+  ret = spec_invokeopcode(config,a)
+  if ret=="trap": return ret
   config["idx"] += 1
 
 
@@ -1166,7 +1169,7 @@ def spec_call_indirect(config):
 
 # 4.4.7 FUNCTION CALLS
 
-# this is called invokeopcode() since the name spec_invoke() is already taken
+# this is called spec_invokeopcode() since the name spec_invoke() is already taken
 def spec_invokeopcode(config, a):
   if verbose>=1: print("spec_invokeopcode(",")")
   # a is address
@@ -1194,7 +1197,8 @@ def spec_invokeopcode(config, a):
     F += [{ "module": f["module"], "locals": valn+val0star, "arity":len(t2m), "height":len(operand_stack), "continuation":[instrstar, idx] }]
     config_new = {"S":S,"F":F,"instrstar":blockinstrstarendend,"idx":0,"operand_stack":[],"control_stack":[]}
     #frame_stack += [{"frame":F, "arity":arity}] #an activation is really frame_n {frame} where n is arity
-    spec_expr(config_new)
+    ret = spec_expr(config_new)
+    if ret=="trap": return ret
     operand_stack += config_new["operand_stack"]
     #print("operand_stack after:",operand_stack)
     config["instrstar"], config["idx"] = F[-1]["continuation"]
@@ -1202,6 +1206,7 @@ def spec_invokeopcode(config, a):
   elif "hostcode" in f:
     #print(f["hostcode"])
     S,ret = f["hostcode"](S,valn)
+    if ret=="trap": return ret
     operand_stack+=ret
   return operand_stack
 
@@ -1209,7 +1214,7 @@ def spec_invokeopcode(config, a):
 # 4.4.8 EXPRESSIONS
 
 opcode2exec = {
-"unreacbable":	(spec_unreachable,),
+"unreachable":	(spec_unreachable,),
 "nop":		(spec_nop,),
 "block":	(spec_block,),				# blocktype in* end
 "loop":		(spec_loop,),				# blocktype in* end
@@ -1435,7 +1440,7 @@ def spec_expr(config):
         return operand_stack
     else:
       ret = opcode2exec[instr][0](config)
-      if ret in {"fail","return","trap"}: return ret
+      if type(ret)==str and ret in {"return","trap"}: return ret
     #print("locals",F[-1]["locals"])
     if verbose >= 2: print("operand_stack",config["operand_stack"])
     #print("control_stack",len(config["control_stack"]),config["control_stack"])
@@ -1647,7 +1652,9 @@ def spec_instantiate(S,module,externvaln):
   framestack += [Fim]
   for globali in module["globals"]:
     config = {"S":S,"F":framestack,"instrstar":globali["init"],"idx":0,"operand_stack":[],"control_stack":[]}
-    valstar += [ spec_expr( config )[0] ]
+    ret = spec_expr( config )[0]
+    if ret=="trap": return "trap"
+    valstar += [ ret ]
   framestack.pop()
   # 6
   #print(6)
@@ -1664,6 +1671,7 @@ def spec_instantiate(S,module,externvaln):
   for elemi in module["elem"]:
     config = {"S":S,"F":framestack,"instrstar":elemi["offset"],"idx":0,"operand_stack":[],"control_stack":[]}
     eovali = spec_expr(config)[0]
+    if eovali=="trap": return "trap"
     eoi = eovali
     eo+=[eoi]
     tableidxi = elemi["table"]
@@ -1678,6 +1686,7 @@ def spec_instantiate(S,module,externvaln):
   for datai in module["data"]:
     config = {"S":S,"F":framestack,"instrstar":datai["offset"],"idx":0,"operand_stack":[],"control_stack":[]}
     dovali = spec_expr(config)[0]
+    if dovali=="trap": return "trap"
     doi = dovali
     do+=[doi]
     memidxi = datai["data"]
@@ -1714,7 +1723,6 @@ def spec_instantiate(S,module,externvaln):
 # valn looks like [["i32.const",3],["i32.const",199], ...]
 def spec_invoke(S,funcaddr,valn):
   if verbose>=1: print("spec_invoke(",")")
-  #TODO: fix call by spec_instantiate()
   # 1
   #print("S",S)
   #print("funcaddr",funcaddr)
