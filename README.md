@@ -114,17 +114,19 @@ Chapter 5 which defines a binary syntax over the abstract syntax. All functions 
 
 Appendix which defines parts of a standard embedding, and an algorithm to validate instruction sequences. We implement most of this.
 
-Note that functions from the specification are named `spec_<funcname>(...)` and, if available, their inverses (of a canonical form) are named `spec_<funcname>_inv(...)`.
+Note that functions from the specification are named with prefix `spec_`, e.g. `spec_<funcname>(...)`, and their inverses (of a canonical form) also have postfix `_inv`, e.g. `spec_<funcname>_inv(...)`.
 
-**examples/**: Some sample uses of pyWebAssembly, including a metering injector.
+**examples/**: Some sample uses of pywebassembly, including a metering injector.
 
 **tests/**:  Testing of pywebassembly.
 
 
 
 TODO:
- * Floating point canonicalization code injector.
+ * Support floating point values and opcodes.
  * Support text format as described in chapter 6.
+ * Finish validation.
+ * Implement remaining testing opcodes, see `tests/README.md`.
 
 
 
