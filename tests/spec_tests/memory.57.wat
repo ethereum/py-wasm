@@ -1,0 +1,1 @@
+(memory 1)(func (param i32) (f64.store32 (get_local 0) (f32.const 0)))

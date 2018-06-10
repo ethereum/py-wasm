@@ -1,52 +1,9 @@
-"""
 
-This file runs Wasm tests. The official Wasm test suite provides .wast files with extra opcodes such as `assert_return`. Pywebassembly does not yet parse the the text .wast format, so we use wabt's wast2json to convert each <test>.wast to <test>.json and corresponding <test>.0.wasm, <test>.1.wasm, ... . This python script parses the <test>.json files and executes the tests. Currently, all `assert_return` tests pass (except for floating-point which are not yet implemented in pywebassembly).
-
-
-
-To prepare and run the tests:
-
-#get latest pywebassembly
-git clone https://github.com/poemm/pywebassembly.git
-
-#compile wabt's tool wast2json
-git clone https://github.com/WebAssembly/wabt.git
-cd wabt
-mkdir BUILD && cd BUILD
-cmake ..
-make
-cd ../..
-
-#get official tests
-git https://github.com/WebAssembly/spec.git
-
-#convert official tests to json and wasm files
-cd pywebassembly/tests
-cp ../../spec/test/core/*.wast .
-#for each <test>.wast, execute: ../../wabt/BUILD/wast2json <test>.wast -o <test>.json
-for filename in $(find *.wast 2> /dev/null); do
-  ../../wabt/BUILD/wast2json $filename "-o" $filename".json"
-done
-
-#execute this file on any <test>.json test file
-python3 spec_tests.py address.json
-#or execute this file on all .json test files
-python3 spec_tests.py
-
-
-
-TODO:
-support extra opcodes:
-  assert_return_canonical_nan
-  assert_return_arithmetic_nan
-  assert_trap
-  assert_malformed
-  assert_invalid
-  assert_unlinkable
-
-"""
-
+import os
+import sys
+sys.path.append('..')  #since pywebassembly.py is in parent dir
 import pywebassembly
+
 import json
 
 
@@ -171,11 +128,12 @@ def instantiate_module_from_wasm_file(filename,store,registered_modules):
 
 # module opcode
 
+#dir_ = "./"
 def test_opcode_module(test,store,modules,registered_modules):
   if verbose>2: print("test_opcode_module()")
   moduleinst=None
   if "filename" in test:
-    store,moduleinst = instantiate_module_from_wasm_file(test["filename"],store,registered_modules)
+    store,moduleinst = instantiate_module_from_wasm_file(dir_+test["filename"],store,registered_modules)
     if moduleinst and "name" in test:
       modules[test["name"]] = moduleinst
   if verbose>1 and moduleinst==None: print("could not instantiate")
@@ -235,9 +193,11 @@ def test_opcode_assert_return(test,store,modules,registered_modules,moduleinst):
   return "success"
 
 def test_opcode_assert_return_canonical_nan(test,store,modules,registered_modules,moduleinst):
+  #TODO
   return "failure"
 
 def test_opcode_assert_return_arithmetic_nan(test,store,modules,registered_modules,moduleinst):
+  #TODO
   return "failure"
 
 def test_opcode_assert_trap(test,store,modules,registered_modules,moduleinst):
@@ -246,19 +206,22 @@ def test_opcode_assert_trap(test,store,modules,registered_modules,moduleinst):
   elif "module" in test:
     _,ret = test_opcode_module(test,store,modules,registered_modules)
   if ret=="trap":
-    print("assert_trap SUCCESS")
+    if verbose>=1: print("assert_trap SUCCESS")
     return "success"
   else:
-    print("assert_trap FAILURE")
+    if verbose>=1: print("assert_trap FAILURE")
     return "failure"
 
 def test_opcode_assert_malformed(test,store,modules,registered_modules,moduleinst):
+  #TODO
   return "failure"
 
 def test_opcode_assert_invalid(test,store,modules,registered_modules,moduleinst):
+  #TODO
   return "failure"
 
 def test_opcode_assert_unlinkable(test,store,modules,registered_modules,moduleinst):
+  #TODO
   return "failure"
 
 
@@ -334,6 +297,8 @@ def test_opcode_action_get(test,store,modules,registered_modules,moduleinst):
 
 
 
+
+
 ################################################
 # Loop over each test in a <test>.json test file
 ################################################
@@ -348,7 +313,7 @@ def run_test_file(jsonfilename):
   if "source_filename" not in d:
     print("this may not be a valid wabt test file")
     return -1
-  if verbose>-1: print("\n\n\nrunning tests in "+d["source_filename"])
+  if verbose>-1: print("\nrunning tests in "+d["source_filename"])
   tests = d["commands"]
   modules = { }		#all moduleinst's indexed by their names, used to call funcs and resolve exports
   registered_modules={}	#all moduleinst's which can be imported from, indexed by their registered name
@@ -374,7 +339,7 @@ def run_test_file(jsonfilename):
       ret = test_opcode_assertion(test,store,modules,registered_modules,moduleinst)
       if test["type"] not in {"assert_return","assert_trap"}: num_tests_tried -= 1	#hack to only count assert_... that are implemented
       if ret=="success": num_tests_passed+=1
-  if verbose>-1: print("\nPassed",num_tests_passed,"out of",num_tests_tried,"tests   (actually ",len(tests),"total tests, some test opcodes not implemented yet)")
+  if verbose>-1: print("Passed",num_tests_passed,"out of",num_tests_tried,"tests")  #"(actually, there are ",len(tests),"total tests, some test opcodes not implemented yet)")
 
 
 
@@ -382,24 +347,29 @@ def run_test_file(jsonfilename):
 
 
 if __name__ == "__main__":
-  import sys
-  if "-h" in sys.argv or "--help" in sys.argv:
+  if "-h" in sys.argv or "--help" in sys.argv or len(sys.argv)<=1:
     if verbose>1: print("arguments should be list of json files filename.json")
-    if verbose>1: print("or no arguments means run on every json in directory")
+    if verbose>1: print("or a directory means run on every json in directory")
   #get .json filename(s)
   filenames = []
-  if len(sys.argv)==1: #no args
-    #get each json filename in dir
-    import os
-    for filename in os.listdir('.'):
-      if filename[-5:] != ".json": continue
-      filenames+=[filename]
-  else:
-    for arg in sys.argv[1:]:
-      if arg[-5:]==".json":
-        filenames+=[arg]
+  for arg in sys.argv[1:]:
+    if os.path.isdir(arg):
+      if arg[-1]!='/':
+        arg=arg+'/'
+      #get each json filename in dir
+      for filename in os.listdir(arg):
+        if filename[-5:] != ".json": continue
+        filenames+=[arg+filename]
+    elif arg[-5:]==".json":
+      filenames+=[arg]
   #run test on each filename
-  for file_ in filenames:
-    res = run_test_file(file_)
-    #if verbose>1: print(res)
+  for filename in filenames:
+    #print(filename)
+    global dir_
+    dir_,file_ = os.path.split(filename)
+    if dir_=='/':
+      dir_ = './'
+    if dir_[-1]!='/':
+      dir_+='/'
+    res = run_test_file(dir_+file_)
 

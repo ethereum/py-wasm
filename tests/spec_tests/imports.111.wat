@@ -1,0 +1,1 @@
+(table 0 anyfunc) (import "" "" (memory 0))
