@@ -106,7 +106,7 @@ new version explicitly, like `make release bump="--new-version 4.0.0-alpha.1 dev
 
 # pywebassembly.py:
 
-This file closely follows *WebAssembly Specification, Release 1.0*, implementing most of chapters 2, 3, 4, 5, and 7.
+pywebassembly.py closely follows *WebAssembly Specification, Release 1.0*, implementing most of chapters 2, 3, 4, 5, and 7.
 
 Chapter 2 defines the abstract syntax.
 
@@ -149,6 +149,13 @@ The following sample will "spin-up" a new VM, instantiate several modules with i
 coming soon
 ```
 
+TODO:
+ * Support floating point values and opcodes.
+ * Support text format as described in chapter 6.
+ * Finish validation, namely, validation of instruction sequences from chapter 3 should follow the validation algorithm in the appendix, which includes tricky cases like after `unreachable`. This is mostly implemented in a feature branch, but needs refactoring.
+ * Implement remaining testing opcodes, see `tests/README.md`.
+
+
 # examples/: 
 
 Example uses of pywebassembly.
@@ -159,11 +166,5 @@ Example uses of pywebassembly.
 Testing of pywebassembly.
 
 
-
-TODO:
- * Support floating point values and opcodes.
- * Support text format as described in chapter 6.
- * Finish validation, namely, validation of instruction sequences from chapter 3 should follow the validation algorithm in the appendix, which includes tricky cases like after `unreachable`. This is mostly implemented in a feature branch, but needs refactoring.
- * Implement remaining testing opcodes, see `tests/README.md`.
 
 
