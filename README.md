@@ -117,7 +117,7 @@ Chapter 5 which defines a binary syntax over the abstract syntax. All functions 
 Appendix which defines parts of a standard embedding, which is implemented.
 
 
-API: It may be possible to use only functions defined in the WebAssembly Spec section 7.1 Embedding. These functions are in pywebassembly.py and labelled "7.1", but please reference the spec for details. The only awkward part is passing arguments require speficying `i32.const`, `i64.const`, `f32.const`, or `f64.const` before each argument -- we are considering deviating from the spec and relaxing this requirement.
+API: It may be possible to limit the API to functions defined in the WebAssembly Spec section 7.1 Embedding. These functions are in section "7.1" of pywebassembly.py, but please reference the spec for details. The only awkward part is that `invoke_func` requires specifying `i32.const`, `i64.const`, `f32.const`, or `f64.const` with each argument -- we are considering deviating from the spec and relaxing this requirement.
 
 
 The following sample code will "spin-up" a VM instance, instantiate a module, and invoke its exported function.
@@ -127,7 +127,7 @@ The following sample code will "spin-up" a VM instance, instantiate a module, an
 import pywebassembly as wasm
 
 file_ = open('examples/fibonacci.wasm', 'rb')
-bytestar = memoryview(file_.read())			#can also use bytearray, but memoryview does not copy
+bytestar = memoryview(file_.read())			#can also use bytearray or bytes instead of memoryview
 module = wasm.decode_module(bytestar)			#get module as abstract syntax
 store = wasm.init_store()				#do this once for each VM instance
 externvalstar = []					#imports, none for fibonacci.wasm
@@ -147,7 +147,7 @@ coming soon
 
 **examples/**: Some sample uses of pywebassembly, including a metering injector.
 
-**tests/**:  Testing of pywebassembly.
+**tests/**: Testing of pywebassembly.
 
 
 
