@@ -155,6 +155,6 @@ TODO:
  * Support floating point values and opcodes.
  * Support text format as described in chapter 6.
  * Finish validation, namely,`spec_validate_instrstar()` from chapter 3 should follow the validation algorithm in the appendix.
- * Implement remaining testing opcodes, see `tests/README.md`. This includes updating the parser to return errors for `assert_malformed` test. For example, should include error checks  `idx>len(raw) or idx<0` which give "index out of range" error.
+ * Implement remaining testing opcodes, see `tests/README.md`.
 
 
