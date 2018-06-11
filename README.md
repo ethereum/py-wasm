@@ -101,7 +101,7 @@ new version explicitly, like `make release bump="--new-version 4.0.0-alpha.1 dev
 
 *WARNING: This is nearing completion and still being tested.*
 
-*This is nearing completion.*
+*This is nearing completion!*
   
 
 **pywebassembly.py**: Closely follows *WebAssembly Specification, Release 1.0, April 11, 2018*. Implements the following chapters.
@@ -114,10 +114,10 @@ Chapter 4 which defines execution semantics over the abstract syntax. This is im
 
 Chapter 5 which defines a binary syntax over the abstract syntax. All functions were implemented, creating a recursive-descent parser which takes a `.wasm` file and builds a abstract syntax tree out of nested Python lists and dicts. Also implemented are inverses (up to a canonical form) back to a `.wasm` file -- this is useful to transform the syntax tree and write it back to a `.wasm` file.
 
-Appendix which defines parts of a standard embedding, and an algorithm to validate instruction sequences. We implement most of this.
+Appendix which defines parts of a standard embedding which is implemented. We also implemented the algorithm to validate instruction sequences, this is untested in a feature branch.
 
 
-API: It may be possible to only use only functions defined in the WebAssembly Spec section 7.1 Embedding (in the Appendix). These functions are implemented in pywebassembly.py labelled "7.1", but please reference the spec for details.
+API: It may be possible to use only functions defined in the WebAssembly Spec section 7.1 Embedding. These functions are in pywebassembly.py and labelled "7.1", but please reference the spec for details.
 
 
 The following sample code will "spin-up" a VM instance, instantiate a module, and invoke its exported function.
