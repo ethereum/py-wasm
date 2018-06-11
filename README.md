@@ -108,16 +108,16 @@ new version explicitly, like `make release bump="--new-version 4.0.0-alpha.1 dev
 
 Chapter 2 which defines the abstract syntax.
 
-Chapter 3 which defines validation rules over the abstract syntax. These rules constrain the syntax, but provide properties such as type-safety. An almost-complete implementation is available as a feature-branch, the only thing missing is validation after opcodes such as `unreachable`.
+Chapter 3 which defines validation rules over the abstract syntax. These rules constrain the syntax, but provide properties such as type-safety. An almost-complete implementation is available as a feature-branch.
 
-Chapter 4 which defines execution semantics over the abstract syntax. This is implemented and passes all `assert_return` and `assert_trap` tests of the official Wasm tests, except for for tests involving floating-point which is not yet implemented.
+Chapter 4 which defines execution semantics over the abstract syntax. This is implemented and passes all `assert_return` and `assert_trap` tests of the official Wasm tests, except for tests involving floating-point which is not yet implemented.
 
-Chapter 5 which defines a binary syntax over the abstract syntax. All functions were implemented, creating a recursive-descent parser which takes a `.wasm` file and builds a abstract syntax tree out of nested Python lists and dicts. Also implemented are inverses (up to a canonical form) back to a `.wasm` file -- this is useful to transform the syntax tree and write it back to a `.wasm` file.
+Chapter 5 which defines a binary syntax over the abstract syntax. All functions were implemented, creating a recursive-descent parser which takes a `.wasm` file and builds an abstract syntax tree out of nested Python lists and dicts. Also implemented are inverses (up to a canonical form) which write an abstract syntax tree back to a `.wasm` file.
 
-Appendix which defines parts of a standard embedding which is implemented. We also implemented the algorithm to validate instruction sequences, this is untested in a feature branch.
+Appendix which defines parts of a standard embedding, which is implemented.
 
 
-API: It may be possible to use only functions defined in the WebAssembly Spec section 7.1 Embedding. These functions are in pywebassembly.py and labelled "7.1", but please reference the spec for details.
+API: It may be possible to use only functions defined in the WebAssembly Spec section 7.1 Embedding. These functions are in pywebassembly.py and labelled "7.1", but please reference the spec for details. The only awkward part is passing arguments require speficying `i32.const`, `i64.const`, `f32.const`, or `f64.const` before each argument -- we are considering deviating from the spec and relaxing this requirement.
 
 
 The following sample code will "spin-up" a VM instance, instantiate a module, and invoke its exported function.
@@ -154,7 +154,7 @@ coming soon
 TODO:
  * Support floating point values and opcodes.
  * Support text format as described in chapter 6.
- * Finish validation, namely,`spec_validate_instrstar()` from chapter 3 should follow the validation algorithm in the appendix.
+ * Finish validation, namely, validation of instruction sequences from chapter 3 should follow the validation algorithm in the appendix, which includes tricky cases like after `unreachable`. This is mostly implemented but needs refactoring.
  * Implement remaining testing opcodes, see `tests/README.md`.
 
 
