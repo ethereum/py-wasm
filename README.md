@@ -102,28 +102,32 @@ new version explicitly, like `make release bump="--new-version 4.0.0-alpha.1 dev
 *WARNING: This is nearing completion and still being tested.*
 
 *This is nearing completion!*
-  
-
-**pywebassembly.py**: Closely follows *WebAssembly Specification, Release 1.0, April 11, 2018*. Implements the following chapters.
-
-Chapter 2 which defines the abstract syntax.
-
-Chapter 3 which defines validation rules over the abstract syntax. These rules constrain the syntax, but provide properties such as type-safety. An almost-complete implementation is available as a feature-branch.
-
-Chapter 4 which defines execution semantics over the abstract syntax. This is implemented and passes all `assert_return` and `assert_trap` tests of the official Wasm tests, except for tests involving floating-point which is not yet implemented.
-
-Chapter 5 which defines a binary syntax over the abstract syntax. All functions were implemented, creating a recursive-descent parser which takes a `.wasm` file and builds an abstract syntax tree out of nested Python lists and dicts. Also implemented are inverses (up to a canonical form) which write an abstract syntax tree back to a `.wasm` file.
-
-Appendix which defines parts of a standard embedding, which is implemented.
 
 
-API: It may be possible to limit the API to functions defined in the WebAssembly Spec section 7.1 Embedding. These functions are in section "7.1" of pywebassembly.py, but please reference the spec for details. The only awkward part is that `invoke_func` requires specifying `i32.const`, `i64.const`, `f32.const`, or `f64.const` with each argument -- we are considering deviating from the spec and relaxing this requirement.
+# pywebassembly.py:
+
+This file closely follows *WebAssembly Specification, Release 1.0*, implementing most of chapters 2, 3, 4, 5, and 7.
+
+Chapter 2 defines the abstract syntax.
+
+Chapter 3 defines validation rules over the abstract syntax. These rules constrain the syntax, but provide properties such as type-safety. An almost-complete implementation is available as a feature-branch.
+
+Chapter 4 defines execution semantics over the abstract syntax. This is implemented and passes all `assert_return` and `assert_trap` tests of the official Wasm tests (except for tests involving floating-point numbers, which are not yet implemented).
+
+Chapter 5 defines a binary syntax over the abstract syntax. The implementation is a recursive-descent parser which takes a `.wasm` file and builds an abstract syntax tree out of nested Python lists and dicts. Also implemented are inverses (up to a canonical form) which write an abstract syntax tree back to a `.wasm` file.
+
+Chapter 7 is the Appendix. It defines a standard embedding, and a validation algorithm.
+
+
+**API**: It may be possible to limit the API to functions defined in the WebAssembly Spec section 7.1 Embedding. These functions are in section "7.1" of pywebassembly.py, but please reference the spec for details. The only awkward part is that `invoke_func` requires specifying `i32.const`, `i64.const`, `f32.const`, or `f64.const` with each argument -- we are considering deviating from the spec and relaxing this requirement.
 
 
 The following sample code will "spin-up" a VM instance, instantiate a module, and invoke its exported function.
 
 
 ```
+# python3
+
 import pywebassembly as wasm
 
 file_ = open('examples/fibonacci.wasm', 'rb')
@@ -136,7 +140,7 @@ externval = wasm.get_export(moduleinst, "fib")		#we want to call the function "f
 funcaddr = externval[1]					#the address of the funcinst for "fib"
 args = [["i32.const",10]]				#list of arguments, one arg in our case
 store,ret = wasm.invoke_func(store,funcaddr,args)	#finally, invoke the function
-print(ret)						#should return [89]. note: returns a list with one value
+print(ret)						#list [89] of return values, limitted to one value in Wasm 1.0
 ```
 
 The following sample will "spin-up" a new VM, instantiate several modules with imports/exports, and invoke some exported functions.
@@ -145,16 +149,21 @@ The following sample will "spin-up" a new VM, instantiate several modules with i
 coming soon
 ```
 
-**examples/**: Some sample uses of pywebassembly, including a metering injector.
+# examples/: 
 
-**tests/**: Testing of pywebassembly.
+Example uses of pywebassembly.
+
+
+# tests/:
+
+Testing of pywebassembly.
 
 
 
 TODO:
  * Support floating point values and opcodes.
  * Support text format as described in chapter 6.
- * Finish validation, namely, validation of instruction sequences from chapter 3 should follow the validation algorithm in the appendix, which includes tricky cases like after `unreachable`. This is mostly implemented but needs refactoring.
+ * Finish validation, namely, validation of instruction sequences from chapter 3 should follow the validation algorithm in the appendix, which includes tricky cases like after `unreachable`. This is mostly implemented in a feature branch, but needs refactoring.
  * Implement remaining testing opcodes, see `tests/README.md`.
 
 
