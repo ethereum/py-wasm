@@ -100,6 +100,8 @@ new version explicitly, like `make release bump="--new-version 4.0.0-alpha.1 dev
 # Legacy 
 
 *WARNING: This is nearing completion and still being tested.*
+
+*This is nearing completion.*
   
 
 **pywebassembly.py**: Closely follows *WebAssembly Specification, Release 1.0, April 11, 2018*. Implements the following chapters.
@@ -114,7 +116,34 @@ Chapter 5 which defines a binary syntax over the abstract syntax. All functions 
 
 Appendix which defines parts of a standard embedding, and an algorithm to validate instruction sequences. We implement most of this.
 
-Note that functions from the specification are named with prefix `spec_`, e.g. `spec_<funcname>(...)`, and their inverses (of a canonical form) also have postfix `_inv`, e.g. `spec_<funcname>_inv(...)`.
+
+API: It may be possible to only use only functions defined in the WebAssembly Spec section 7.1 Embedding (in the Appendix). These functions are implemented in pywebassembly.py labelled "7.1", but please reference the spec for details.
+
+
+The following sample code will "spin-up" a VM instance, instantiate a module, and invoke its exported function.
+
+
+```
+import pywebassembly as wasm
+
+file_ = open('examples/fibonacci.wasm', 'rb')
+bytestar = memoryview(file_.read())			#can also use bytearray, but memoryview does not copy
+module = wasm.decode_module(bytestar)			#get module as abstract syntax
+store = wasm.init_store()				#do this once for each VM instance
+externvalstar = []					#imports, none for fibonacci.wasm
+store,moduleinst,ret = wasm.instantiate_module(store,module,externvalstar)
+externval = wasm.get_export(moduleinst, "fib")		#we want to call the function "fib"
+funcaddr = externval[1]					#the address of the funcinst for "fib"
+args = [["i32.const",10]]				#list of arguments, one arg in our case
+store,ret = wasm.invoke_func(store,funcaddr,args)	#finally, invoke the function
+print(ret)						#should return [89]. note: returns a list with one value
+```
+
+The following sample will "spin-up" a new VM, instantiate several modules with imports/exports, and invoke some exported functions.
+
+```
+coming soon
+```
 
 **examples/**: Some sample uses of pywebassembly, including a metering injector.
 
@@ -125,8 +154,7 @@ Note that functions from the specification are named with prefix `spec_`, e.g. `
 TODO:
  * Support floating point values and opcodes.
  * Support text format as described in chapter 6.
- * Finish validation.
- * Implement remaining testing opcodes, see `tests/README.md`.
-
+ * Finish validation, namely,`spec_validate_instrstar()` from chapter 3 should follow the validation algorithm in the appendix.
+ * Implement remaining testing opcodes, see `tests/README.md`. This includes updating the parser to return errors for `assert_malformed` test. For example, should include error checks  `idx>len(raw) or idx<0` which give "index out of range" error.
 
 

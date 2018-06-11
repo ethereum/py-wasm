@@ -1,5 +1,5 @@
 
-**spec_tests.py**: This file runs official Wasm spec tests, including their extra opcodes for testing such as `assert_return` and `assert_trap`. Because pywebassembly does _not_ yet support text format `.wast` (or `.wat`) files, we use wabt's wast2json to convert each <test>.wast to <test>.json and corresponding <test>.0.wasm, <test>.1.wasm, ... . This python script parses the <test>.json files and executes the tests. Currently, all `assert_return` and `assert_trap` tests pass (except for floating-point which are not yet implemented in pywebassembly).  Execute this file as follows.
+**spec_tests.py**: This file runs official Wasm spec tests, including their extra opcodes for testing such as `assert_return` and `assert_trap`. Because pywebassembly does _not_ yet support text format `.wast` (or `.wat`) files, we use wabt's wast2json to convert each `<test>.wast` to `<test>.json` and corresponding `<test>.0.wasm`, `<test>.1.wasm`, ... . This python script parses the `<test>.json` files and executes the tests. Currently, all `assert_return` and `assert_trap` tests pass (except for floating-point which are not yet implemented in pywebassembly).  Execute this file as follows.
 
 ```
 #execute this file on any <test>.json test file

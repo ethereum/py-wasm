@@ -1,36 +1,15 @@
-#!/usr/bin/env python
-
-"""
-
-TODO:
- - validator
-   - chapter 3 infrastructure is mostly done, need to finish spec_validate_instrstar(), then will test and debug
-   - chapter 7 infrastructure is mostly done, almost ready to test and debug
- - execution
-   - chapter 4 infrastructure done, passes most spec tests -- all assert_return tests except floating point (not supported yet) and memory.grow/size (since bug in wabt's wast2json)
- - binary parser
-   - chapter 5 error handling needed
-   - if idx>len(raw) or idx<0 and access raw[idx], will get "index out of range" error, but should handle this and return an error code
-
- - refactor two stacks into three stacks
- - audit parser to include error messages
- - finish validator
- - implement floating point types and opcodes.
- - Refactor imports/exports api. DONE
- - add support for host functions. DONE
-
-"""
+#!/usr/bin/env python3
 
 
 
 """
-
-differences from spec:
- - the spec defines func(), table(), mem(), global() to choose sublists. I use a list comprehension in-place. I plan to change this to be more like the spec.
- - instead of holding types and values in the stack eg i32.const 5, I just hold value 5. This is everywhere including locals, globals, value stack. So may not be able to get type just from store.
- - The store is modified, ie old copy is kept.
- - exection is different because we don't use rewrite/substitution rules, but we maintain stacks.
+This code the WebAssembly spec document closely. Differences from spec:
+ - the spec chooses sublists by defining functions func(), table(), mem(), global(). Pywebassembly uses list comprehensions in-place. We plan to change this to be in accord with the spec.
+ - instead of holding types and values eg "i32.const 5", we just hold value 5. This is done everywhere including locals, globals, value stack. The only place types are needed is argument checking when manually using the API to call an exported function.
+ - When using the API, the store is modified, ie the old copy is modified.
+ - exection in the spec uses rewrite/substitution rules on the instruction sequence, but we maintain stacks instead of modifying the instruction sequence .
    this is explained more in control flow in section 4.4.5 below
+   this is the loosest part of this implementation. We plan to clean it up once we decide the cleanest way to do it.
 
 """
 
@@ -864,7 +843,6 @@ def spec_set_global(config):
 # 4.4.4 MEMORY INSTRUCTIONS
 
 # this is for both t.load and t.loadN_sx
-# TODO: fix _sx to call extend_u or extend_s
 def spec_tload(config):
   if verbose>=1: print("spec_tload(",")")
   S = config["S"]
@@ -982,10 +960,12 @@ def spec_memorygrow(config):
   
 # 4.4.5 CONTROL INSTRUCTIONS
 
-# I deviated from the spec, config inculdes store S, frame F, instr_list, idx into this instr_list, operand_stack, and control_stack 
-# and each label L has extra value for height of operand stack when it started, continuation when it is branched to, and end when it's last instruction is called
-# operand_stack holds only values, control_stack holds only labels
-# function invocation coincides with a python function call which creates a new frame, so the frames have their own implicit stack
+"""
+ This deviates from the spec, config inculdes store S, frame F, instr_list, idx into this instr_list, operand_stack, and control_stack 
+ and each label L has extra value for height of operand stack when it started, continuation when it is branched to, and end when it's last instruction is called
+ operand_stack holds only values, control_stack holds only labels
+ function invocation coincides with a python function call which creates a new frame, so the frames have their own implicit stack. This will be changed, putting function call frames into the label stack or into their own stack.
+"""
 
 def spec_nop(config):
   if verbose>=1: print("spec_nop(",")")
@@ -1213,6 +1193,7 @@ def spec_invokeopcode(config, a):
 
 # 4.4.8 EXPRESSIONS
 
+#Map each opcode to the function(s) to invoke when it is encountered. For opcodes with two functions, the second function is called by the first function.
 opcode2exec = {
 "unreachable":	(spec_unreachable,),
 "nop":		(spec_nop,),
@@ -1402,7 +1383,7 @@ opcode2exec = {
 }
 
 
-global_count = 0
+#global_count = 0
 
 # this executes instr* end. This deviates from the spec.
 def spec_expr(config):
@@ -1422,8 +1403,8 @@ def spec_expr(config):
     instr = config["instrstar"][config["idx"]][0]  # idx<len(instrs) since instrstar[-1]=="end" which changes instrstar
     #print(instr)
     immediate = "" if len(config["instrstar"][config["idx"]])==1 else config["instrstar"][config["idx"]][1]
-    global global_count
-    global_count+=1
+    #global global_count
+    #global_count+=1
     #print(global_count,config["idx"])
     #print(config["instrstar"])
     #print(instr,immediate)
@@ -1624,28 +1605,20 @@ def spec_allocmodule(S,module,externvalimstar,valstar):
 
 def spec_instantiate(S,module,externvaln):
   if verbose>=1: print("spec_instantiate(",")")
-  #print("ok2")
-  #print(module["imports"])
-  #print(externvaln)
-  #print(module)
   # 1
   externtypeimn,externtypeexstar = spec_validate_module(module)
   # 2
   # 3
-  #print(3)
   if len(module["imports"]) != len(externvaln):
     return -1,-1,-1
   # 4
-  #print(4)
   for i in range(len(externvaln)):
     externtypei = spec_external_typing(S,externvaln[i])
     #print("externtypei",externtypei)
     if externtypei == -1: return -1
     if spec_externtype_matching(externtypei,externtypeimn[i])==-1: return -1
   # 5
-  #print(5)
   valstar = []
-  #print("externvaln",externvaln)
   moduleinstim = {"globaladdrs":[externval[1] for externval in externvaln if "global"==externval[0]]}
   Fim = {"module":moduleinstim, "locals":[], "arity":1, "height":0}
   framestack = []
@@ -1657,11 +1630,8 @@ def spec_instantiate(S,module,externvaln):
     valstar += [ ret ]
   framestack.pop()
   # 6
-  #print(6)
   S,moduleinst = spec_allocmodule(S,module,externvaln,valstar)
-  #print("modinst",modinst)
   # 7
-  #print(7)
   F={"module":moduleinst, "locals":[]} #, "arity":1, "height":0}
   # 8
   framestack += [F]
@@ -1724,9 +1694,6 @@ def spec_instantiate(S,module,externvaln):
 def spec_invoke(S,funcaddr,valn):
   if verbose>=1: print("spec_invoke(",")")
   # 1
-  #print("S",S)
-  #print("funcaddr",funcaddr)
-  #print("valn",valn)
   if len(S["funcs"]) < funcaddr or funcaddr < 0: return -1
   # 2
   funcinst = S["funcs"][funcaddr]  
@@ -2372,7 +2339,7 @@ def spec_binary_instr_inv(node):
     instar_bytes=bytearray()
     for n in node[2]:
       instar_bytes+=spec_binary_instr_inv(n)
-    if len(node)==4: #TODO: test this
+    if len(node)==4:
       instar_bytes+=bytearray([0x05])
       for n in node[3]:
         instar_bytes+=spec_binary_instr_inv(n)
@@ -2516,15 +2483,17 @@ def spec_binary_sectionN_inv(cont,Binv,N):
 
 # 5.5.3 CUSTOM SECTION
 
+#TODO: check custom section stuff
+
 def spec_binary_customsec(raw,idx,skip=1):
   idx,size = spec_binary_uN(raw,idx,32)
   endidx = idx+size
-  #TODO: not a vec(), so should adjust sectionN()
+  #not a vec(), so should adjust sectionN()
   return endidx,None #return spec_binary_sectionN(raw,idx,0,spec_binary_custom,skip) 
 
 def spec_binary_custom(raw,idx):
   idx,name = spec_binary_name(raw,idx)
-  #TODO: what is stopping condition for bytestar?
+  #what is stopping condition for bytestar?
   idx,bytestar = spec_binary_byte(raw,idx)
   return name,bytestar
 
@@ -2532,7 +2501,7 @@ def spec_binary_customsec_inv(node):
   return spec_binary_sectionN_inv(node,spec_binary_custom_inv)
   
 def spec_binary_custom_inv(node):
-  return spec_binary_name_inv(node[0]) + spec_binary_byte_inv(node[1]) #TODO: check this
+  return spec_binary_name_inv(node[0]) + spec_binary_byte_inv(node[1]) #check this
 
 
 # 5.5.4 TYPE SECTION
@@ -2846,46 +2815,6 @@ def spec_binary_module(raw):
   mod = {"types":functypestar, "funcs":funcn, "tables":tablestar, "mems":memstar, "globals":globalstar, "elem": elemstar, "data":datastar, "start":startq, "imports":importstar, "exports":exportstar}
   return mod
 
-def get_module_with_just_function_code_addresses(raw):
-  idx=0
-  magic=[0x00,0x61,0x73,0x6d]
-  if magic!=[x for x in raw[idx:idx+4]]:
-    return None
-  idx+=4
-  version=[0x01,0x00,0x00,0x00]
-  if version!=[x for x in raw[idx:idx+4]]:
-    return None
-  idx+=4
-  idx,functypestar=	spec_binary_typesec(raw,idx,0)
-  idx,importstar=	spec_binary_importsec(raw,idx,0)
-  idx,typeidxn=		spec_binary_funcsec(raw,idx,0)
-  idx,tablestar=	spec_binary_tablesec(raw,idx,0)
-  idx,memstar=		spec_binary_memsec(raw,idx,0)
-  idx,globalstar=	spec_binary_globalsec(raw,idx,0)
-  idx,exportstar=	spec_binary_exportsec(raw,idx,0)
-  idx,startq=		spec_binary_startsec(raw,idx,0)
-  idx,elemstar=		spec_binary_elemsec(raw,idx,0)
-  idx,coden=		codesec_address(raw,idx,0)
-  idx,datastar=		spec_binary_datasec(raw,idx,0)
-  if not functypestar: return None
-  if not importstar: return None
-  if not typeidxn: return None
-  if not tablestar: return None
-  if not memstar: return None
-  if not globalstar: return None
-  if not exportstar: return None
-  if not startq: return None
-  if not elemstar: return None
-  if not coden: return None
-  if not datastar: return None
-  if len(typeidxn)!=len(coden): return None
-  #build module
-  funcn=[]
-  for i in range(len(typeidxn)):
-    funcn+=[{"type":typeidxn[i], "locals":coden[i][0], "body":coden[i][1]}]
-  mod = {"types":functypestar, "funcs":funcn, "tables":tablestar, "mems":memstar, "globals":globalstar, "elem": elemstar, "data":datastar, "start":startq, "imports":importstar, "exports":exportstar}
-  return mod
-
 def spec_binary_module_inv_to_file(mod,filename):
   f = open(filename, 'wb')
   magic=bytes([0x00,0x61,0x73,0x6d])
@@ -2913,6 +2842,11 @@ def spec_binary_module_inv_to_file(mod,filename):
 
 
 
+
+
+
+
+
 ##############
 ##############
 # 7 APPENDIX #
@@ -2923,7 +2857,7 @@ def spec_binary_module_inv_to_file(mod,filename):
 # 7.1 EMBEDDING
 ###############
 
-# THE FOLLOWING IS THE API, HOPEFULLY NO FUNCTIONS ABOVE NEED TO BE CALLED DIRECTLY
+# THE FOLLOWING IS THE API, HOPEFULLY NO FUNCTIONS ABOVE IS CALLED DIRECTLY
 
 # 7.1.1 STORE
 
@@ -2950,11 +2884,11 @@ def instantiate_module(store,module,externvalstar):
   #print("module:",module)
   #print("externvalstar:",externvalstar)
   store,F,ret = spec_instantiate(store,module,externvalstar)
-  modinst = F["module"] #store["funcs"][0]["module"] #TODO: will this fail if first func is host func, or no funcs?
+  modinst = F["module"]
   if store and modinst:
-    return store, modinst
+    return store, modinst, ret
   else:
-    return store,"error"
+    return store,"error", ret
 
 def module_imports(module):
   externtypestar, extertypeprimestar = spec_validate_module(mod)
@@ -3169,10 +3103,6 @@ def print_raw_as_hex(raw):
   print()
 
 
-
-
-
-
 def print_sections(mod):
   print("types:",mod["types"])
   print()
@@ -3203,52 +3133,70 @@ def print_sections(mod):
 
 
 
-#####################
-# PYWEBASSEMBLY API #
-#####################
-
-def parse_wasm(filename):
-  with open(filename, 'rb') as f:
-    #memoryview doesn't make copy, bytearray may require copy
-    wasm = memoryview(f.read())
-    mod = spec_binary_module(wasm)
-    #print_tree(mod)
-    print_sections(mod)
-    #print_tree(mod["funcs"])
-    #print_sections(mod)
-    spec_binary_module_inv_to_file(mod,filename.split('.')[0]+"_generated.wasm") 
+##########################################################
+# HELPERS TO EXECUTE THIS FILE ON COMMAND LINE ARGUMENTS #
+##########################################################
 
 
-def instantiate_wasm(filename):
-  with open(filename, 'rb') as f:
-    #memoryview doesn't make copy, bytearray may require copy
-    wasm = memoryview(f.read())
-    mod = spec_binary_module(wasm)
-    #print_tree(mod)
-    print_sections(mod)
-    #print_tree(mod["funcs"])
-    #print_sections(mod)
-    #
-    S = {"funcs":[], "tables":[], "mems":[], "globals":[]}
-    externvaln=[]
-    S,F,ret = spec_instantiate(S,mod,externvaln)
-    #print(S)
-    #print(F)
-    #print(ret)
-    funcaddr = 0
-    valn = [["i32.const",10]]              # change argument here
-    ret = spec_invoke(S,funcaddr,valn)
-    print("result of function call:",ret)
-    
+def instantiate_wasm_invoke_start(filename):
+  file_ = open(filename, 'rb')
+  if not file_: return "error, could not open "+filename
+  bytestar = memoryview(file_.read())
+  if not bytestar: return "error, could not read "+filename
+  module = decode_module(bytestar)	#get module as abstract syntax
+  #print("module",module)
+  if not module: return "error, could not decode "+filename
+  store = init_store()		#do this once for each VM instance
+  externvalstar = []			#imports, hopefully none
+  store,moduleinst,ret = instantiate_module(store,module,externvalstar)
+  if moduleinst == "error": return "error, module could not be instantiated"
+  return ret
+   
 
+def instantiate_wasm_invoke_func(filename,funcname,args):
+  file_ = open(filename, 'rb')
+  if not file_: return "error, could not open "+filename
+  bytestar = memoryview(file_.read())
+  if not bytestar: return "error, could not read "+filename
+  module = decode_module(bytestar)	#get module as abstract syntax
+  #print("module",module)
+  if not module: return "error, could not decode "+filename
+  store = init_store()		#do this once for each VM instance
+  externvalstar = []			#imports, hopefully none
+  store,moduleinst,ret = instantiate_module(store,module,externvalstar)
+  if moduleinst == "error": return "error, module could not be instantiated"
+  #print("moduleinst",moduleinst)
+  externval = get_export(moduleinst, funcname)
+  if not externval or externval[0]!="func": return "error, "+funcname+" is not a function export of the module"
+  #print("externval",externval)
+  funcaddr = externval[1]
+  valstar = [["i32.const",int(arg)] for arg in args]
+  #print("valstar",valstar)
+  store,ret = invoke_func(store,funcaddr,valstar)
+  if ret=="trap": return "error, invokation resulted in a trap"
+  #print("ret",ret)
+  if type(ret)==list and len(ret)>0:
+    ret = ret[0]
+  return ret
 
 
 
 
 if __name__ == "__main__":
   import sys
-  if len(sys.argv)!=2:
-    print("Argument should be <filename>.wasm")
-  else:
-    #parse_wasm(sys.argv[1])
-    instantiate_wasm(sys.argv[1])
+  if len(sys.argv) < 2 or sys.argv[1][-5:] != ".wasm":
+    print("Should be:")
+    print("python3 pywebassembly.py <filename>.wasm funcname arg1 arg2 etc")
+    print("where funcname is an exported function of the module, followed by its arguments")
+    print("if funcname and args aren't present, we invoke the start function")
+    exit(-1)
+  filename = sys.argv[1]
+  ret = None
+  if len(sys.argv)==2:
+    ret = instantiate_wasm_invoke_start(filename)
+  elif len(sys.argv)>2:
+    funcname = sys.argv[2]
+    args = sys.argv[3:]
+    ret = instantiate_wasm_invoke_func(filename,funcname,args)
+  print(ret)
+
