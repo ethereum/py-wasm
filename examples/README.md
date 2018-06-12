@@ -1,8 +1,7 @@
-*WARNING: This is an early demo in need of a code review.*
   
 # METERING
 
-**metering.py**: Injects a function call before each sequence of unbranching instructions, whose argument is the sum of costs of instructions in the sequence. Also injects helper functions, including the metering function which updates the cycle count and traps when a limit is exceeded.
+**metering.py**: Injects a function call before each sequence of non-control-flow instructions, whose argument is the sum of costs of instructions in the sequence. Also injects helper functions, including the metering function which updates the cycle count and traps when a limit is exceeded.
 
 
 Before metering (see `fibonacci.wast` for full module, and the original fibonacci function in C).
@@ -77,11 +76,15 @@ After metering (see `fibonacci_metered.wast` for full module). Notice injected `
         i32.add
         tee_local 0
         br_if 0 (;@2;)
+        i32.const 1
+        call 1
       end
+      i32.const 1
+      call 1
     end
-    i32.const 1
+    i32.const 2
     call 1
-    get_local 1)
+    get_local 1)   (;we count an implicit 'end' at the end;)
 ```
 
 

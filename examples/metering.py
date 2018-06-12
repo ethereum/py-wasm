@@ -1,5 +1,24 @@
 #!/usr/bin/env python
 
+""" GPL3 License
+
+    pywebassembly is a WebAssembly interpretter written in Python.
+    Copyright (C) 2018  Paul Dworzanski
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program.  If not, see <https://www.gnu.org/licenses/>.
+"""
+
 import sys
 sys.path.append('..')
 
@@ -70,7 +89,7 @@ def inject_metering_expr(expr,meteringFuncIdx):
       #inject
       if cost !=0:
         #print("injecting  i:",i,"idx_to_inject",idx_to_inject)
-        expr=expr[:idx_to_inject]+[("i32.const",cost),("call",meteringFuncIdx)]+expr[idx_to_inject:]
+        expr=expr[:idx_to_inject]+[["i32.const",cost],["call",meteringFuncIdx]]+expr[idx_to_inject:]
         idx_to_inject=i+3
         cost=0
         i+=2
@@ -84,7 +103,7 @@ def inject_metering_expr(expr,meteringFuncIdx):
       #  cost_instr=expr[i]
     i+=1
   if cost !=0:
-    expr=expr[:idx_to_inject]+[("i32.const",cost),("call",meteringFuncIdx)]+expr[idx_to_inject:]
+    expr=expr[:idx_to_inject]+[["i32.const",cost],["call",meteringFuncIdx]]+expr[idx_to_inject:]
   return expr
 
 
@@ -92,10 +111,73 @@ def inject_metering_expr(expr,meteringFuncIdx):
 def inject_helper_functions(mod):
   #inject globals for cycles_remaining
   global_idx_cycles = len(mod["globals"])
-  mod["globals"]+=[{'type': ('var', 'i32'), 'init': [('i32.const', 0)]}, {'type': ('var', 'i32'), 'init': [('i32.const', 0)]}, {'type': ('var', 'i32'), 'init': [('i32.const', 0)]}, {'type': ('var', 'i32'), 'init': [('i32.const', 0)]}]
+  mod["globals"]+=[{'type': ['var', 'i32'], 'init': [['i32.const', 0],["end"]]},
+                   {'type': ['var', 'i32'], 'init': [['i32.const', 0],["end"]]},
+                   {'type': ['var', 'i32'], 'init': [['i32.const', 0],["end"]]},
+                   {'type': ['var', 'i32'], 'init': [['i32.const', 0],["end"]]}]
   #inject function to perform metering
-  mod["types"]+=[(['i32'],[])]
-  mod["funcs"]+=[{'type': len(mod["types"])-1, 'locals': [['i32']], 'body': [('get_global', 0+global_idx_cycles), ('set_local', 1), ('get_global', 0+global_idx_cycles), ('get_local', 0), ('i32.sub',), ('set_global', 0+global_idx_cycles), ('get_global', 0+global_idx_cycles), ('get_local', 1), ('i32.gt_u',), ('if', None, [('get_global', 1+global_idx_cycles), ('set_local', 1), ('get_global', 1+global_idx_cycles), ('i32.const', 1), ('i32.sub',), ('set_global', 1+global_idx_cycles), ('get_global', 1+global_idx_cycles), ('get_local', 1), ('i32.gt_u',), ('if', None, [('get_global', 2+global_idx_cycles), ('set_local', 1), ('get_global', 2+global_idx_cycles), ('i32.const', 1), ('i32.sub',), ('set_global', 2+global_idx_cycles), ('get_global', 2+global_idx_cycles), ('get_local', 1), ('i32.gt_u',), ('if', None, [('get_global', 3+global_idx_cycles), ('set_local', 1), ('get_global', 3+global_idx_cycles), ('i32.const', 1), ('i32.sub',), ('set_global', 3+global_idx_cycles), ('get_global', 3+global_idx_cycles), ('get_local', 1), ('i32.gt_u',), ('if', None, [('unreachable',)])])])])]}]
+  mod["types"]+=[[['i32'],[]]]
+  mod["funcs"]+=[{'type': len(mod["types"])-1, 'locals': ['i32'],
+      'body': [['get_global', 0+global_idx_cycles],
+               ['set_local', 1],
+               ['get_global', 0+global_idx_cycles],
+               ['get_local', 0],
+               ['i32.sub'],
+               ['set_global', 0+global_idx_cycles],
+               ['get_global', 0+global_idx_cycles],
+               ['get_local', 1],
+               ['i32.gt_u'],
+               ['if', None,
+                [
+                 ['get_global', 1+global_idx_cycles],
+                 ['set_local', 1],
+                 ['get_global', 1+global_idx_cycles],
+                 ['i32.const', 1],
+                 ['i32.sub'],
+                 ['set_global', 1+global_idx_cycles],
+                 ['get_global', 1+global_idx_cycles],
+                 ['get_local', 1],
+                 ['i32.gt_u'],
+                 ['if', None,
+                  [
+                   ['get_global', 2+global_idx_cycles],
+                   ['set_local', 1],
+                   ['get_global', 2+global_idx_cycles],
+                   ['i32.const', 1],
+                   ['i32.sub'],
+                   ['set_global', 2+global_idx_cycles],
+                   ['get_global', 2+global_idx_cycles],
+                   ['get_local', 1],
+                   ['i32.gt_u'],
+                   ['if', None,
+                    [
+                     ['get_global', 3+global_idx_cycles],
+                     ['set_local', 1],
+                     ['get_global', 3+global_idx_cycles],
+                     ['i32.const', 1],
+                     ['i32.sub'],
+                     ['set_global', 3+global_idx_cycles],
+                     ['get_global', 3+global_idx_cycles],
+                     ['get_local', 1],
+                     ['i32.gt_u'],
+                     ['if', None,
+                      [
+                       ['unreachable'],
+                       ['end']
+                      ]
+                     ],
+                     ['end']
+                    ]
+                   ],
+                   ['end']
+                  ]
+                 ],
+                 ['end']
+                ]
+               ],
+               ['end']
+              ]
+            }]
   """
   (func (;1;) (type 1) (param i32)
     (local i32)
@@ -146,9 +228,52 @@ def inject_helper_functions(mod):
     end)
   """
   #inject function to get cycles remaining
-  mod["types"]+=[(['i32'], ['i32'])]
-  mod["funcs"]+=[{'type': len(mod["types"])-1, 'locals': [], 'body': [('get_local', 0), ('i32.const', 0), ('i32.eq',), ('if', 'i32', [('get_global', 0+global_idx_cycles)], [('get_local', 0), ('i32.const', 1), ('i32.eq',), ('if', 'i32', [('get_global', 1+global_idx_cycles)], [('get_local', 0), ('i32.const', 2), ('i32.eq',), ('if', 'i32', [('get_global', 2+global_idx_cycles)], [('get_global', 3+global_idx_cycles)])])])]}]
-  mod["exports"]+=[{'name': 'get_max_cycles', 'desc': {'func': len(mod["funcs"])-1}}]
+  #print_tree_expr(mod["funcs"][-1]["body"])
+  mod["types"]+=[[['i32'], ['i32']]]
+  mod["funcs"]+=[{'type': len(mod["types"])-1, 'locals': [],
+        'body': [['get_local', 0],
+                 ['i32.const', 0],
+                 ['i32.eq'],
+                 ['if', 'i32',
+                  [
+                   ['get_global', 0+global_idx_cycles],
+                   ['else']
+                  ],
+                  [
+                   ['get_local', 0],
+                   ['i32.const', 1],
+                   ['i32.eq'],
+                   ['if', 'i32',
+                    [
+                     ['get_global', 1+global_idx_cycles],
+                     ['else']
+                    ],
+                    [
+                     ['get_local', 0],
+                     ['i32.const', 2],
+                     ['i32.eq'],
+                     ['if', 'i32',
+                      [
+                       ['get_global', 2+global_idx_cycles],
+                       ['else']
+                      ],
+                      [
+                       ['get_global', 3+global_idx_cycles],
+                       ['end']
+                      ]
+                     ],
+                     ['end']
+                    ]
+                   ],
+                   ['end']
+                  ]
+                 ],
+                 ['end']
+                ]
+              }]
+  #print("added func:")
+  #print(mod["funcs"][-1]["body"])
+  mod["exports"]+=[{'name': 'get_max_cycles', 'desc': ['func', len(mod["funcs"])-1]}]
   """
   (func (;2;) (type 2) (param i32) (result i32)
     get_local 0
@@ -175,9 +300,53 @@ def inject_helper_functions(mod):
     end)
   """
   #inject function to set max_cycles
-  mod["types"]+=[(['i32','i32'],[])]
-  mod["funcs"]+=[{'type': len(mod["types"])-1, 'locals': [], 'body': [('get_local', 0), ('i32.const', 0), ('i32.eq',), ('if', None, [('get_local', 1), ('set_global', 0+global_idx_cycles)], [('get_local', 0), ('i32.const', 1), ('i32.eq',), ('if', None, [('get_local', 1), ('set_global', 1+global_idx_cycles)], [('get_local', 0), ('i32.const', 2), ('i32.eq',), ('if', None, [('get_local', 1), ('set_global', 2+global_idx_cycles)], [('get_local', 1), ('set_global', 3+global_idx_cycles)])])])]}]
-  mod["exports"]+=[{'name': 'set_max_cycles', 'desc': {'func': len(mod["funcs"])-1}}]
+  mod["types"]+=[[['i32','i32'],[]]]
+  mod["funcs"]+=[{'type': len(mod["types"])-1, 'locals': [],
+        'body': [['get_local', 0],
+                 ['i32.const', 0],
+                 ['i32.eq',],
+                 ['if', None,
+                  [
+                   ['get_local', 1],
+                   ['set_global', 0+global_idx_cycles],
+                   ['else',]
+                  ],
+                  [
+                   ['get_local', 0],
+                   ['i32.const', 1],
+                   ['i32.eq',],
+                   ['if', None,
+                    [
+                     ['get_local', 1],
+                     ['set_global', 1+global_idx_cycles],
+                     ['else',]
+                    ],
+                    [
+                     ['get_local', 0],
+                     ['i32.const', 2],
+                     ['i32.eq',],
+                     ['if', None,
+                      [
+                       ['get_local', 1],
+                       ['set_global', 2+global_idx_cycles],
+                       ['else',]
+                      ],
+                      [
+                       ['get_local', 1],
+                       ['set_global', 3+global_idx_cycles],
+                       ['end',]
+                      ]
+                     ],
+                     ['end',]
+                    ]
+                   ],
+                   ['end',]
+                  ]
+                 ],
+                 ['end',]
+                ]
+              }]
+  mod["exports"]+=[{'name': 'set_max_cycles', 'desc': ['func', len(mod["funcs"])-1]}]
   """
   (func (;3;) (type 3) (param i32 i32)
     get_local 0
@@ -208,9 +377,9 @@ def inject_helper_functions(mod):
     end)
   """
   #inject function to get num chunks for max_cycles
-  mod["types"]+=[([],['i32'])]
-  mod["funcs"]+=[{'type': len(mod["types"])-1, 'locals': [], 'body': [('i32.const', 4)]}]
-  mod["exports"]+=[{'name': 'get_num_max_cycles_chunks', 'desc': {'func': len(mod["funcs"])-1}}]
+  mod["types"]+=[[[],['i32']]]
+  mod["funcs"]+=[{'type': len(mod["types"])-1, 'locals': [], 'body': [['i32.const', 4],['end',]]}]
+  mod["exports"]+=[{'name': 'get_num_max_cycles_chunks', 'desc': ['func', len(mod["funcs"])-1]}]
   """
   (func (;4;) (type 4) (result i32)
     i32.const 4)
@@ -244,11 +413,12 @@ def tests(mod):
 def parse_wasm_and_inject_and_generate(filename):
   with open(filename, 'rb') as f:
     wasm = memoryview(f.read())
-    mod = spec_module(wasm)
+    mod = decode_module(wasm)
     inject_metering_calls_to_each_function(mod)
     #must inject above metering calls before injecting helper functions
     inject_helper_functions(mod)
-    spec_module_inv_to_file(mod,filename.split('.')[0]+"_metered.wasm")
+    #print_sections(mod)
+    spec_binary_module_inv_to_file(mod,filename.split('.')[0]+"_metered.wasm")
 
 
 if __name__ == "__main__":

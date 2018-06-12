@@ -1,6 +1,26 @@
 #!/usr/bin/env python3
 
 
+""" GPL3 License
+
+    pywebassembly is a WebAssembly interpretter written in Python.
+    Copyright (C) 2018  Paul Dworzanski
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program.  If not, see <https://www.gnu.org/licenses/>.
+"""
+
+
 
 """
 This code the WebAssembly spec document closely. Differences from spec:
@@ -2124,6 +2144,7 @@ def spec_binary_valtype(raw,idx):
     return idx,None #error
 
 def spec_binary_valtype_inv(node):
+  #print("spec_binary_valtype_inv(",node,")")
   if node in valtype2bin:
     return bytearray([valtype2bin[node]])
   else:
@@ -2264,7 +2285,7 @@ def spec_binary_instr(raw,idx):
         instar+=[ins]
       if raw[idx]==0x05: #if with else
         idx+=1
-        while raw[idx] not in {0x0b}:
+        while raw[idx] != 0x0b:
           idx,ins=spec_binary_instr(raw,idx)
           instar2+=[ins]
         #return idx+1, ["if",rt,instar+[["else"]],instar2+[["end"]]] #+[["end"]]
@@ -2327,22 +2348,16 @@ def spec_binary_instr_inv(node):
   if type(node[0])==str:
     instr_bytes+=bytearray([opcodes_text2binary[node[0]]])
   #the rest is for immediates
-  if node[0] in {"block","loop"}:              #block, loop
+  if node[0] in {"block","loop","if"}:         #block, loop, if
     instr_bytes+=spec_binary_blocktype_inv(node[1])
     instar_bytes=bytearray()
-    for n in node[2]:
+    for n in node[2][:-1]:
       instar_bytes+=spec_binary_instr_inv(n)
-    #instar_bytes+=bytes([0x0b])
-    instr_bytes+=instar_bytes
-  elif node[0]=="if":                          #if
-    instr_bytes+=spec_binary_blocktype_inv(node[1])
-    instar_bytes=bytearray()
-    for n in node[2]:
-      instar_bytes+=spec_binary_instr_inv(n)
-    if len(node)==4:
+    if len(node)==4: #if with else
       instar_bytes+=bytearray([0x05])
-      for n in node[3]:
+      for n in node[3][:-1]:
         instar_bytes+=spec_binary_instr_inv(n)
+    instar_bytes+=bytes([0x0b])
     #instar_bytes+=bytes([0x0b])
     instr_bytes+=instar_bytes
   elif node[0] in {"br","br_if"}:              #br, br_if
@@ -2379,7 +2394,7 @@ def spec_binary_instr_inv(node):
 
 def spec_binary_expr(raw,idx):
   instar = []
-  while raw[idx] != 0x0b: 
+  while raw[idx] != 0x0b:
     idx,ins = spec_binary_instr(raw,idx)
     instar+=[ins]
   if raw[idx] != 0x0b: return idx,None #error
@@ -2510,6 +2525,7 @@ def spec_binary_typesec(raw,idx,skip=0):
   return spec_binary_sectionN(raw,idx,1,spec_binary_functype,skip)
 
 def spec_binary_typesec_inv(node):
+  #print("spec_binary_typesec_inv(",node,")")
   return spec_binary_sectionN_inv(node,spec_binary_functype_inv,1)
 
 
@@ -2549,13 +2565,13 @@ def spec_binary_import_inv(node):
 def spec_binary_importdesc_inv(node):
   key=node[0]
   if key=="func":
-    return bytearray([0x00]) + spec_binary_typeidx_inv(node[key])
+    return bytearray([0x00]) + spec_binary_typeidx_inv(node[1])
   elif key=="table":
-    return bytearray([0x01]) + spec_binary_tabletype_inv(node[key])
+    return bytearray([0x01]) + spec_binary_tabletype_inv(node[1])
   elif key=="mem":
-    return bytearray([0x02]) + spec_binary_memtype_inv(node[key])
+    return bytearray([0x02]) + spec_binary_memtype_inv(node[1])
   elif key=="global":
-    return bytearray([0x03]) + spec_binary_globaltype_inv(node[key])
+    return bytearray([0x03]) + spec_binary_globaltype_inv(node[1])
   else:
     return bytearray()
   
@@ -2653,13 +2669,13 @@ def spec_binary_export_inv(node):
 def spec_binary_exportdesc_inv(node):
   key=node[0]
   if key=="func":
-    return bytearray([0x00]) + spec_binary_funcidx_inv(node[key])
+    return bytearray([0x00]) + spec_binary_funcidx_inv(node[1])
   elif key=="table":
-    return bytearray([0x01]) + spec_binary_tableidx_inv(node[key])
+    return bytearray([0x01]) + spec_binary_tableidx_inv(node[1])
   elif key=="mem":
-    return bytearray([0x02]) + spec_binary_memidx_inv(node[key])
+    return bytearray([0x02]) + spec_binary_memidx_inv(node[1])
   elif key=="global":
-    return bytearray([0x03]) + spec_binary_globalidx_inv(node[key])
+    return bytearray([0x03]) + spec_binary_globalidx_inv(node[1])
   else:
     return bytearray()
 
@@ -2683,7 +2699,7 @@ def spec_binary_startsec_inv(node):
 def spec_binary_start_inv(node):
   key=list(node.keys())[0]
   if key=="func":
-    return spec_binary_funcidx_inv(node[key])
+    return spec_binary_funcidx_inv(node[1])
   else:
     return bytearray()
 
@@ -2760,10 +2776,27 @@ def spec_binary_code_inv(node):
   return spec_binary_uN_inv(len(func_bytes),32) + func_bytes
 
 def spec_binary_func_inv(node):
-  return spec_binary_vec_inv(node[0],spec_binary_locals_inv) + spec_binary_expr_inv(node[1]) 
+  #print("spec_binary_func_inv(",node,")")
+  #print(node[0])
+  #group locals into chunks
+  locals_ = []
+  prev_valtype = ""
+  for valtype in node[0]:
+    if valtype==prev_valtype:
+      locals_[-1][0]+=1
+    else:
+      locals_ += [[1,valtype]]
+      prev_valtype = valtype
+  locals_bytes = spec_binary_vec_inv(locals_,spec_binary_locals_inv)
+  expr_bytes = spec_binary_expr_inv(node[1])
+  return locals_bytes + expr_bytes 
 
 def spec_binary_locals_inv(node):
-  return spec_binary_uN_inv(len(node),32) + (spec_binary_valtype_inv(node[0]) if len(node)>0 else bytearray())
+  #print("spec_binary_locals_inv(",node,")")
+  #return spec_binary_uN_inv(len(node),32) + (spec_binary_valtype_inv(node[0]) if len(node)>0 else bytearray())
+  #print(spec_binary_uN_inv(len(node),32) + (spec_binary_valtype_inv(node[0]) if len(node)>0 else bytearray()))
+  #print(spec_binary_uN_inv(node[0],32) + spec_binary_valtype_inv(node[1]))
+  return spec_binary_uN_inv(node[0],32) + spec_binary_valtype_inv(node[1])
   
 
 # 5.5.14 DATA SECTION
@@ -2816,6 +2849,7 @@ def spec_binary_module(raw):
   return mod
 
 def spec_binary_module_inv_to_file(mod,filename):
+  #print_sections(mod)
   f = open(filename, 'wb')
   magic=bytes([0x00,0x61,0x73,0x6d])
   version=bytes([0x01,0x00,0x00,0x00])
@@ -3076,20 +3110,21 @@ def print_tree(node,indent=0):
 
 
 def print_tree_expr(node,indent=0):
-  if type(node)==tuple:	# an instruction
-    if len(node)>2:	# ie node[0] in {"block","if","loop"}:
-      print(" "*indent+str((node[0],node[1])))
-      print_tree_expr(node[2],indent+1)
-      print(" "*indent+"[end]")
-    else:
-      print(" "*indent+str(node))
-  elif type(node)==list:
-    for e in node:
-      print_tree_expr(e,indent+1)
-  elif type(node)==dict:
-    for e in node:
-      print(" "*indent+e)
-      print_tree_expr(node[e],indent+1)
+  #print()
+  #print("print_tree_expr(",node,")")
+  if type(node)==list and len(node)>0:
+    if type(node[0])==str:			# an instruction
+      if node[0] in {"block","if","loop"}:
+        print(" "*indent+str([node[0],node[1]]))
+        print_tree_expr(node[2],indent+1)
+        #print(" "*indent+"[end]")
+        if node[0] == "if" and len(node)>3:
+          print_tree_expr(node[3],indent+1)
+      else:
+        print(" "*indent+str(node))
+    else:					#list of instructions
+      for e in node:
+        print_tree_expr(e,indent+1)
   else:
     print(" "*indent+str(node))
 
@@ -3109,8 +3144,9 @@ def print_sections(mod):
   print("funcs:",mod["funcs"])
   print()
   for f in mod["funcs"]:
-    print(f)
     print()
+    print(f)
+    print_tree_expr(f["body"])
   print("tables",mod["tables"])
   print()
   print("mems",mod["mems"])
@@ -3185,7 +3221,7 @@ def instantiate_wasm_invoke_func(filename,funcname,args):
 if __name__ == "__main__":
   import sys
   if len(sys.argv) < 2 or sys.argv[1][-5:] != ".wasm":
-    print("Should be:")
+    print("Help:")
     print("python3 pywebassembly.py <filename>.wasm funcname arg1 arg2 etc")
     print("where funcname is an exported function of the module, followed by its arguments")
     print("if funcname and args aren't present, we invoke the start function")

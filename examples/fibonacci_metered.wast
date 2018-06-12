@@ -39,9 +39,13 @@
         i32.add
         tee_local 0
         br_if 0 (;@2;)
+        i32.const 1
+        call 1
       end
+      i32.const 1
+      call 1
     end
-    i32.const 1
+    i32.const 2
     call 1
     get_local 1)
   (func (;1;) (type 1) (param i32)
