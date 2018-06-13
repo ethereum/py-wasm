@@ -104,9 +104,9 @@ new version explicitly, like `make release bump="--new-version 4.0.0-alpha.1 dev
 *This is nearing completion!*
 
 
-# pywebassembly.py
+## pywebassembly.py
 
-pywebassembly.py closely follows *WebAssembly Specification, Release 1.0*, implementing most of chapters 2, 3, 4, 5, and 7. Each piece of code in pywebassembly.py references its definition in the spec, so the spec is a reasonable user's manual.
+PyWebAssembly closely follows *WebAssembly Specification, Release 1.0*, implementing most of chapters 2, 3, 4, 5, and 7. Each piece of code in pywebassembly.py references its definition in the spec, so the spec should be used as a user's manual.
 
 Chapter 2 defines the abstract syntax.
 
@@ -151,15 +151,16 @@ TODO:
  * Implement remaining testing opcodes, see `tests/README.md`.
 
 
-# examples/
+## examples/
 
 Example uses of PyWebAssembly.
 
 
-# tests/
+## tests/
 
 Testing of PyWebssembly.
 
 
+# Notes and Conventions.
 
-
+Both "PyWebassembly" and "pywebassembly" can be used to refer to the project.
