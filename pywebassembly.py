@@ -18,15 +18,15 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
 
 
 
-"""
-This code the WebAssembly spec document closely. Differences from spec:
- - the spec chooses sublists by defining functions func(), table(), mem(), global(). Pywebassembly uses list comprehensions in-place. We plan to change this to be in accord with the spec.
- - instead of holding types and values eg "i32.const 5", we just hold value 5. This is done everywhere including locals, globals, value stack. The only place types are needed is argument checking when manually using the API to call an exported function.
- - When using the API, the store is modified, ie the old copy is modified.
- - exection in the spec uses rewrite/substitution rules on the instruction sequence, but we maintain stacks instead of modifying the instruction sequence .
-   this is explained more in control flow in section 4.4.5 below
-   this is the loosest part of this implementation. We plan to clean it up once we decide the cleanest way to do it.
 
+"""
+This code follows the WebAssembly spec closely. Differences from spec:
+ - The spec chooses sublists by defining functions func(), table(), mem(), global(). Pywebassembly uses list comprehensions in-place. We plan to change this to be in accord with the spec.
+ - Instead of holding types with values eg "i32.const 5", we just hold value 5. This is done everywhere including locals, globals, and the value stack. The only place types remain are arguments when using the API to invoke an exported function, which is useful for type-checking, but we may choose to relax this in favor of type-checking the values.
+ - When using the API, the store is modified, ie the old copy no longer exists. Make a deep-copy if needed.
+ - Exection in the spec uses rewrite/substitution rules on the instruction sequence, but we maintain stacks instead of modifying the instruction sequence.
+   This is explained more in control flow in section 4.4.5 below.
+   We plan to clean up this part once we decide the cleanest way to do it.
 """
 
 
