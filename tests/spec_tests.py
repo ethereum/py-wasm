@@ -22,9 +22,11 @@ sys.path.append('..')  #since pywebassembly.py is in parent dir
 import pywebassembly
 
 import json
+import struct #for decoding floats
+import math
 
 
-verbose = 0
+verbose = 1
 
 
 
@@ -111,6 +113,7 @@ def instantiate_module_from_wasm_file(filename,store,registered_modules):
     #memoryview doesn't make copy, bytearray may require copy
     wasmbytes = memoryview(f.read())
     module = pywebassembly.decode_module(wasmbytes)
+    if module=="malformed": return None,"malformed"
     #imports preparation
     externvalstar = []
     for import_ in module["imports"]:
@@ -126,7 +129,7 @@ def instantiate_module_from_wasm_file(filename,store,registered_modules):
     #print("store",store)
     #print("module",module)
     #print("externvalstar",externvalstar)
-    store,moduleinst = pywebassembly.instantiate_module(store,module,externvalstar)
+    store,moduleinst,ret = pywebassembly.instantiate_module(store,module,externvalstar)
     #print("moduleinst",moduleinst)
     #print(store["mems"][0]["data"])
     if moduleinst=="error":
@@ -134,6 +137,27 @@ def instantiate_module_from_wasm_file(filename,store,registered_modules):
   return store,moduleinst
 
 
+
+########################################################################################
+# helper function to convert int to float, since wast2json prints floats encoded as ints
+# used for to parse argument and return values in <test>.json files
+########################################################################################
+def int2float(N,int_):
+  #return pywebassembly.spec_reinterprett1t2("i"+str(N),'f'+str(N),int_)
+  #print("int2float(",N,int_,")")
+  bits = bin(int_).lstrip('0b').zfill(N)
+  #print(bits)
+  bytes_ = bytearray()
+  for i in range(len(bits)//8):
+    bytes_ += bytearray( [int(bits[8*i:8*(i+1)],2)] )
+  #print(bytes_)
+  #bytes_ = bytearray(reversed(bytes_))
+  if N==32:
+    value = struct.unpack('!f',bytes_)[0]
+  if N==64:
+    value = struct.unpack('!d',bytes_)[0]
+  #print(value)
+  return value
 
 
 ###################################################
@@ -187,6 +211,7 @@ def test_opcode_assertion(test,store,modules,registered_modules,moduleinst):
     ret = test_opcode_assert_invalid(test,store,modules,registered_modules,moduleinst)
   elif test["type"] == "assert_unlinkable":
     ret = test_opcode_assert_unlinkable(test,store,modules,registered_modules,moduleinst)
+  if verbose>1: print(ret)
   return ret
 
 def test_opcode_assert_return(test,store,modules,registered_modules,moduleinst):
@@ -204,9 +229,39 @@ def test_opcode_assert_return(test,store,modules,registered_modules,moduleinst):
   if len(ret)==0 and len(test["expected"]) == 0:
     return "success"
   for i in range(len(ret)):
-    if verbose>1: print("expected: ",int(test["expected"][i]["value"]),"   actual: ",ret[i])
-    if ret[i] != int(test["expected"][i]["value"]): #TODO: handle floats too
-      return "failure"
+    expected_val = int(test["expected"][i]["value"])
+    expected_type = test["expected"][i]["type"]
+    if expected_type in {'i32','i64'}:
+      if verbose>1: print("expected: ",expected_val,"   actual: ",ret[i])
+      if ret[i] != expected_val:
+        return "failure"
+    elif expected_type in {'f32','f64'}:
+      N = int(expected_type[1:])
+      exp = int2float(N,expected_val)
+      if verbose>1: print("expected: ",exp,"   actual: ",ret[i])
+      #some_float       = 1.0
+      #some_float_bytes = pywebassembly.spec_bytest("f64",some_float)
+      #some_float_back  = pywebassembly.spec_bytest_inv("f64",some_float_bytes)
+      #some_float_bin   = [bin(byte).lstrip('0b').zfill(8) for byte in some_float_bytes]
+      #print("some_float:",some_float,some_float_bytes, some_float_bin,some_float_back)
+      #some_float       = 1.0
+      #some_float_bytes = pywebassembly.spec_bytest("f32",some_float)
+      #some_float_back  = pywebassembly.spec_bytest_inv("f32",some_float_bytes)
+      #some_float_bin   = [bin(byte).lstrip('0b').zfill(8) for byte in some_float_bytes]
+      #print("some_float:",some_float,some_float_bytes, some_float_bin,some_float_back)
+      if pywebassembly.spec_fsign(ret[i]) != pywebassembly.spec_fsign(exp):
+         return "failure"
+      elif math.isnan(ret[i]) and math.isnan(exp):
+         return "success"
+      elif math.isinf(ret[i]) and math.isinf(exp):
+         return "success"
+      elif math.isnan(ret[i]) or math.isnan(exp) or math.isinf(ret[i]) or math.isinf(exp):
+         return "failure"
+      retabs = pywebassembly.spec_fabsN(N,ret[i])
+      expabs = pywebassembly.spec_fabsN(N,exp)
+      #print("abs:",expabs,retabs)
+      if retabs*1.01 < expabs or retabs*0.99 > expabs:
+         return "failure"
   return "success"
 
 def test_opcode_assert_return_canonical_nan(test,store,modules,registered_modules,moduleinst):
@@ -223,14 +278,21 @@ def test_opcode_assert_trap(test,store,modules,registered_modules,moduleinst):
   elif "module" in test:
     _,ret = test_opcode_module(test,store,modules,registered_modules)
   if ret=="trap":
-    if verbose>=1: print("assert_trap SUCCESS")
+    if verbose>=2: print("assert_trap SUCCESS")
     return "success"
   else:
     if verbose>=1: print("assert_trap FAILURE")
     return "failure"
 
 def test_opcode_assert_malformed(test,store,modules,registered_modules,moduleinst):
-  #TODO
+  if test["module_type"] != "binary":
+    return "failure"
+  if "filename" in test and test["type"] in {"assert_return","assert_trap"}: #second part temporary
+    store,moduleinst = test_opcode_module(test,store,modules,registered_modules)
+    if moduleinst == "malformed":
+      print("SUCCESS MALFORMED !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
+      return "success"
+  print("FAILURE MALFORMED")
   return "failure"
 
 def test_opcode_assert_invalid(test,store,modules,registered_modules,moduleinst):
@@ -252,6 +314,7 @@ def test_opcode_action(test,store,modules,registered_modules,moduleinst):
 
 def test_opcode_action_invoke(test,store,modules,registered_modules,moduleinst):
   if verbose>1: print(test["action"]["field"])
+  #print(test["action"])
   if "module" in test["action"]:
     moduleinst = modules[test["action"]["module"]]
   #print("moduleinst",moduleinst)
@@ -280,17 +343,21 @@ def test_opcode_action_invoke(test,store,modules,registered_modules,moduleinst):
   #get args
   args = []
   float_flag = 0
+  #print(test["action"]["args"])
   for idx in range(len(test["action"]["args"])):
     type_ = test["action"]["args"][idx]["type"]
     value = test["action"]["args"][idx]["value"]
-    args+=[ [type_+".const",value] ]
+    value = int(value)	#wabt outputs integers (even floats are encoded as ints)
     if type_ in {"f32","f64"}:
-      float_flag = 1 #this is a hack to avoid floating point until implemented
       if verbose>1: print("found float arg so skipping")
+      float_flag = 1 #this is a hack to avoid floating point until implemented
+      value = int2float(int(type_[1:]),value)
+    args+=[ [type_+".const",value] ]
+  #print("args: ",args)
   #invoke func
   ret = []
-  if not float_flag:
-    _,ret = pywebassembly.invoke_func(store,funcaddr,args)
+  #if not float_flag:
+  _,ret = pywebassembly.invoke_func(store,funcaddr,args)
   #else:
   #  num_tests_tried-=1
   return ret
@@ -300,10 +367,11 @@ def test_opcode_action_get(test,store,modules,registered_modules,moduleinst):
     moduleinst = modules[test["action"]["module"]]
   exports = moduleinst["exports"]
   #this is naive, since test["expected"] is a list, should iterate over each one, but maybe OK since there is only one test["action"]
+  #print(exports)
   for export in exports:
     if export["name"] == test["action"]["field"]:
       globaladdr = export["value"][1]
-      value = store["globals"][globaladdr]["value"]
+      value = store["globals"][globaladdr]["value"][1]
       return [value]
       #num_tests_tried+=1
       #if value != test["expected"][0]["value"]:
@@ -357,6 +425,7 @@ def run_test_file(jsonfilename):
       if test["type"] not in {"assert_return","assert_trap"}: num_tests_tried -= 1	#hack to only count assert_... that are implemented
       if ret=="success": num_tests_passed+=1
   if verbose>-1: print("Passed",num_tests_passed,"out of",num_tests_tried,"tests")  #"(actually, there are ",len(tests),"total tests, some test opcodes not implemented yet)")
+  if num_tests_passed!=num_tests_tried: print("#################### FAILED TESTS ########################")
 
 
 

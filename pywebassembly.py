@@ -21,15 +21,18 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
 
 """
 This code follows the WebAssembly spec closely. Differences from spec:
- - The spec chooses sublists by defining functions func(), table(), mem(), global(). Pywebassembly uses list comprehensions in-place. We plan to change this to be in accord with the spec.
- - Instead of holding types with values eg "i32.const 5", we just hold value 5. This is done everywhere including locals, globals, and the value stack. The only place types remain are arguments when using the API to invoke an exported function, which is useful for type-checking, but we may choose to relax this in favor of type-checking the values.
- - When using the API, the store is modified, ie the old copy no longer exists. Make a deep-copy if needed.
- - Exection in the spec uses rewrite/substitution rules on the instruction sequence, but we maintain stacks instead of modifying the instruction sequence.
-   This is explained more in control flow in section 4.4.5 below.
-   We plan to clean up this part once we decide the cleanest way to do it.
+ - Because of validity, we drop types and just hold values eg instead of `i32.const 5, we just hold value `5`. This is done everywhere including locals, globals, and the value stack. The only place types remain are arguments when using the API to invoke an exported function, which is useful for type-checking, but we may choose to relax this in favor of checking whether each value meets requirements for its type.
+- Floating-point operations use the python `float`, which are 64-bit on modern computers. We truncate to 32-bit when necessary. We use the `math` module for floating-point tools and the `struct` module to encode/decode binary. The `NaN` is difficult to modify in Python, so we completely ignore `NaN`'s significand, unlike the spec. We are considering re-implementing floating-point operations using:
+   - ctypes.c_float and ctypes.c_double, but these may have less features
+   - numpy.float32 and numpy.float64, but these are less portable
+   - the decimal module, tuned to behave like IEEE754-2008
+ - The `store` is always modified in-place. Make a deep-copy if needed.
+ - Exection in the spec uses rewrite/substitution rules on the instruction sequence, but this would be inefficient, so, like most implementations, we maintain stacks instead of modifying the instruction sequence. This is explained more in section 4.4.5 below.
 """
 
 
+import math	#for some floating-point methods
+import struct	#for encoding/decoding floats
 
 
 verbose = 0
@@ -44,42 +47,93 @@ verbose = 0
 
 # 2.2.3 FLOATING-POINT
 
-N_to_signif={32:23,64:52}
-signif_to_N={val:key for key,val in N_to_signif.items()}
+""" decided to just use struct.pack()/unpack() to encode/decode floats
+def spec_fN(N,f):
+  fNmag = spec_fNmag(N,f)
+  if f>=0:
+    return fNmag
+  else:
+    return -1*fNmag
+"""
+
+"""
+def spec_fNmag(N,f)
+  M=spec_signif(N)
+  E=spec_expon(N)
+  e=bitstring[1:E+1]
+  m=bitstring[E+1:]
+  if -1*(2**(E-1)) + 2 <= e <= 2**(E-1)-1:
+"""
+    
 
 def spec_signif(N):
   if verbose>=1: print("spec_signif(",N,")")
-  if N in N_to_signif:
-    return N_to_signif[N]
+  if N==32:
+    return 23
+  elif N==64:
+    return 52
   else:
     return None
 
 def spec_signif_inv(signif):
   if verbose>=1: print("spec_signif_inv(",signif,")")
-  if signif in signif_to_N:
-    return signif_to_N[signif]
+  if signif == 23:
+    return 32
+  elif signif == 52:
+    return 64
   else:
     return None
 
-N_to_expon={32:8,64:11}
-expon_to_N={val:key for key,val in N_to_expon.items()}
-
 def spec_expon(N):
   if verbose>=1: print("spec_expon(",N,")")
-  if N in N_to_expon:
-    return N_to_expon[N]
+  if N==32:
+    return 8
+  elif N==64:
+    return 11
   else:
     return None
 
 def spec_expon_inv(expon):
   if verbose>=1: print("spec_expon_inv(",expon,")")
-  if expon in expon_to_N:
-    return expon_to_N[expon]
+  if expon == 8:
+    return 32
+  elif expon == 11:
+    return 64
   else:
     return None
 
 
+# 2.3.8 EXTERNAL TYPES
 
+#similar things are defined in 2.5.10 and 4.2.11, we will reuse these for those
+
+def spec_funcs(star):
+  funcs = []
+  for e in star:
+    if e[0] == 'func':
+      funcs += [e[1]]
+  return funcs
+
+def spec_tables(star):
+  tables = []
+  for e in star:
+    if e[0] == 'table':
+      tables += [e[1]]
+  return tables
+
+def spec_mems(star):
+  mems = []
+  for e in star:
+    if e[0] == 'mem':
+      mems += [e[1]]
+  return mems
+
+def spec_globals(star):
+  globals_ = []
+  for e in star:
+    if e[0] == 'global':
+      globals_ += [e[1]]
+  return globals_
 
 
 ################
@@ -112,10 +166,10 @@ def spec_validate_module(mod):
       itstar.append( import_["desc"] )
   #print("itstar",itstar)
   # let i_tstar be the concatenation of imports of each type
-  iftstar = [it[1] for it in itstar if it[0]=="func"]
-  ittstar = [it[1] for it in itstar if it[0]=="table"]
-  imtstar = [it[1] for it in itstar if it[0]=="mem"]
-  igtstar = [it[1] for it in itstar if it[0]=="global"]
+  iftstar = spec_funcs(itstar) #[it[1] for it in itstar if it[0]=="func"]
+  ittstar = spec_tables(itstar) #[it[1] for it in itstar if it[0]=="table"]
+  imtstar = spec_mems(itstar) #[it[1] for it in itstar if it[0]=="mem"]
+  igtstar = spec_globals(itstar) #[it[1] for it in itstar if it[0]=="global"]
   # let C and Cprime be contexts
   C = {"types":		mod["types"],
        "funcs":		iftstar + ftstar,
@@ -173,6 +227,7 @@ def spec_trunc(q):
     else:
       return result
   elif type(q)==float:
+    #using ftrunc instead
     return int(q) 
 
 
@@ -189,27 +244,36 @@ def spec_bitst(t,c):
   elif t[0]=='f':
     return spec_bitsfN(N,c)
 
+def spec_bitst_inv(t,bits):
+  if verbose>=1: print("spec_bitst_inv(",t,bits,")")
+  N = int(t[1:3])
+  if t[0]=='i':
+    return spec_bitsiN_inv(N,bits)
+  elif t[0]=='f':
+    return spec_bitsfN_inv(N,bits)
+
 def spec_bitsiN(N,i):
   if verbose>=1: print("spec_bitsiN(",N,i,")")
   return spec_ibitsN(N,i)
 
-def spec_bitsiN_inv(N,i):
-  if verbose>=1: print("spec_bitsiN_inv(",N,i,")")
-  return spec_ibitsN_inv(N,i)
+def spec_bitsiN_inv(N,bits):
+  if verbose>=1: print("spec_bitsiN_inv(",N,bits,")")
+  return spec_ibitsN_inv(N,bits)
 
 def spec_bitsfN(N,z):
   if verbose>=1: print("spec_bitsfN(",N,z,")")
   return spec_fbitsN(N,z)
 
-def spec_bitsfN_inv(N,z):
-  if verbose>=1: print("spec_bitsiN_inv(",N,z,")")
-  return spec_fbitsN_inv(N,z)
+def spec_bitsfN_inv(N,bits):
+  if verbose>=1: print("spec_bitsfN_inv(",N,bits,")")
+  return spec_fbitsN_inv(N,bits)
 
 
 # Integers
 
 def spec_ibitsN(N,i):
   if verbose>=1: print("spec_ibitsN(",N,i,")")
+  #print(bin(i)[2:].zfill(N))
   return bin(i)[2:].zfill(N)
 
 def spec_ibitsN_inv(N,bits):
@@ -219,41 +283,49 @@ def spec_ibitsN_inv(N,bits):
 
 # Floating-Point
 
-def spec_bitsfN(N,z):
-  if verbose>=1: print("spec_bitsfN(",N,z,")")
-  return spec_fbitsN(N,z)
-
 def spec_fbitsN(N,z):
   if verbose>=1: print("spec_fbitsN(",N,z,")")
-  #TODO, this is used by reinterpret
-  return "01010101" #this is garbage
+  if N==32:
+    z_bytes = struct.pack('>f',z)
+  elif N==64:
+    z_bytes = struct.pack('>d',z)
+  #stryct.pack() gave us bytes, need bits
+  bits = ''
+  for byte in z_bytes:
+    bits += bin( int(byte) ).lstrip('0b').zfill(8)
+  return bits
 
-def spec_fbitsN_inv(N,z):
-  if verbose>=1: print("spec_fbitsN_inv(",N,z,")")
-  #TODO, this is used by reinterpret
-  return float(z)
+def spec_fbitsN_inv(N,bits):
+  # this is used by reinterpret
+  if verbose>=1: print("spec_fbitsN_inv(",N,bits,")")
+  #will use struct.unpack() so need bytearray
+  bytes_ = bytearray()
+  for i in range(len(bits)//8):
+    bytes_ += bytearray( [int(bits[8*i:8*(i+1)],2)] )
+  if N==32:
+    z = struct.unpack('>f',bytes_)[0]
+  elif N==64:
+    z = struct.unpack('>d',bytes_)[0]
+  return z
 
-#floating-point values are encoded directly by their IEEE 754-2008 bit pattern in little endian byte order
-def spec_bytes_fN_inv(bstar,N):
-  if verbose>=1: print("spec_bytes_fN_inv(",bstar,N,")")
-  #TODO: check and possibly convert with littleendian() 
-  bitstring=""
-  for by in bstar:
-    bitstring += bin(by)[2:].rjust(8, '0')
-  signstring='+' if bitstring[0]=='1' else '-'
-  M=spec_signif(N)
-  E=spec_expon(N)
-  e=bitstring[1:E+1]
-  m=bitstring[E+1:]
-  if e=='1'*E:
-    if m=='0'*M:
-      return signstring+"inf"
-    else:
-      return signstring+"nan("+string(int(m,2))+")"
-  elif e=='0'*E:
-    return signstring+'0.'+str(int(m,2))
-  else:
-    return signstring+"1."+str(int(m,2))+"e"+str(int(e,2)-(2**(E-1)-1))
+def spec_fsign(z):
+  bytes_ = spec_bytest("f"+str(64),z)
+  #print("fsign bytes_",bytes_, [bin(byte).lstrip('0b').zfill(8) for byte in bytes_])
+  sign = bytes_[-1] & 0b10000000	#-1 since littleendian
+  #print("spec_fsign(",z,")",sign)
+  if sign: return 1
+  else: return 0
+  #z_bytes = struct.pack('d',z)
+  #if bin(z_bytes[0]).replace('0b','')[0] == '1':
+  #  return 1
+  #else:
+  #  return 0
+
+# decided to just use struct.pack() and struct.unpack()
+# other options to represent floating point numbers:
+#   float which is 64-bit, for 32-bit, can truncate significand and exponent after each operation
+#   ctypes.c_float and ctypes.c_double 
+#   numpy.float32 and numpy.float64
 
 
 # Storage
@@ -261,24 +333,22 @@ def spec_bytes_fN_inv(bstar,N):
 def spec_bytest(t,i):
   if verbose>=1: print("spec_bytest(",t,i,")")
   if t[0]=='i':
-    return spec_bytesiN(int(t[1:3]),i)
+    bits = spec_bitsiN(int(t[1:3]),i)
   elif t[0]=='f':
-    return spec_bytesfN(int(t[1:3]),i)
-  else:
-    return None
+    bits = spec_bitsfN(int(t[1:3]),i)
+  return spec_littleendian(bits)
 
-def spec_bytest_inv(t,i):
-  if verbose>=1: print("spec_bytest_inv(",t,i,")")
+def spec_bytest_inv(t,bytes_):
+  if verbose>=1: print("spec_bytest_inv(",t,bytes_,")")
+  bits = spec_littleendian_inv(bytes_)
   if t[0]=='i':
-    return spec_bytesiN_inv(int(t[1:3]),i)
+    return spec_bitsiN_inv(int(t[1:3]),bits)
   elif t[0]=='f':
-    return spec_bytesfN_inv(int(t[1:3]),i)
-  else:
-    return None
+    return spec_bitsfN_inv(int(t[1:3]),bits)
+
 
 def spec_bytesiN(N,i):
   if verbose>=1: print("spec_bytesiN(",N,i,")")
-  #bits = spec_littleendian(spec_bitsiN(N,i))
   bits = spec_bitsiN(N,i)
   #convert bits to bytes
   bytes_ = bytearray()
@@ -291,47 +361,54 @@ def spec_bytesiN_inv(N,bytes_):
   bits=""
   for byte in bytes_:
     bits += spec_ibitsN(8,byte)
-  #bits = spec_littleendian(bits)
   return spec_ibitsN_inv(N,bits)
 
+
+""" unused
 def spec_bytesfN(N,z):
   if verbose>=1: print("spec_bytesfN(",N,z,")")
-  #TODO:implement this, garbage for now
   if N==32:
-    return bytearray([1,2,3,4])
-  if N==64:
-    return bytearray([1,2,3,4,5,6,7,8])
+    z_bytes = struct.pack('>f',z)
+  elif N==64:
+    z_bytes = struct.pack('>d',z)
+  return z_bytes
+  
+def spec_bytesfN_inv(N,bytes_):
+  if verbose>=1: print("spec_bytesfN_inv(",N,bytes_,")")
+  if N==32:
+    z = struct.unpack('>f',bytes_)[0]
+  elif N==64:
+    z = struct.unpack('>d',bytes_)[0]
+  return z
+"""
 
-def spec_bytesfN_inv(N,d):
-  if verbose>=1: print("spec_bytesfN_inv(",N,d,")")
-  #TODO
-  return None
 
 def spec_littleendian(d):
   if verbose>=1: print("spec_littleendian(",d,")")
   #same behavior for both 32 and 64-bit values
-  if len(d)==0: return ''
+  #this assumes len(d) is divisible by 8
+  if len(d)==0: return bytearray()
   d18 = d[:8]
   d2Nm8 = d[8:]
-  return d18 + spec_littleendian(d2Nm8)
+  d18_as_int = spec_ibitsN_inv(8,d18)
+  return spec_littleendian(d2Nm8) + bytearray([d18_as_int])
+  #return bytearray([d18_as_int]) + spec_littleendian(d2Nm8) 
 
-def spec_littleendian_inv(d):
-  if verbose>=1: print("spec_littleendian_inv(",d,")")
-  #this assumes len(d) is divisible by 8
+def spec_littleendian_inv(bytes_):
+  if verbose>=1: print("spec_littleendian_inv(",bytes_,")")
   #same behavior for both 32 and 64-bit values
-  return spec_littleendian(d)
+  #this assumes len(d) is divisible by 8
+  #this converts bytes to bits
+  if len(bytes_)==0: return ''
+  bits = bin( int(bytes_[-1]) ).lstrip('0b').zfill(8)
+  return bits + spec_littleendian_inv( bytes_[:-1] )
+  #bits = bin( int(bytes_[0]) ).lstrip('0b').zfill(8)
+  #return spec_littleendian_inv( bytes_[1:] ) + bits
 
 
 
 # 4.3.2 INTEGER OPERATIONS
 
-# all values are stored as positive numbers, when need signed interpretation, use spec_signediN and spec_signediN_inv()
-# alternatives:
-#  ctypes.c_uint32
-#  numpy.uint32 which is less portable
-#  BitArray(int=-1000, length=32), >> operator
-#  bitstring.Bits(int=-1, length=12)
-#  similar but maybe not useful: array, 
 
 #two's comlement
 def spec_signediN(N,i):
@@ -340,8 +417,6 @@ def spec_signediN(N,i):
     return i
   elif 2**(N-1)<=i<2**N:
     return i-2**N
-  else:
-    return None
   #alternative 2's comlement
   #  return i - int((i << 1) & 2**N) #https://stackoverflow.com/a/36338336
 
@@ -561,86 +636,327 @@ def spec_ige_sN(N,i1,i2):
 
 
 def spec_fabsN(N,z):
-  if z<0:
-    return -1*z
-  else:
+  if verbose>=1: print("spec_fabsN(",N,z,")")
+  #print("spec_fabsN(",N,z,")")
+  sign = spec_fsign(z)
+  #print(sign)
+  if sign == 0:
     return z
+  else:
+    return spec_fnegN(N,z)
 
 def spec_fnegN(N,z):
-  return -1*z
+  if verbose>=1: print("spec_fnegN(",N,z,")")
+  #get bytes and sign
+  bytes_ = spec_bytest("f64",z)	#64 since errors if z too bit for 32
+  sign = spec_fsign(z)
+  if sign == 0:
+    bytes_[-1] |= 0b10000000	#-1 since littleendian
+  else:
+    bytes_[-1] &= 0b01111111	#-1 since littleendian
+  z = spec_bytest_inv("f64",bytes_)	#64 since errors if z too bit for 32
+  return z
 
 def spec_fceilN(N,z):
-  #TODO
-  return z
+  if verbose>=1: print("spec_fceilN(",N,z,")")
+  if math.isnan(z):
+    return z
+  elif math.isinf(z):
+    return z
+  elif z==0:
+    return z
+  elif -1.0<z<0.0:
+    return -0.0
+  else:
+    return float(math.ceil(z))
 
 def spec_ffloorN(N,z):
-  #TODO
-  return z
+  if verbose>=1: print("spec_ffloorN(",N,z,")")
+  if math.isnan(z):
+    return z
+  elif math.isinf(z):
+    return z
+  elif z==0:
+    return z
+  elif 0.0<z<1.0:
+    return 0.0
+  else:
+    return float(math.floor(z))
 
 def spec_ftruncN(N,z):
-  #TODO
-  return z
+  if verbose>=1: print("spec_ftruncN(",N,z,")")
+  if math.isnan(z):
+    return z
+  elif math.isinf(z):
+    return z
+  elif z==0:
+    return z
+  elif 0.0<z<1.0:
+    return 0.0
+  elif -1.0<z<0.0:
+    return -0.0
+  else:
+    magnitude = spec_fabsN(N,z)
+    floormagnitude = spec_ffloorN(N,magnitude)
+    return floormagnitude * (-1 if spec_fsign(z) else 1) 	#math.floor(z)) + spec_fsign(z) 
 
 def spec_fnearestN(N,z):
-  #TODO
-  return z
+  if verbose>=1: print("spec_fnearestN(",N,z,")")
+  if math.isnan(z):
+    return z
+  elif math.isinf(z):
+    return z
+  elif z==0:
+    return z
+  elif 0.0 < z <= 0.5:
+    return 0.0
+  elif -0.5 <= z < 0.0:
+    return -0.0
+  else:
+    return float(round(z))
 
 def spec_fsqrtN(N,z):
-  return z
+  if verbose>=1: print("spec_fsqrtN(",N,z,")")
+  if math.isnan(z) or (spec_fsign(z)==1 and z!=0):
+    return float('nan')
+  else:
+    return math.sqrt(z)
 
 def spec_faddN(N,z1,z2):
-  return z1+z2
+  if verbose>=1: print("spec_faddN(",N,z1,z2,")")
+  res = z1+z2
+  if N==32:
+    res = spec_demoteMN(64,32,res)
+  return res
 
 def spec_fsubN(N,z1,z2):
-  return z1-z2
+  if verbose>=1: print("spec_fsubN(",N,z1,z2,")")
+  res = z1-z2
+  #print("z1-z2:",z1-z2)
+  if N==32:
+    res = spec_demoteMN(64,32,res)
+    #print("demoted z1-z2:",res)
+  return res
 
 def spec_fmulN(N,z1,z2):
-  return z1*z2
+  if verbose>=1: print("spec_fmulN(",N,z1,z2,")")
+  res = z1*z2
+  if N==32:
+    res = spec_demoteMN(64,32,res)
+  return res
 
 def spec_fdivN(N,z1,z2):
-  return z1/z2
+  if verbose>=1: print("spec_fdivN(",N,z1,z2,")")
+  if math.isnan(z1):
+    return z1
+  elif math.isnan(z2):
+    return z2
+  elif math.isinf(z1) and math.isinf(z2):
+    return float('nan')
+  elif z1==0.0 and z2==0.0:
+    return float('nan')
+  elif z1==0.0 and z2==0.0:
+    return float('nan')
+  elif math.isinf(z1):
+    if spec_fsign(z1) == spec_fsign(z2):
+      return float('inf')
+    else:
+      return -float('inf')
+  elif math.isinf(z2):
+    if spec_fsign(z1) == spec_fsign(z2):
+      return 0.0
+    else:
+      return -0.0
+  elif z1==0:
+    if spec_fsign(z1) == spec_fsign(z2):
+      return 0.0
+    else:
+      return -0.0
+  elif z2==0:
+    if spec_fsign(z1) == spec_fsign(z2):
+      return float('inf')
+    else:
+      return -float('inf')
+  else:
+    res = z1/z2
+    if N==32:
+      res = spec_demoteMN(64,32,res)
+    return res
 
 def spec_fminN(N,z1,z2):
-  if z1 < z2: return z1
-  else: return z2
-
-def spec_fmaxN(N,z1,z2):
-  if z1 > z2: return z1
-  else: return z2
-
-def spec_fcopysignN(N,z1,z2):
-  if (z1>0 and z2>0) or (z1<=0 and z2<=0):
+  if verbose>=1: print("spec_fminN(",N,z1,z2,")")
+  if math.isnan(z1):
+    return z1
+  elif math.isnan(z2):
+    return z2
+  elif z1==-float('inf') or z2==-float('inf'):
+    return -float('inf')
+  elif z1 == float('inf'):
+    return z2
+  elif z2 == float('inf'):
+    return z1
+  elif z1==z2==0.0:
+    if spec_fsign(z1) != spec_fsign(z2):
+      return -0.0
+    else:
+      return z1
+  elif z1 <= z2:
     return z1
   else:
-    return -1*z1
+    return z2
+
+def spec_fmaxN(N,z1,z2):
+  if verbose>=1: print("spec_fmaxN(",N,z1,z2,")")
+  if math.isnan(z1):
+    return z1
+  elif math.isnan(z2):
+    return z2
+  elif z1==float('inf') or z2==float('inf') :
+    return float('inf')
+  elif z1 == -float('inf'):
+    return z2
+  elif z2 == -float('inf'):
+    return z1
+  elif z1==z2==0.0:
+    if spec_fsign(z1) != spec_fsign(z2):
+      return 0.0
+    else:
+      return z1
+  elif z1 <= z2:
+    return z2
+  else:
+    return z1
+
+def spec_fcopysignN(N,z1,z2):
+  if verbose>=1: print("spec_fcopysignN(",N,z1,z2,")")
+  z1sign = spec_fsign(z1)
+  z2sign = spec_fsign(z2)
+  if z1sign == z2sign:
+    return z1
+  else:
+    z1bytes = spec_bytest("f"+str(N),z1)
+    if z1sign == 0:
+      z1bytes[-1] |= 0b10000000		#-1 since littleendian
+    else:
+      z1bytes[-1] &= 0b01111111		#-1 since littleendian
+    z1 = spec_bytest_inv("f"+str(N),z1bytes)
+    return z1
 
 def spec_feqN(N,z1,z2):
-  return z1==z2
+  if verbose>=1: print("spec_feqN(",N,z1,z2,")")
+  if z1==z2:
+    return 1
+  else:
+    return 0
 
 def spec_fneN(N,z1,z2):
-  return z1 != z2
+  if verbose>=1: print("spec_fneN(",N,z1,z2,")")
+  if z1 != z2:
+    return 1
+  else:
+    return 0
 
 def spec_fltN(N,z1,z2):
-  return z1 < z2
+  if verbose>=1: print("spec_fltN(",N,z1,z2,")")
+  if math.isnan(z1):
+    return 0
+  elif math.isnan(z2):
+    return 0
+  elif spec_bitsfN(N,z1)==spec_bitsfN(N,z2):
+    return 0
+  elif z1==float('inf'):
+    return 0
+  elif z1==-float('inf'):
+    return 1
+  elif z2==float('inf'):
+    return 1
+  elif z2==-float('inf'):
+    return 0
+  elif z1==z2==0:
+    return 0
+  elif z1 < z2:
+    return 1
+  else:
+    return 0
 
 def spec_fgtN(N,z1,z2):
-  return z1 > z2
+  if verbose>=1: print("spec_fgtN(",N,z1,z2,")")
+  if math.isnan(z1):
+    return 0
+  elif math.isnan(z2):
+    return 0
+  elif spec_bitsfN(N,z1)==spec_bitsfN(N,z2):
+    return 0
+  elif z1==float('inf'):
+    return 1
+  elif z1==-float('inf'):
+    return 0
+  elif z2==float('inf'):
+    return 0
+  elif z2==-float('inf'):
+    return 1
+  elif z1==z2==0:
+    return 0
+  elif z1 > z2:
+    return 1
+  else:
+    return 0
 
 def spec_fleN(N,z1,z2):
-  return z1 <= z2
+  if verbose>=1: print("spec_fleN(",N,z1,z2,")")
+  if math.isnan(z1):
+    return 0
+  elif math.isnan(z2):
+    return 0
+  elif spec_bitsfN(N,z1)==spec_bitsfN(N,z2):
+    return 1
+  elif z1==float('inf'):
+    return 0
+  elif z1==-float('inf'):
+    return 1
+  elif z2==float('inf'):
+    return 1
+  elif z2==-float('inf'):
+    return 0
+  elif z1==z2==0:
+    return 1
+  elif z1 <= z2:
+    return 1
+  else:
+    return 0
 
 def spec_fgeN(N,z1,z2):
-  return z1 >= z2
+  if verbose>=1: print("spec_fgeN(",N,z1,z2,")")
+  if math.isnan(z1):
+    return 0
+  elif math.isnan(z2):
+    return 0
+  elif spec_bitsfN(N,z1)==spec_bitsfN(N,z2):
+    return 1
+  elif z1==float('inf'):
+    return 1
+  elif z1==-float('inf'):
+    return 0
+  elif z2==float('inf'):
+    return 0
+  elif z2==-float('inf'):
+    return 1
+  elif z1==z2==0:
+    return 1
+  elif z1 >= z2:
+    return 1
+  else:
+    return 0
 
 
 
 # 4.3.4 CONVERSIONS
 
-def spec_extend_uMN(N,M,i):
+def spec_extend_uMN(M,N,i):
   if verbose>=1: print("spec_extend_uMN(",i,")")
   return i
 
-def spec_extend_sMN(N,M,i):
+def spec_extend_sMN(M,N,i):
   if verbose>=1: print("spec_extend_sMN(",M,N,i,")")
   #print("spec_extend_sMN(",M,N,i,")")
   j = spec_signediN(M,i)
@@ -649,50 +965,75 @@ def spec_extend_sMN(N,M,i):
 def spec_wrapMN(M,N,i):
   if verbose>=1: print("spec_wrapMN(",M,N,i,")")
   #print("spec_wrapMN(",M,N,i,")")
-  return i % (2**M)
+  return i % (2**N)
 
 def spec_trunc_uMN(M,N,z):
-  #TODO: floating point stuff
-  return z
+  if verbose>=1: print("spec_trunc_uMN(",M,N,z,")")
+  if math.isnan(z) or math.isinf(z):
+    return "trap"
+  ztrunc = spec_ftruncN(M,z) 
+  if -1 < ztrunc < 2**N:
+    return int(ztrunc)
+  else:
+    return "trap"
 
 def spec_trunc_sMN(M,N,z):
-  #TODO: floating point stuff
-  return z
+  if verbose>=1: print("spec_trunc_sMN(",M,N,z,")")
+  if math.isnan(z) or math.isinf(z):
+    return "trap"
+  ztrunc = spec_ftruncN(M,z) 
+  if -(2**(N-1))-1 < ztrunc < 2**(N-1):
+    iztrunc = int(ztrunc)
+    if iztrunc < 0:
+      return spec_signediN_inv(N,iztrunc)
+    else:
+      return iztrunc
+  else:
+    return "trap"
 
 def spec_promoteMN(M,N,z):
-  #TODO: floating point stuff
+  if verbose>=1: print("spec_promoteMN(",M,N,z,")")
   return z
 
 def spec_demoteMN(M,N,z):
-  #TODO: floating point stuff
-  return z
+  if verbose>=1: print("spec_demoteMN(",M,N,z,")")
+  absz = spec_fabsN(N,z)
+  #limitN = 2**(2**(spec_expon(N)-1))
+  limitN = 2**128 * (1 - 2**-25)	#this FLT_MAX is slightly different than the Wasm spec's 2**127
+  if absz >= limitN:
+    signz = spec_fsign(z)
+    if signz:
+      return -float('inf')
+    else:
+      return float('inf')
+  bytes_ = spec_bytest('f32',z)
+  z32 = spec_bytest_inv('f32',bytes_)
+  return z32
 
-def spec_convert_uMN(M,N,z):
-  #TODO: floating point stuff
-  return z
+def spec_convert_uMN(M,N,i):
+  if verbose>=1: print("spec_convert_uMN(",M,N,i,")")
+  limitN = 2**(2**(spec_expon(N)-1))
+  if i >= limitN:
+    return float('inf')
+  return float(i)
 
-def spec_convert_sMN(M,N,z):
-  #TODO: floating point stuff
-  return z
+def spec_convert_sMN(M,N,i):
+  if verbose>=1: print("spec_convert_sMN(",M,N,i,")")
+  limitN = 2**(2**(spec_expon(N)-1))
+  #print("limitN",limitN)
+  if i >= limitN:
+    return float('inf')
+  if i <= -1*limitN:
+    return -float('inf')
+  i = spec_signediN(M,i)
+  return float(i)
 
 def spec_reinterprett1t2(t1,t2,c):
   if verbose>=1: print("spec_reinterprett1t2(",t1,t2,c,")")
-  if t1=='i32':
-    bitst1 = spec_bitsiN(32,c)
-  elif t1=='i64':
-    bitst1 = spec_bitsiN(64,c)
-  elif t1=='f32':
-    bitst1 = spec_bitsfN(32,c)
-  elif t1=='f64':
-    bitst1 = spec_bitsfN(64,c)
-  if t2=='i32':
-    return spec_bitsiN_inv(32,bitst1)
-  elif t2=='i64':
-    return spec_bitsiN_inv(64,bitst1)
-  elif t2=='f32':
-    return spec_bitsfN_inv(32,bitst1)
-  elif t2=='f64':
-    return spec_bitsfN_inv(64,bitst1)
+  #print("spec_reinterprett1t2(",t1,t2,c,")")
+  bits = spec_bitst(t1,c)
+  #print(bits)
+  return spec_bitst_inv(t2,bits)
 
 
 ##################
@@ -707,8 +1048,7 @@ def spec_tconst(config):
   if verbose>=1: print("spec_tconst(",")")
   S = config["S"]
   c = config["instrstar"][config["idx"]][1]
-  if type(c)==bytearray: #TODO:fix parsing float const then remove this hack
-    c = 1.1
+  if verbose>=1: print("spec_tconst(",c,")")
   config["operand_stack"] += [c]
   config["idx"] += 1
 
@@ -766,15 +1106,15 @@ def spec_t2cvtopt1(config):
   if verbose>=1: print("spec_t2crtopt1(",")")
   S = config["S"]
   instr = config["instrstar"][config["idx"]][0]
-  t1 = instr[0:3]
-  t2 = instr[-3:]
+  t2 = instr[0:3]
+  t1 = instr[-3:]
   op = opcode2exec[instr][1]
   c1 = config["operand_stack"].pop()
   if instr[4:15] == "reinterpret":
-    c2 = op(t2,t1,c1)
+    c2 = op(t1,t2,c1)
   else:
-    c2 = op(int(t1[1:3]),int(t2[1:3]),c1)
-  if c2 == "trap": return c
+    c2 = op(int(t1[1:]),int(t2[1:]),c1)
+  if c2 == "trap": return c2
   config["operand_stack"].append(c2)
   config["idx"] += 1
 
@@ -840,7 +1180,7 @@ def spec_get_global(config):
   x = config["instrstar"][config["idx"]][1]
   a = F[-1]["module"]["globaladdrs"][x]
   glob = S["globals"][a]
-  val = glob["value"][1]
+  val = glob["value"][1]	#*** omit the type eg 'i32.const', just get the value, see above for how this is different from the spec
   config["operand_stack"].append(val)
   config["idx"] += 1
 
@@ -868,33 +1208,42 @@ def spec_tload(config):
   #print(instr)
   #print(memarg)
   t = instr[:3]
-  sxflag = False
-  if instr[3:] != ".load":  # eg i32.load8_s
-    if instr[-1] == "s":
-      sxflag = True
-    N=int(instr[8:10].strip("_"))
-  else:
-    N=int(t[1:])
   #print(N)
   #print(sxflag)
+  # 3
   a = F[-1]["module"]["memaddrs"][0]
+  # 5
   mem = S["mems"][a]
+  # 7
   i = config["operand_stack"].pop()
   #print(type(i))
   #print(type(memarg["offset"]))
+  # 8
   ea = i+memarg["offset"] 
-  if N==None:
-    sxflag = False
-    N = int(t[1:])
-    M = N
+  # 9
+  sxflag = False
+  if instr[3:] != ".load":  # N is part of the opcode eg i32.load8_s has N=8
+    if instr[-1] == "s":
+      sxflag = True
+    N = int(instr[8:10].strip("_"))
   else:
-    M = int(t[1:])
+    N=int(t[1:])
+  # 10
   if ea+N//8 > len(mem["data"]):
     return "trap"
   #print(ea,ea+N//8)
+  # 11
   bstar = mem["data"][ea:ea+N//8]
   #print("bstar",bstar)
-  bstar = bytearray(reversed(bstar)) # since little endian
+  #bstar = bytearray(reversed(bstar)) # since little endian
+  # 12
+  if sxflag:
+    n = spec_bytest_inv(t,bstar)
+    c = spec_extend_sMN(N,int(t[1:]),n)
+  else:
+    c = spec_bytest_inv(t,bstar)
+  # 13
+  config["operand_stack"].append(c)
   #bitstring=""
   #for by in bstar:
   #  bitstring += bin(by)[2:].rjust(8, '0')
@@ -905,15 +1254,8 @@ def spec_tload(config):
   #for i in range(len(bitstring)//8):
   #  bstar += bytearray([int(bitstring[i*8:i*8+8],2)])
   #print(bstar)
-  if sxflag:
-    n = spec_bytesiN_inv(N,bstar)
-    c = spec_extend_sMN(M,N,n)
-  else:
-    c = spec_bytest_inv(t,bstar)
   #print("c: ",c)
-  if verbose >=3: print("loaded",c,"from memory locations",ea,"to",ea+N//8)
-  #print("loaded",c,"from memory locations",ea,"to",ea+N//8)
-  config["operand_stack"].append(c)
+  if verbose>=2: print("loaded",c,"from memory locations",ea,"to",ea+N//8)
   config["idx"] += 1
 
 def spec_tstore(config):
@@ -923,29 +1265,38 @@ def spec_tstore(config):
   instr = config["instrstar"][config["idx"]][0]
   memarg = config["instrstar"][config["idx"]][1]
   t = instr[:3]
+  # 3
+  a = F[-1]["module"]["memaddrs"][0]
+  # 5
+  mem = S["mems"][a]
+  # 7
+  c = config["operand_stack"].pop()
+  # 9
+  i = config["operand_stack"].pop()
+  # 10
+  ea = i+memarg["offset"]
+  # 11
   Nflag = False 
-  if instr[3:] != ".store":  # eg i32.store8
+  if instr[3:] != ".store":  # N is part of the instruction, eg i32.store8
     Nflag = True
     N=int(instr[9:])
   else:
     N=int(t[1:])
-  a = F[-1]["module"]["memaddrs"][0]
-  mem = S["mems"][a]
-  c = config["operand_stack"].pop()
-  i = config["operand_stack"].pop()
-  ea = i+memarg["offset"]
+  # 12
   if ea+N//8 > len(mem["data"]):
     return "trap"
+  # 13
   if Nflag:
-    c = spec_wrapMN(N,int(t[1:]),c)
-    bstar = spec_bytesiN(N,c)
+    M=int(t[1:])
+    c = spec_wrapMN(M,N,c)
+    bstar = spec_bytest(t,c)
   else:
     bstar = spec_bytest(t,c)
-  bstar = bytearray(reversed(bstar))  #since little-endian
-  mem["data"][ea:ea+N//8] = bstar
-  if verbose >=3: print("stored",bstar,"to memory locations",ea,"to",ea+N//8)
+  #bstar = bytearray(reversed(bstar))  #since little-endian
+  # 15
+  mem["data"][ea:ea+N//8] = bstar[:N//8]
   #verbose >=3: print("stored",bstar,"to memory locations",ea,"to",ea+N//8)
-  #print("stored",bstar,"to memory locations",ea,"to",ea+N//8)
+  if verbose>=2: print("stored",[bin(byte).strip('0b').zfill(8) for byte in bstar[:N//8]],"to memory locations",ea,"to",ea+N//8)
   config["idx"] += 1
 
 def spec_memorysize(config):
@@ -977,10 +1328,11 @@ def spec_memorygrow(config):
 # 4.4.5 CONTROL INSTRUCTIONS
 
 """
- This deviates from the spec, config inculdes store S, frame F, instr_list, idx into this instr_list, operand_stack, and control_stack 
- and each label L has extra value for height of operand stack when it started, continuation when it is branched to, and end when it's last instruction is called
- operand_stack holds only values, control_stack holds only labels
- function invocation coincides with a python function call which creates a new frame, so the frames have their own implicit stack. This will be changed, putting function call frames into the label stack or into their own stack.
+ This implementation deviates from the spec as follows.
+   - Three stacks are maintained, operands, control-flow labels, and function-call frames.
+     Operand_stack holds only values, control_stack holds only labels. The function-call frames are mainted implicitly in Python function calls -- this will be changed, putting function call frames into the label stack or into their own stack.
+   - `config` inculdes store S, frame F, instr_list, idx into this instr_list, operand_stack, and control_stack.
+   - Each label L has extra value for height of operand stack when it started, continuation when it is branched to, and end when it's last instruction is called.
 """
 
 def spec_nop(config):
@@ -1189,7 +1541,12 @@ def spec_invokeopcode(config, a):
     tstar = f["code"]["locals"]
     instrstarend = f["code"]["body"]
     blockinstrstarendend = [["block", retval,instrstarend],["end"]]
-    val0star = [0]*len(tstar)
+    val0star = []
+    for t in tstar:
+      if t[0]=='i':
+        val0star += [0]
+      if t[0]=='f':
+        val0star += [0.0]
     F += [{ "module": f["module"], "locals": valn+val0star, "arity":len(t2m), "height":len(operand_stack), "continuation":[instrstar, idx] }]
     config_new = {"S":S,"F":F,"instrstar":blockinstrstarendend,"idx":0,"operand_stack":[],"control_stack":[]}
     #frame_stack += [{"frame":F, "arity":arity}] #an activation is really frame_n {frame} where n is arity
@@ -1442,7 +1799,7 @@ def spec_expr(config):
     if verbose >= 2: print("operand_stack",config["operand_stack"])
     #print("control_stack",len(config["control_stack"]),config["control_stack"])
     #print()
-    if verbose >= 2: print("control_stack",config["control_stack"])
+    if verbose >= 4: print("control_stack",config["control_stack"])
 
 
 #############
@@ -1592,10 +1949,10 @@ def spec_allocmodule(S,module,externvalimstar,valstar):
   memaddrstar = [spec_allocmem(S,mem["type"])[1] for mem in module["mems"]]
   globaladdrstar = [spec_allocglobal(S,global_["type"],valstar[idx])[1] for idx,global_ in enumerate(module["globals"])]
   #exportinststar = [{"name":export["name"], "value":externvalex[idx]} for idx,export in enumerate(module["exports"])]
-  funcaddrmodstar = [externval[1] for externval in externvalimstar if "func"==externval[0]] + funcaddrstar
-  tableaddrmodstar = [externval[1] for externval in externvalimstar if "table"==externval[0]] + tableaddrstar
-  memaddrmodstar = [externval[1] for externval in externvalimstar if "mem"==externval[0]] + memaddrstar
-  globaladdrmodstar = [externval[1] for externval in externvalimstar if "global"==externval[0]] + globaladdrstar
+  funcaddrmodstar = spec_funcs(externvalimstar) + funcaddrstar #[externval[1] for externval in externvalimstar if "func"==externval[0]] + funcaddrstar
+  tableaddrmodstar = spec_tables(externvalimstar) + tableaddrstar #[externval[1] for externval in externvalimstar if "table"==externval[0]] + tableaddrstar
+  memaddrmodstar = spec_mems(externvalimstar) + memaddrstar #[externval[1] for externval in externvalimstar if "mem"==externval[0]] + memaddrstar
+  globaladdrmodstar = spec_globals(externvalimstar) + globaladdrstar #[externval[1] for externval in externvalimstar if "global"==externval[0]] + globaladdrstar
   exportinststar = []
   for exporti in module["exports"]:
     if exporti["desc"][0] == "func":
@@ -1952,9 +2309,11 @@ for opcode in opcodes_binary2text:
 
 def spec_binary_vec(raw,idx,B):
   idx,n=spec_binary_uN(raw,idx,32)
+  if n =="malformed": return idx,n
   xn = []
   for i in range(n):
     idx,x = B(raw,idx)
+    if x=="malformed": return idx,x
     xn+=[x]
   return idx,xn
 
@@ -1973,24 +2332,25 @@ def spec_binary_vec_inv(mynode,myfunc):
 # 5.2.1 BYTES
 
 def spec_binary_byte(raw,idx):
+  if len(raw)>=idx: return idx,"malformed"
   return idx+1,raw[idx]
 
 def spec_binary_byte_inv(node):
   return bytearray([node])
 
 # 5.2.2 INTEGERS
-#TODO: check things on pg 87
 
 #unsigned
 def spec_binary_uN(raw,idx,N):
   idx,n=spec_binary_byte(raw,idx)
+  if n=="malformed": return idx,n
   if n<2**7 and n<2**N:
     return idx,n
   elif n>=2**7 and N>7:
     idx,m=spec_binary_uN(raw,idx,N-7)
     return idx, (2**7)*m+(n-2**7)
   else:
-    return idx,None #error
+    return idx,"malformed"
 
 def spec_binary_uN_inv(k,N):
   #print("spec_binary_uN_inv(",k,N,")")
@@ -2000,17 +2360,6 @@ def spec_binary_uN_inv(k,N):
     return bytearray([k%(2**7)+2**7])+spec_binary_uN_inv(k//(2**7),N-7)
   else:
     return None
-
-def spec_binary_uN_inv_old(n,N):
-  if n>2**N:
-    return None #error
-  mybytes = bytearray()
-  while n>2**7:
-    m=(n&0b1111111)+2**7
-    mybytes.append(m)
-    n=n>>7
-  mybytes.append(n)
-  return mybytes
 
 #signed
 def spec_binary_sN(raw,idx,N):
@@ -2022,9 +2371,10 @@ def spec_binary_sN(raw,idx,N):
     return idx,n-2**7
   elif n>=2**7 and N>7:
     idx,m=spec_binary_sN(raw,idx,N-7)
+    if m=="malformed": return idx,m
     return idx,2**7*m+(n-2**7)
   else:
-    return idx,None #error
+    return idx,"malformed"
 
 def spec_binary_sN_inv(k,N):
   if 0<=k<2**6 and k<2**N:
@@ -2034,11 +2384,12 @@ def spec_binary_sN_inv(k,N):
   elif (k>=2**6 or k<2**6) and N>7: #(k<0 and k+2**7>=2**6)) and N>7:
     return bytearray([k%(2**7)+2**7])+spec_binary_sN_inv((k//(2**7)),N-7)
   else:
-    return None
+    return "malformed" #check this
 
 #uninterpretted integers
 def spec_binary_iN(raw,idx,N):
   idx,n=spec_binary_sN(raw,idx,N)
+  if n=="malformed": return idx,n
   i = spec_signediN_inv(N,n)
   return idx, i
 
@@ -2051,17 +2402,15 @@ def spec_binary_iN_inv(i,N):
 
 #fN::= b*:byte^{N/8} => bytes_{fN}^{-1}(b*)
 def spec_binary_fN(raw,idx,N):
-  bstar = []
+  bstar = bytearray([])
   for i in range(N//8):
-    bstar+=[raw[idx]]
+    bstar+= bytearray([raw[idx]])
     idx+=1
-  return idx, bytearray(bstar)
+  return idx, spec_bytest_inv("f"+str(N),bstar) #bytearray(bstar)
 
 def spec_binary_fN_inv(node,N):
-  if len(node)==N/8:
-    return node
-  else:
-    return None
+  return spec_bytest("f"+str(N),node)
+
   
 
 # 5.2.4 NAMES
@@ -2098,7 +2447,7 @@ def spec_binary_name(raw,idx):
     if 0x10000<=c<0x110000:
       name+=[c]
     else:
-      break  #return idx, None #error
+      return idx,("malformed",) # tuple since utf8 string "malformed"
   #convert each codepoint to utf8 character
   #print("utf8 name",name, len(name), name=="")
   nametxt = ""
@@ -2137,7 +2486,7 @@ def spec_binary_valtype(raw,idx):
   if raw[idx] in bin2valtype:
     return idx+1,bin2valtype[raw[idx]]
   else:
-    return idx,None #error
+    return idx,"malformed"
 
 def spec_binary_valtype_inv(node):
   #print("spec_binary_valtype_inv(",node,")")
@@ -2165,10 +2514,12 @@ def spec_binary_blocktype_inv(node):
 
 def spec_binary_functype(raw,idx):
   if raw[idx]!=0x60:
-    return idx, None #error
+    return idx, "malformed"
   idx+=1
   idx,t1star=spec_binary_vec(raw,idx,spec_binary_valtype)
+  if t1star=="malformed": return idx,t1star
   idx,t2star=spec_binary_vec(raw,idx,spec_binary_valtype)
+  if t2star=="malformed": return idx,t2star
   return idx,[t1star,t2star]
 
 def spec_binary_functype_inv(node):
@@ -2180,10 +2531,13 @@ def spec_binary_functype_inv(node):
 def spec_binary_limits(raw,idx):
   if raw[idx]==0x00:
     idx,n = spec_binary_uN(raw,idx+1,32)
+    if n=="malformed": return idx,n
     return idx,{"min":n,"max":None}
   elif raw[idx]==0x01:
     idx,n = spec_binary_uN(raw,idx+1,32)
+    if n=="malformed": return idx,n
     idx,m = spec_binary_uN(raw,idx,32)
+    if m=="malformed": return idx,m
     return idx,{"min":n,"max":m}
   else:
     return idx,None #error
@@ -2208,14 +2562,16 @@ def spec_binary_memtype_inv(node):
 
 def spec_binary_tabletype(raw,idx):
   idx,et = spec_binary_elemtype(raw,idx)
+  if et=="malformed": return idx,et
   idx,lim = spec_binary_limits(raw,idx)
+  if lim=="malformed": return idx,lim
   return idx,[lim,et]
 
 def spec_binary_elemtype(raw,idx):
   if raw[idx]==0x70:
     return idx+1,"anyfunc"
   else:
-    return idx,None #error
+    return idx,"malformed"
 
 def spec_binary_tabletype_inv(node):
   return spec_binary_elemtype_inv(node[1])+spec_binary_limits_inv(node[0])
@@ -2228,7 +2584,9 @@ def spec_binary_elemtype_inv(node):
 
 def spec_binary_globaltype(raw,idx):
   idx,t = spec_binary_valtype(raw,idx)
+  if t=="malformed": return idx,t
   idx,m = spec_binary_mut(raw,idx)
+  if m=="malformed": return idx,m
   return idx,[m,t]
 
 def spec_binary_mut(raw,idx):
@@ -2237,7 +2595,7 @@ def spec_binary_mut(raw,idx):
   elif raw[idx]==0x01:
     return idx+1,"var"
   else:
-    return idx, None #error
+    return idx, "malformed"
 
 def spec_binary_globaltype_inv(node):
   return spec_binary_valtype_inv(node[1])+spec_binary_mut_inv(node[0])
@@ -2259,7 +2617,9 @@ def spec_binary_mut_inv(node):
 
 def spec_binary_memarg(raw,idx):
   idx,a=spec_binary_uN(raw,idx,32)
+  if a=="malformed": return idx,a
   idx,o=spec_binary_uN(raw,idx,32)
+  if o=="malformed": return idx,o
   return idx,{"align":a,"offset":o}
 
 def spec_binary_memarg_inv(node):
@@ -2273,6 +2633,7 @@ def spec_binary_instr(raw,idx):
   idx+=1
   if instr_text in {"block","loop","if"}:      #block, loop, if
     idx,rt=spec_binary_blocktype(raw,idx)
+    if rt=="malformed": return idx,rt
     instar=[]
     if instr_text=="if":
       instar2=[]
@@ -2315,6 +2676,7 @@ def spec_binary_instr(raw,idx):
     return idx, [instr_text,x]
   elif 0x28<=instr_binary<=0x3e:               # i32.load, i64.store, etc
     idx,m = spec_binary_memarg(raw,idx)
+    if m=="malformed": return idx,m
     return idx, [instr_text,m]
   elif 0x3f<=instr_binary<=0x40:               # current_memory, grow_memory
     if raw[idx]!=0x00: return idx,None #error
@@ -2323,14 +2685,18 @@ def spec_binary_instr(raw,idx):
     n=0
     if instr_text=="i32.const":
       idx,n = spec_binary_iN(raw,idx,32)
+      if n=="malformed": return idx,n
     if instr_text=="i64.const":
       idx,n = spec_binary_iN(raw,idx,64)
+      if n=="malformed": return idx,n
     return idx, [instr_text,n]
   elif 0x43<=instr_binary<=0x44:               # f32.const, etc
     z=0
     if instr_text=="f32.const":
+      if len(raw)<=idx+4: return idx,"malformed"
       idx,z = spec_binary_fN(raw,idx,32)
     if instr_text=="f64.const":
+      if len(raw)<=idx+8: return idx,"malformed"
       idx,z = spec_binary_fN(raw,idx,64)
     return idx, [instr_text,z]
   else:
@@ -2392,6 +2758,7 @@ def spec_binary_expr(raw,idx):
   instar = []
   while raw[idx] != 0x0b:
     idx,ins = spec_binary_instr(raw,idx)
+    if ins=="malformed": return idx,ins
     instar+=[ins]
   if raw[idx] != 0x0b: return idx,None #error
   return idx+1, instar +[['end']]
@@ -2468,16 +2835,22 @@ def spec_binary_labelidx_inv(node):
 # 5.5.2 SECTIONS
 
 def spec_binary_sectionN(raw,idx,N,B,skip):
+  #print("spec_binary_sectionN(",idx,N,")")
   if idx>=len(raw) or raw[idx]!=N:
     return idx, []  #skip since this sec not included
   idx+=1
   idx,size = spec_binary_uN(raw,idx,32)
+  if size=="malformed": return idx,size
+  idx_plus_size = idx+size
   if skip:
     return idx+size,[]
   if N!=8: #not start:
-    return spec_binary_vec(raw,idx,B)
+    idx,ret = spec_binary_vec(raw,idx,B)
   else:
-    return B(raw,idx)
+    idx, ret = B(raw,idx)
+  if idx != idx_plus_size:
+    return idx,"malformed"
+  return idx,ret
 
 def spec_binary_sectionN_inv(cont,Binv,N):
   if cont==None or cont==[]:
@@ -2494,18 +2867,22 @@ def spec_binary_sectionN_inv(cont,Binv,N):
 
 # 5.5.3 CUSTOM SECTION
 
-#TODO: check custom section stuff
+# we jump over custom sections, since they have no semantics
 
 def spec_binary_customsec(raw,idx,skip=1):
   idx,size = spec_binary_uN(raw,idx,32)
+  if size=="malformed": return idx,size
   endidx = idx+size
-  #not a vec(), so should adjust sectionN()
-  return endidx,None #return spec_binary_sectionN(raw,idx,0,spec_binary_custom,skip) 
+  return endidx,None 
+  #not a vec(), so should adjust sectionN() before using the following return
+  #return spec_binary_sectionN(raw,idx,0,spec_binary_custom,skip) 
 
 def spec_binary_custom(raw,idx):
   idx,name = spec_binary_name(raw,idx)
-  #what is stopping condition for bytestar?
+  if name==("malformed",): return idx,name[0]
+  #stopping condition for bytestar endidx in function above
   idx,bytestar = spec_binary_byte(raw,idx)
+  if bytestar == "malformed": return idx,bytestar
   return name,bytestar
 
 def spec_binary_customsec_inv(node):
@@ -2532,7 +2909,9 @@ def spec_binary_importsec(raw,idx,skip=0):
 
 def spec_binary_import(raw,idx):
   idx,mod = spec_binary_name(raw,idx)
+  if mod==("malformed",): return idx,mod[0]
   idx,nm = spec_binary_name(raw,idx)
+  if nm==("malformed",): return idx,nm[0]
   idx,d = spec_binary_importdesc(raw,idx)
   return idx,{"module":mod,"name":nm,"desc":d}
 
@@ -2542,12 +2921,15 @@ def spec_binary_importdesc(raw,idx):
     return idx,["func",x]
   elif raw[idx]==0x01:
     idx,tt=spec_binary_tabletype(raw,idx+1)
+    if tt=="malformed": return idx,tt
     return idx,["table",tt]
   elif raw[idx]==0x02:
     idx,mt=spec_binary_memtype(raw,idx+1)
+    if mt=="malformed": return idx,mt
     return idx,["mem",mt]
   elif raw[idx]==0x03:
     idx,gt=spec_binary_globaltype(raw,idx+1)
+    if gt=="malformed": return idx,gt
     return idx,["global",gt]
   else:
     return idx,None #error
@@ -2588,6 +2970,7 @@ def spec_binary_tablesec(raw,idx,skip=0):
 
 def spec_binary_table(raw,idx):
   idx,tt=spec_binary_tabletype(raw,idx)
+  if tt=="malformed": return idx,tt
   return idx,{"type":tt}
 
 def spec_binary_tablesec_inv(node):
@@ -2604,6 +2987,7 @@ def spec_binary_memsec(raw,idx,skip=0):
 
 def spec_binary_mem(raw,idx):
   idx,mt = spec_binary_memtype(raw,idx)
+  if mt=="malformed": return idx,mt
   return idx,{"type":mt}
 
 def spec_binary_memsec_inv(node):
@@ -2620,7 +3004,9 @@ def spec_binary_globalsec(raw,idx,skip=0):
 
 def spec_binary_global(raw,idx):
   idx,gt=spec_binary_globaltype(raw,idx)
+  if gt=="malformed": return idx,gt
   idx,e=spec_binary_expr(raw,idx)
+  if e=="malformed": return idx,e
   return idx,{"type":gt,"init":e}
 
 def spec_binary_globalsec_inv(node):
@@ -2637,6 +3023,7 @@ def spec_binary_exportsec(raw,idx,skip=0):
 
 def spec_binary_export(raw,idx):
   idx,nm = spec_binary_name(raw,idx)
+  if nm==("malformed",): return idx,nm[0]
   idx,d = spec_binary_exportdesc(raw,idx)
   return idx,{"name":nm,"desc":d}
 
@@ -2679,7 +3066,6 @@ def spec_binary_exportdesc_inv(node):
 # 5.5.11 START SECTION
 
 def spec_binary_startsec(raw,idx,skip=0):
-  #TODO: st has ?
   return spec_binary_sectionN(raw,idx,8,spec_binary_start,skip)
 
 def spec_binary_start(raw,idx):
@@ -2703,12 +3089,12 @@ def spec_binary_start_inv(node):
 # 5.5.12 ELEMENT SECTION
 
 def spec_binary_elemsec(raw,idx,skip=0):
-  #TODO: typo? on pg 97 seg doesnt have star
   return spec_binary_sectionN(raw,idx,9,spec_binary_elem,skip)
 
 def spec_binary_elem(raw,idx):
   idx,x=spec_binary_tableidx(raw,idx)
   idx,e=spec_binary_expr(raw,idx)
+  if e=="malformed": return idx,e
   idx,ystar=spec_binary_vec(raw,idx,spec_binary_funcidx)
   return idx,{"table":x,"offset":e,"init":ystar}
 
@@ -2726,22 +3112,29 @@ def spec_binary_codesec(raw,idx,skip=0):
 
 def spec_binary_code(raw,idx):
   idx,size=spec_binary_uN(raw,idx,32)
-  idx,code_=spec_binary_func(raw,idx)
-  #TODO: check whether size==|code|; note size is only useful for validation and skipping
-  return idx,code_
+  if size=="malformed": return idx,size
+  idx_end = idx+size
+  idx,code=spec_binary_func(raw,idx)
+  if idx_end != idx:
+    return idx,"malformed"
+  if len(code) >= 2**32:
+    return idx,"malformed"
+  return idx,code
 
 def spec_binary_func(raw,idx):
   idx,tstarstar=spec_binary_vec(raw,idx,spec_binary_locals)
   idx,e=spec_binary_expr(raw,idx)
-  #TODO: check |concat((t*)*)|<2^32?
-  #TODO: typo: why is return e*?
+  if e=="malformed": return idx,e
   concattstarstar=[t for tstar in tstarstar for t in tstar] 
+  if len(concattstarstar) >= 2**32: return idx,"malformed"
   #return idx, [tstarstar,e]  #not concatenating the t*'s makes it easier for printing
   return idx, [concattstarstar,e]
 
 def spec_binary_locals(raw,idx):
   idx,n=spec_binary_uN(raw,idx,32)
+  if n=="malformed": return idx,n
   idx,t=spec_binary_valtype(raw,idx)
+  if t=="malformed": return idx,t
   tn=[t]*n
   return idx,tn
 
@@ -2752,6 +3145,7 @@ def codesec_bytecode_address(raw,idx,skip=0):
 
 def code_bytecode_address(raw,idx):
   idx,size=spec_binary_uN(raw,idx,32)
+  if size =="malformed": return idx,size
   idx,code_=func_bytecode_address(raw,idx)
   idx+=size
   #TODO: check whether size==|code|; note size is only useful for validation and skipping
@@ -2798,12 +3192,12 @@ def spec_binary_locals_inv(node):
 # 5.5.14 DATA SECTION
 
 def spec_binary_datasec(raw,idx,skip=0):
-  #TODO: typo pg 99 seg doesnt have star
   return spec_binary_sectionN(raw,idx,11,spec_binary_data,skip)
 
 def spec_binary_data(raw,idx):
   idx,x=spec_binary_memidx(raw,idx)
   idx,e=spec_binary_expr(raw,idx)
+  if e=="malformed": return idx,e
   idx,bstar=spec_binary_vec(raw,idx,spec_binary_byte)
   return idx, {"data":x,"offset":e,"init":bstar}
 
@@ -2827,16 +3221,27 @@ def spec_binary_module(raw):
     return None
   idx+=4
   idx,functypestar=spec_binary_typesec(raw,idx,0)
+  if  functypestar=="malformed": return idx,"malformed"
   idx,importstar=spec_binary_importsec(raw,idx,0)
+  if  importstar=="malformed": return idx,"malformed"
   idx,typeidxn=spec_binary_funcsec(raw,idx,0)
+  if  typeidxn=="malformed": return idx,"malformed"
   idx,tablestar=spec_binary_tablesec(raw,idx,0)
+  if  tablestar=="malformed": return idx,"malformed"
   idx,memstar=spec_binary_memsec(raw,idx,0)
+  if  memstar=="malformed": return idx,"malformed"
   idx,globalstar=spec_binary_globalsec(raw,idx,0)
+  if  globalstar=="malformed": return idx,"malformed"
   idx,exportstar=spec_binary_exportsec(raw,idx,0)
+  if  exportstar=="malformed": return idx,"malformed"
   idx,startq=spec_binary_startsec(raw,idx,0)
+  if  startq=="malformed": return idx,"malformed"
   idx,elemstar=spec_binary_elemsec(raw,idx,0)
+  if  elemstar=="malformed": return idx,"malformed"
   idx,coden=spec_binary_codesec(raw,idx,0)
+  if  coden=="malformed": return idx,"malformed"
   idx,datastar=spec_binary_datasec(raw,idx,0)
+  if  datastar=="malformed": return idx,"malformed"
   funcn=[]
   if typeidxn and coden and len(typeidxn)==len(coden):
     for i in range(len(typeidxn)):
@@ -2979,7 +3384,7 @@ def type_table(store,tableaddr):
   if len(store["tables"]) <= tableaddr: return "error"
   tableinst = store["tables"][tableaddr]
   max_ = tableinst["max"]
-  min_ = len(tableinst["elem"]) #TODO: is this min OK? no other way to get min
+  min_ = len(tableinst["elem"]) #TODO: is this min OK?
   tabletype = [{"min":min_, "max":max_}, "anyfunc"]
   return tabletype
 
@@ -3018,7 +3423,7 @@ def type_mem(store, memaddr):
   if len(store["mems"]) <= memaddr: return "error"
   meminst = store["mems"][memaddr]
   max_ = meminst["max"]
-  min_ = len(meminst["data"])//65536  #page size = 64 Ki = 65536 #TODO: is this min OK? no other way to get min
+  min_ = len(meminst["data"])//65536  #page size = 64 Ki = 65536 #TODO: is this min OK?
 
 def read_mem(store, memaddr, i):
   if len(store["mems"]) <= memaddr: return "error"
@@ -3056,7 +3461,7 @@ def type_global(store, globaladdr):
   if len(store["globals"]) <= globaladdr: return "error"
   globalinst = store["globals"][globaladdr]
   mut = globalinst["mut"]
-  valtype = None # TODO: I don't store eg i32.const, just the value
+  valtype = globalinst["value"][0]
   return [mut, valtype]
 
 def read_global(store, globaladdr):
@@ -3064,8 +3469,10 @@ def read_global(store, globaladdr):
   gi = store["globals"][globaladdr]
   return gi["value"]
   
+# arg must look like ["i32.const",5]
 def write_global(store,globaladdr,val):
   if len(store["globals"]) <= globaladdr: return "error"
+  #TODO: type check; handle val without type
   gi = store["globals"][globaladdr]
   if gi["mut"] != "var": return "error"
   gi["value"] = val

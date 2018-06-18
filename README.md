@@ -106,13 +106,13 @@ new version explicitly, like `make release bump="--new-version 4.0.0-alpha.1 dev
 
 ## pywebassembly.py
 
-PyWebAssembly closely follows *WebAssembly Specification, Release 1.0*, implementing most of chapters 2, 3, 4, 5, and 7. Each piece of code in pywebassembly.py references its definition in the spec, so the spec should be used as a user's manual.
+PyWebAssembly closely follows *WebAssembly Specification, Release 1.0*, implementing necessary parts of chapters 2, 3, 4, 5, and 7. Each section of pywebassembly.py references its definition in the spec, so the spec can be used as a user's manual.
 
-Chapter 2 defines the abstract syntax.
+Chapter 2 defines the abstract syntax, which is used throughout the implementation.
 
 Chapter 3 defines validation rules over the abstract syntax. These rules constrain the syntax, but provide properties such as type-safety. An almost-complete implementation is available as a feature-branch.
 
-Chapter 4 defines execution semantics over the abstract syntax. This implementation passes all `assert_return` and `assert_trap` tests of the official Wasm tests (except for tests involving floating-point numbers, which are not yet implemented).
+Chapter 4 defines execution semantics over the abstract syntax. This implementation passes all `assert_return` and `assert_trap` tests of the official Wasm tests (except for some `assert_return` for `NaN`'s significand).
 
 Chapter 5 defines a binary syntax over the abstract syntax. The implementation is a recursive-descent parser which takes a `.wasm` file and builds an abstract syntax tree out of nested Python lists and dicts. Also implemented are inverses (up to a canonical form) which write an abstract syntax tree back to a `.wasm` file.
 
@@ -145,7 +145,6 @@ print(ret)						#list [89] of return values, limitted to one value in Wasm 1.0
 
 
 TODO:
- * Support floating point values and opcodes.
  * Support text format as described in chapter 6.
  * Finish validation, namely, validation of instruction sequences from chapter 3 should follow the validation algorithm in the appendix, which includes tricky cases like after `unreachable`. This is mostly implemented in a feature branch, but needs refactoring.
  * Implement remaining testing opcodes, see `tests/README.md`.
@@ -163,4 +162,4 @@ Testing of PyWebssembly.
 
 # Notes and Conventions.
 
-Both "PyWebAssembly" and "pywebassembly" can be used to refer to the project.
+Both "PyWebAssembly" and "pywebassembly" can be used to as the name of this project.
