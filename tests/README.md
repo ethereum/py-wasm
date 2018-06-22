@@ -17,10 +17,8 @@ support the other extra testing opcodes:
   `assert_return_canonical_nan`,
   `assert_return_arithmetic_nan`,
   `assert_return` tests involving `NaN`'s significand,
-  `assert_malformed`,
   `assert_invalid`, and
   `assert_unlinkable`.
-This includes updating the parser to return errors for all `assert_malformed` tests. I would also like to include error checks `if idx>len(raw) or idx<0: return "malformed"` to make sure that the index is in range.
 
 # spec_tests/
 

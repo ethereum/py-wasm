@@ -26,7 +26,7 @@ import struct #for decoding floats
 import math
 
 
-verbose = 1
+verbose = 0
 
 
 
@@ -113,18 +113,20 @@ def instantiate_module_from_wasm_file(filename,store,registered_modules):
     #memoryview doesn't make copy, bytearray may require copy
     wasmbytes = memoryview(f.read())
     module = pywebassembly.decode_module(wasmbytes)
+    #print("module",module)
     if module=="malformed": return None,"malformed"
     #imports preparation
     externvalstar = []
+    #print("module",module)
     for import_ in module["imports"]:
-      if import_["module"] not in registered_modules: return -1,-1
+      if import_["module"] not in registered_modules: return -2,-2
       importmoduleinst = registered_modules[import_["module"]]
       externval = None
       for export in importmoduleinst["exports"]:
         if export["name"] == import_["name"]:
           externval = export["value"]
-      if externval == None: return -1,-1
-      if externval[0] != import_["desc"][0]: return -1,-1
+      if externval == None: return ""-3,-3
+      if externval[0] != import_["desc"][0]: return -4,-4
       externvalstar += [externval]
     #print("store",store)
     #print("module",module)
@@ -175,6 +177,7 @@ def test_opcode_module(test,store,modules,registered_modules):
   moduleinst=None
   if "filename" in test:
     store,moduleinst = instantiate_module_from_wasm_file(dir_+test["filename"],store,registered_modules)
+    if moduleinst=="malformed": return store,"malformed"
     if moduleinst and "name" in test:
       modules[test["name"]] = moduleinst
   if verbose>1 and moduleinst==None: print("could not instantiate")
@@ -266,11 +269,11 @@ def test_opcode_assert_return(test,store,modules,registered_modules,moduleinst):
 
 def test_opcode_assert_return_canonical_nan(test,store,modules,registered_modules,moduleinst):
   #TODO
-  return "failure"
+  return "unimplemented"
 
 def test_opcode_assert_return_arithmetic_nan(test,store,modules,registered_modules,moduleinst):
   #TODO
-  return "failure"
+  return "unimplemented"
 
 def test_opcode_assert_trap(test,store,modules,registered_modules,moduleinst):
   if "action" in test:
@@ -286,22 +289,20 @@ def test_opcode_assert_trap(test,store,modules,registered_modules,moduleinst):
 
 def test_opcode_assert_malformed(test,store,modules,registered_modules,moduleinst):
   if test["module_type"] != "binary":
-    return "failure"
-  if "filename" in test and test["type"] in {"assert_return","assert_trap"}: #second part temporary
+    return "unimplemented"
+  if "filename" in test: # and test["type"] in {"assert_return","assert_trap"}: #second part temporary
     store,moduleinst = test_opcode_module(test,store,modules,registered_modules)
     if moduleinst == "malformed":
-      print("SUCCESS MALFORMED !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
       return "success"
-  print("FAILURE MALFORMED")
   return "failure"
 
 def test_opcode_assert_invalid(test,store,modules,registered_modules,moduleinst):
   #TODO
-  return "failure"
+  return "unimplemented"
 
 def test_opcode_assert_unlinkable(test,store,modules,registered_modules,moduleinst):
   #TODO
-  return "failure"
+  return "unimplemented"
 
 
 # action opcodes `get` and `invoke`
@@ -332,6 +333,7 @@ def test_opcode_action_invoke(test,store,modules,registered_modules,moduleinst):
   #get function address
   funcaddr = None
   #print(moduleinst["exports"])
+  #print("moduleinst",moduleinst)
   for export in moduleinst["exports"]:
     #print("export[\"name\"]",export["name"])
     if export["name"] == funcname:
@@ -410,22 +412,26 @@ def run_test_file(jsonfilename):
   num_tests_tried = 0
   for idx,test in enumerate(tests):	#iterate over tests in this file
     if verbose>1: print("\ntest #",idx, test["type"])
-    num_tests_tried += 1
     if test["type"] == "module":		#module
       store,moduleinst = test_opcode_module(test,store,modules,registered_modules)
+      num_tests_tried += 1
       if moduleinst: num_tests_passed+=1
     elif test["type"] == "register":		#register
       test_opcode_register(test,store,modules,registered_modules,moduleinst)
+      num_tests_tried += 1
       num_tests_passed+=1
     elif test["type"] == "action":		#action
       test_opcode_action(test,store,modules,registered_modules,moduleinst)
+      num_tests_tried += 1
       num_tests_passed+=1
     elif test["type"][:7] == "assert_":		#assertion
       ret = test_opcode_assertion(test,store,modules,registered_modules,moduleinst)
-      if test["type"] not in {"assert_return","assert_trap"}: num_tests_tried -= 1	#hack to only count assert_... that are implemented
-      if ret=="success": num_tests_passed+=1
+      if ret in {"success","failure"}:
+        num_tests_tried += 1
+      if ret=="success":
+        num_tests_passed += 1
   if verbose>-1: print("Passed",num_tests_passed,"out of",num_tests_tried,"tests")  #"(actually, there are ",len(tests),"total tests, some test opcodes not implemented yet)")
-  if num_tests_passed!=num_tests_tried: print("#################### FAILED TESTS ########################")
+  #if num_tests_passed!=num_tests_tried: print("#################### FAILED TESTS ########################")
 
 
 

@@ -106,23 +106,20 @@ new version explicitly, like `make release bump="--new-version 4.0.0-alpha.1 dev
 
 ## pywebassembly.py
 
-PyWebAssembly closely follows *WebAssembly Specification, Release 1.0*, implementing necessary parts of chapters 2, 3, 4, 5, and 7. Each section of pywebassembly.py references its definition in the spec, so the spec can be used as a user's manual.
+PyWebAssembly closely follows [WebAssembly Specification, Release 1.0](https://webassembly.github.io/spec/core/_download/WebAssembly.pdf) (pdf), implementing necessary parts of chapters 2, 3, 4, 5, and 7. Each section of pywebassembly.py references its definition in the spec, and is in the same order as the spec.
 
-Chapter 2 defines the abstract syntax, which is used throughout the implementation.
+Closely following the linked Spec document is useful for the following reasons.
+ - The Spec document can be used as a user's manual.
+ - PyWebAssembly can be audited alongside the Spec document.
+ - When Wasm 1.1 is released, PyWebAssembly can be updated alongside the Spec document.
+ - PyWebAssembly does not introduce invariants or design decisions that are not in the Spec document. There are many subtleties in the 150 page Spec document, and invariants may be difficult to maintain, as I have learned. So it may be naive to over-engineer something beyond the spec.
+ - Implementing the Spec document has allowed me to find errors and submit fixes to the Spec document, and I have more fixes coming.
 
-Chapter 3 defines validation rules over the abstract syntax. These rules constrain the syntax, but provide properties such as type-safety. An almost-complete implementation is available as a feature-branch.
-
-Chapter 4 defines execution semantics over the abstract syntax. This implementation passes all `assert_return` and `assert_trap` tests of the official Wasm tests (except for some `assert_return` for `NaN`'s significand).
-
-Chapter 5 defines a binary syntax over the abstract syntax. The implementation is a recursive-descent parser which takes a `.wasm` file and builds an abstract syntax tree out of nested Python lists and dicts. Also implemented are inverses (up to a canonical form) which write an abstract syntax tree back to a `.wasm` file.
-
-Chapter 7 is the Appendix. It defines a standard embedding, and a validation algorithm.
-
+PyWebAssembly is also structured for my personal economy-of-thought as it is being developed and studied for errors. I plan to make it more aesthetically pleasing once it is done.
 
 **API**: It may be possible to limit the API to functions defined in the WebAssembly Spec section 7.1 Embedding. These functions are implemented in section "7.1" of pywebassembly.py, but please reference the spec for details. The only awkward part is that `invoke_func` requires specifying `i32.const`, `i64.const`, `f32.const`, or `f64.const` with each argument -- we are considering deviating from the spec and relaxing this requirement.
 
-
-The following sample code will "spin-up" a VM instance, instantiate a module, and invoke its exported function.
+The following sample code uses the Spec Embedding API to "spin-up" a VM instance, instantiate a module, and invoke its exported function.
 
 
 ```

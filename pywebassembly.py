@@ -21,8 +21,8 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
 
 """
 This code follows the WebAssembly spec closely. Differences from spec:
- - Because of validity, we drop types and just hold values eg instead of `i32.const 5, we just hold value `5`. This is done everywhere including locals, globals, and the value stack. The only place types remain are arguments when using the API to invoke an exported function, which is useful for type-checking, but we may choose to relax this in favor of checking whether each value meets requirements for its type.
-- Floating-point operations use the python `float`, which are 64-bit on modern computers. We truncate to 32-bit when necessary. We use the `math` module for floating-point tools and the `struct` module to encode/decode binary. The `NaN` is difficult to modify in Python, so we completely ignore `NaN`'s significand, unlike the spec. We are considering re-implementing floating-point operations using:
+ - Because of validity, we drop types and just hold values eg instead of `i32.const 5`, we just hold value `5`. This is done everywhere including locals, globals, and the value stack. The only place types remain are arguments when using the API to invoke an exported function, which is useful for type-checking, but we may choose to relax this in favor of checking whether each value meets requirements for its type.
+- Floating-point operations use the Python `float`, which are 64-bit on modern computers. We truncate to 32-bit when necessary. We use the `math` module for floating-point tools and the `struct` module to encode/decode binary. The `NaN` is difficult to modify in Python, so we completely ignore `NaN`'s significand, unlike the spec. We are considering re-implementing floating-point operations using:
    - ctypes.c_float and ctypes.c_double, but these may have less features
    - numpy.float32 and numpy.float64, but these are less portable
    - the decimal module, tuned to behave like IEEE754-2008
@@ -134,6 +134,11 @@ def spec_globals(star):
     if e[0] == 'global':
       globals_ += [e[1]]
   return globals_
+
+
+
+
+
 
 
 ################
@@ -2308,6 +2313,7 @@ for opcode in opcodes_binary2text:
 # 5.1.3 VECTORS
 
 def spec_binary_vec(raw,idx,B):
+  #print("spec_binary_vec(",idx,")")
   idx,n=spec_binary_uN(raw,idx,32)
   if n =="malformed": return idx,n
   xn = []
@@ -2332,7 +2338,7 @@ def spec_binary_vec_inv(mynode,myfunc):
 # 5.2.1 BYTES
 
 def spec_binary_byte(raw,idx):
-  if len(raw)>=idx: return idx,"malformed"
+  if len(raw)<=idx: return idx,"malformed"
   return idx+1,raw[idx]
 
 def spec_binary_byte_inv(node):
@@ -2342,12 +2348,14 @@ def spec_binary_byte_inv(node):
 
 #unsigned
 def spec_binary_uN(raw,idx,N):
+  #print("spec_binary_uN(",idx,N,")")
   idx,n=spec_binary_byte(raw,idx)
   if n=="malformed": return idx,n
   if n<2**7 and n<2**N:
     return idx,n
   elif n>=2**7 and N>7:
     idx,m=spec_binary_uN(raw,idx,N-7)
+    if m=="malformed": return idx,m
     return idx, (2**7)*m+(n-2**7)
   else:
     return idx,"malformed"
@@ -2417,43 +2425,62 @@ def spec_binary_fN_inv(node,N):
 
 #name as UTF-8 codepoints
 def spec_binary_name(raw,idx):
+  #print("spec_binary_name()")
   idx,bstar = spec_binary_vec(raw,idx,spec_binary_byte)
+  #print("bstar",bstar)
+  if bstar=="malformed": return idx,bstar
+  nametxt=""
+  try:
+    nametxt=bytearray(bstar).decode()
+  except:
+    return idx,("malformed",)
+  return idx,nametxt
   #rest is finding inverse of utf8(name)=b*
   bstaridx=0
   lenbstar = len(bstar)
   name=[]
   while bstaridx<lenbstar:
+    if bstaridx>=len(bstar): return idx,"malformed"
     b1=bstar[bstaridx]
     bstaridx+=1
     if b1<0x80:
       name+=[b1]
       continue
+    if bstaridx>=len(bstar): return idx,"malformed"
     b2=bstar[bstaridx]
+    if b2>>6 != 0b01: return idx,"malformed"
     bstaridx+=1
-    c=(2**6)*(b1-int(0xc0)) + (b2-int(0x80))
-    c_check = 2**6*(b1-192) + (b2-128)
+    c=(2**6)*(b1-0xc0) + (b2-0x80)
+    #c_check = 2**6*(b1-192) + (b2-128)
     if 0x80<=c<0x800:
       name+=[c]
       continue
+    if bstaridx>=len(bstar): return idx,"malformed"
     b3=bstar[bstaridx]
+    if b2>>5 != 0b011: return idx,"malformed"
     bstaridx+=1
     c=(2**12)*(b1-0xe0) + (2**6)*(b2-0x80) + (b3-0x80)
-    if 0x800<=c<0x10000:
+    if 0x800<=c<0x10000 and (b2>>6 == 0b01):
       name+=[c]
       continue
+    if bstaridx>=len(bstar): return idx,"malformed"
     b4=bstar[bstaridx]
+    if b2>>4 != 0b0111: return idx,"malformed"
     bstaridx+=1
     c=2**18*(b1-0xf0) + 2**12*(b2-0x80) + 2**6*(b3-0x80) + (b4-0x80)
     if 0x10000<=c<0x110000:
       name+=[c]
     else:
+      print("malformed character")
       return idx,("malformed",) # tuple since utf8 string "malformed"
   #convert each codepoint to utf8 character
   #print("utf8 name",name, len(name), name=="")
   nametxt = ""
   for c in name:
+    #print(str(chr(c)))
+    print(c)
     nametxt+=chr(c)
-  #print("utf8 nametext",nametxt, len(nametxt), nametxt=="")
+  print("utf8 nametext",nametxt, len(nametxt), nametxt=="")
   return idx,nametxt
 
 def spec_binary_name_inv(chars):
@@ -2483,6 +2510,7 @@ valtype2bin={"i32":0x7f,"i64":0x7e,"f32":0x7d,"f64":0x7c}
 bin2valtype={val:key for key,val in valtype2bin.items()}
 
 def spec_binary_valtype(raw,idx):
+  if idx>=len(raw): return idx,"malformed"
   if raw[idx] in bin2valtype:
     return idx+1,bin2valtype[raw[idx]]
   else:
@@ -2658,6 +2686,7 @@ def spec_binary_instr(raw,idx):
     return idx, [instr_text,l]
   elif instr_text == "br_table":               # br_table
     idx,lstar=spec_binary_vec(raw,idx,spec_binary_labelidx)
+    if lstar=="malformed": return idx,lstar
     idx,lN=spec_binary_labelidx(raw,idx)
     return idx, ["br_table",lstar,lN]
   elif instr_text in {"call","call_indirect"}: # call, call_indirect
@@ -2665,7 +2694,7 @@ def spec_binary_instr(raw,idx):
       idx,x=spec_binary_funcidx(raw,idx)
     if instr_text=="call_indirect":
       idx,x=spec_binary_typeidx(raw,idx)
-      if raw[idx]!=0x00: return idx,None #error
+      if raw[idx]!=0x00: return idx,"malformed"
       idx+=1
     return idx, [instr_text,x]
   elif 0x20<=instr_binary<=0x22:               # get_local, etc
@@ -2679,7 +2708,7 @@ def spec_binary_instr(raw,idx):
     if m=="malformed": return idx,m
     return idx, [instr_text,m]
   elif 0x3f<=instr_binary<=0x40:               # current_memory, grow_memory
-    if raw[idx]!=0x00: return idx,None #error
+    if raw[idx]!=0x00: return idx,"malformed"
     return idx+1, [instr_text,]
   elif 0x41<=instr_binary<=0x42:               # i32.const, etc
     n=0
@@ -2831,23 +2860,27 @@ def spec_binary_labelidx_inv(node):
   return spec_binary_uN_inv(node,32)
 
 
-
 # 5.5.2 SECTIONS
 
 def spec_binary_sectionN(raw,idx,N,B,skip):
   #print("spec_binary_sectionN(",idx,N,")")
-  if idx>=len(raw) or raw[idx]!=N:
-    return idx, []  #skip since this sec not included
+  if idx>=len(raw):
+    return idx,[] #already at end
+  if raw[idx]!=N:
+    return idx, []  #this sec not included
   idx+=1
   idx,size = spec_binary_uN(raw,idx,32)
   if size=="malformed": return idx,size
   idx_plus_size = idx+size
   if skip:
     return idx+size,[]
-  if N!=8: #not start:
-    idx,ret = spec_binary_vec(raw,idx,B)
-  else:
+  if N==0: # custom section
+    idx, ret = B(raw,idx,idx+size)
+  elif N==8: # start section
     idx, ret = B(raw,idx)
+  else:
+    idx,ret = spec_binary_vec(raw,idx,B)
+  if ret=="malformed": return idx,ret
   if idx != idx_plus_size:
     return idx,"malformed"
   return idx,ret
@@ -2867,23 +2900,27 @@ def spec_binary_sectionN_inv(cont,Binv,N):
 
 # 5.5.3 CUSTOM SECTION
 
-# we jump over custom sections, since they have no semantics
+def spec_binary_customsec(raw,idx,skip):
+  #print("spec_binary_customsec(",idx,")")
+  customsecstar = []
+  while idx<len(raw) and raw[idx]==0:
+    #print("found custom section",idx,raw[idx])
+    idx,customsec = spec_binary_sectionN(raw,idx,0,spec_binary_custom,skip) 
+    if customsec=="malformed": return idx,"malformed"
+    customsecstar += [customsec]
+  return idx,customsecstar
 
-def spec_binary_customsec(raw,idx,skip=1):
-  idx,size = spec_binary_uN(raw,idx,32)
-  if size=="malformed": return idx,size
-  endidx = idx+size
-  return endidx,None 
-  #not a vec(), so should adjust sectionN() before using the following return
-  #return spec_binary_sectionN(raw,idx,0,spec_binary_custom,skip) 
-
-def spec_binary_custom(raw,idx):
+def spec_binary_custom(raw,idx,endidx):
   idx,name = spec_binary_name(raw,idx)
+  #print(name)
   if name==("malformed",): return idx,name[0]
-  #stopping condition for bytestar endidx in function above
-  idx,bytestar = spec_binary_byte(raw,idx)
-  if bytestar == "malformed": return idx,bytestar
-  return name,bytestar
+  bytestar=bytearray()
+  while idx<endidx:
+    idx,byte = spec_binary_byte(raw,idx)
+    if byte == "malformed": return name,byte
+    bytestar+=bytearray([byte])
+    idx+=1
+  return [name,bytestar]
 
 def spec_binary_customsec_inv(node):
   return spec_binary_sectionN_inv(node,spec_binary_custom_inv)
@@ -2913,6 +2950,7 @@ def spec_binary_import(raw,idx):
   idx,nm = spec_binary_name(raw,idx)
   if nm==("malformed",): return idx,nm[0]
   idx,d = spec_binary_importdesc(raw,idx)
+  if d=="malformed": return idx,d
   return idx,{"module":mod,"name":nm,"desc":d}
 
 def spec_binary_importdesc(raw,idx):
@@ -3023,8 +3061,11 @@ def spec_binary_exportsec(raw,idx,skip=0):
 
 def spec_binary_export(raw,idx):
   idx,nm = spec_binary_name(raw,idx)
+  #print("nm",nm)
   if nm==("malformed",): return idx,nm[0]
   idx,d = spec_binary_exportdesc(raw,idx)
+  #print("d",d)
+  if d=="malformed": return idx,d
   return idx,{"name":nm,"desc":d}
 
 def spec_binary_exportdesc(raw,idx):
@@ -3096,6 +3137,7 @@ def spec_binary_elem(raw,idx):
   idx,e=spec_binary_expr(raw,idx)
   if e=="malformed": return idx,e
   idx,ystar=spec_binary_vec(raw,idx,spec_binary_funcidx)
+  if ystar=="malformed": return idx,ystar
   return idx,{"table":x,"offset":e,"init":ystar}
 
 def spec_binary_elemsec_inv(node):
@@ -3123,6 +3165,7 @@ def spec_binary_code(raw,idx):
 
 def spec_binary_func(raw,idx):
   idx,tstarstar=spec_binary_vec(raw,idx,spec_binary_locals)
+  if tstarstar=="malformed": return idx,tstarstar
   idx,e=spec_binary_expr(raw,idx)
   if e=="malformed": return idx,e
   concattstarstar=[t for tstar in tstarstar for t in tstar] 
@@ -3153,6 +3196,7 @@ def code_bytecode_address(raw,idx):
 
 def func_bytecode_address(raw,idx):
   idx,tstarstar=spec_binary_vec(raw,idx,spec_binary_locals)
+  if tstarstar=="malformed": return idx,tstarstar
   e=idx
   #concattstarstar=[e for t in tstarstar for e in t] #note: I did not concatenate the t*'s, is makes it easier for printing
   return idx, (tstarstar,e)
@@ -3195,10 +3239,13 @@ def spec_binary_datasec(raw,idx,skip=0):
   return spec_binary_sectionN(raw,idx,11,spec_binary_data,skip)
 
 def spec_binary_data(raw,idx):
+  #print("spec_binary_data(",idx,")")
   idx,x=spec_binary_memidx(raw,idx)
+  if x=="malformed": return idx,x
   idx,e=spec_binary_expr(raw,idx)
   if e=="malformed": return idx,e
   idx,bstar=spec_binary_vec(raw,idx,spec_binary_byte)
+  if bstar=="malformed": return idx,bstar
   return idx, {"data":x,"offset":e,"init":bstar}
 
 def spec_binary_datasec_inv(node):
@@ -3214,34 +3261,96 @@ def spec_binary_module(raw):
   idx=0
   magic=[0x00,0x61,0x73,0x6d]
   if magic!=[x for x in raw[idx:idx+4]]:
-    return None
+    return "malformed"
   idx+=4
   version=[0x01,0x00,0x00,0x00]
   if version!=[x for x in raw[idx:idx+4]]:
-    return None
+    return "malformed"
   idx+=4
+
+  verbose=0
+
+  idx,customsecstar = spec_binary_customsec(raw,idx,0)
+  if verbose==-1: print("customsecstar",customsecstar)
+  if  customsecstar=="malformed": return "malformed"
+
   idx,functypestar=spec_binary_typesec(raw,idx,0)
-  if  functypestar=="malformed": return idx,"malformed"
+  if verbose==-1: print("functypestar",functypestar)
+  if  functypestar=="malformed": return "malformed"
+
+  idx,customsecstar = spec_binary_customsec(raw,idx,0)
+  if  customsecstar=="malformed": return "malformed"
+
   idx,importstar=spec_binary_importsec(raw,idx,0)
-  if  importstar=="malformed": return idx,"malformed"
+  if verbose==-1: print("importstar",importstar)
+  if  importstar=="malformed": return "malformed"
+
+  idx,customsecstar = spec_binary_customsec(raw,idx,0)
+  if  customsecstar=="malformed": return "malformed"
+
   idx,typeidxn=spec_binary_funcsec(raw,idx,0)
-  if  typeidxn=="malformed": return idx,"malformed"
+  if verbose==-1: print("typeidxn",typeidxn)
+  if  typeidxn=="malformed": return "malformed"
+
+  idx,customsecstar = spec_binary_customsec(raw,idx,0)
+  if  customsecstar=="malformed": return "malformed"
+
   idx,tablestar=spec_binary_tablesec(raw,idx,0)
-  if  tablestar=="malformed": return idx,"malformed"
+  if verbose==-1: print("tablestar",tablestar)
+  if  tablestar=="malformed": return "malformed"
+
+  idx,customsecstar = spec_binary_customsec(raw,idx,0)
+  if  customsecstar=="malformed": return "malformed"
+
   idx,memstar=spec_binary_memsec(raw,idx,0)
-  if  memstar=="malformed": return idx,"malformed"
+  if verbose==-1: print("memstar",memstar)
+  if  memstar=="malformed": return "malformed"
+
+  idx,customsecstar = spec_binary_customsec(raw,idx,0)
+  if  customsecstar=="malformed": return "malformed"
+
   idx,globalstar=spec_binary_globalsec(raw,idx,0)
-  if  globalstar=="malformed": return idx,"malformed"
+  if verbose==-1: print("globalstar",globalstar)
+  if  globalstar=="malformed": return "malformed"
+
+  idx,customsecstar = spec_binary_customsec(raw,idx,0)
+  if  customsecstar=="malformed": return "malformed"
+
   idx,exportstar=spec_binary_exportsec(raw,idx,0)
-  if  exportstar=="malformed": return idx,"malformed"
+  if verbose==-1: print("exportstar",exportstar)
+  if  exportstar=="malformed": return "malformed"
+
+  idx,customsecstar = spec_binary_customsec(raw,idx,0)
+  if  customsecstar=="malformed": return "malformed"
+
   idx,startq=spec_binary_startsec(raw,idx,0)
-  if  startq=="malformed": return idx,"malformed"
+  if verbose==-1: print("startq",startq)
+  if  startq=="malformed": return "malformed"
+
+  idx,customsecstar = spec_binary_customsec(raw,idx,0)
+  if  customsecstar=="malformed": return "malformed"
+
   idx,elemstar=spec_binary_elemsec(raw,idx,0)
-  if  elemstar=="malformed": return idx,"malformed"
+  if verbose==-1: print("elemstar",elemstar)
+  if  elemstar=="malformed": return "malformed"
+
+  idx,customsecstar = spec_binary_customsec(raw,idx,0)
+  if  customsecstar=="malformed": return "malformed"
+
   idx,coden=spec_binary_codesec(raw,idx,0)
-  if  coden=="malformed": return idx,"malformed"
+  if verbose==-1: print("coden",coden)
+  if  coden=="malformed": return "malformed"
+
+  idx,customsecstar = spec_binary_customsec(raw,idx,0)
+  if  customsecstar=="malformed": return "malformed"
+
   idx,datastar=spec_binary_datasec(raw,idx,0)
-  if  datastar=="malformed": return idx,"malformed"
+  if verbose==-1: print("datastar",datastar)
+  if  datastar=="malformed": return "malformed"
+
+  idx,customsecstar = spec_binary_customsec(raw,idx,0)
+  if  customsecstar=="malformed": return "malformed"
+
   funcn=[]
   if typeidxn and coden and len(typeidxn)==len(coden):
     for i in range(len(typeidxn)):
