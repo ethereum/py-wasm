@@ -99,6 +99,63 @@ def instantiate_spectest_module(store,modules,registered_modules):
 
 
 
+# this module called "wast" is used by import.wast to test for assert_unlinkable
+def instantiate_test_module(store,modules,registered_modules):
+  def test__func(store,arg):
+    pass
+  def test__func_i32(store,arg):
+    pass
+  def test__func_f32(store,arg):
+    pass
+  def test__func__i32(store,arg):
+    pass
+  def test__func__f32(store,arg):
+    pass
+  def test__func_i32_i32(store,arg):
+    pass
+  def test__func_i64_i64(store,arg):
+    pass
+  pywebassembly.alloc_func(store, [[],[]], test__func)
+  pywebassembly.alloc_func(store, [["i32"],[]], test__func_i32)
+  pywebassembly.alloc_func(store, [["f32"],[]], test__func_f32)
+  pywebassembly.alloc_func(store, [[],["i32"]], test__func__i32)
+  pywebassembly.alloc_func(store, [[],["f32"]], test__func__f32)
+  pywebassembly.alloc_func(store, [["i32"],["i32"]], test__func_i32_i32)
+  pywebassembly.alloc_func(store, [["i64"],["i64"]], test__func_i64_i64)
+  pywebassembly.alloc_mem(store, {"min":1,"max":None})	
+  pywebassembly.alloc_global(store, ["const", "i32"], 666)
+  pywebassembly.alloc_global(store, ["const", "f32"], 0.0)
+  pywebassembly.alloc_table(store, [{"min":10,"max":None}, "anyfunc"])
+  modules["test"] = {"types":[[["i32"],[]],
+                              [["f32"],[]],
+                              [[],["i32"]],
+                              [[],["f32"]],
+                              [["i32"],["i32"]],
+                              [["i64"],["i64"]]
+                             ],
+                     "funcaddrs":[0,1,2,3,4,5,6],
+                     "tableaddrs":[0],
+                     "memaddrs":[0],
+                     "globaladdrs":[0,1],
+                     "exports":[{"name":"func","value":["func",0]},
+                                {"name":"func_i32","value":["func",1]},
+                                {"name":"func_f32","value":["func",2]},
+                                {"name":"func__i32","value":["func",3]},
+                                {"name":"func__f32","value":["func",4]},
+                                {"name":"func__i32_i32","value":["func",5]},
+                                {"name":"func__i64_i64","value":["func",6]},
+                                {"name":"memory-2-inf","value":["mem",0]},
+                                {"name":"global-i32","value":["global",0]},
+                                {"name":"global-f32","value":["global",1]},
+                                {"name":"table-10-inf","value":["table",0]}
+                               ]
+                        }
+
+
+
+
+
+
 ######################################################
 # Tests require instantiating modules from .wasm files
 ######################################################
@@ -117,16 +174,16 @@ def instantiate_module_from_wasm_file(filename,store,registered_modules):
     if module=="malformed": return None,"malformed"
     #imports preparation
     externvalstar = []
-    #print("module",module)
+    #print("module",filename,module)
     for import_ in module["imports"]:
-      if import_["module"] not in registered_modules: return -2,-2
+      if import_["module"] not in registered_modules: return store,"unlinkable"	#error: module name doesn't exist
       importmoduleinst = registered_modules[import_["module"]]
       externval = None
       for export in importmoduleinst["exports"]:
         if export["name"] == import_["name"]:
           externval = export["value"]
-      if externval == None: return ""-3,-3
-      if externval[0] != import_["desc"][0]: return -4,-4
+      if externval == None: return store,"unlinkable"	#error: export name doesn't exist
+      if externval[0] != import_["desc"][0]: return store,"unlinkable"	#error: import type (func, table, mem, globa) doesn't match
       externvalstar += [externval]
     #print("store",store)
     #print("module",module)
@@ -135,7 +192,7 @@ def instantiate_module_from_wasm_file(filename,store,registered_modules):
     #print("moduleinst",moduleinst)
     #print(store["mems"][0]["data"])
     if moduleinst=="error":
-      return store,None
+      return store,ret #ret is the actual error, eg "unlinkable"
   return store,moduleinst
 
 
@@ -290,7 +347,7 @@ def test_opcode_assert_trap(test,store,modules,registered_modules,moduleinst):
 def test_opcode_assert_malformed(test,store,modules,registered_modules,moduleinst):
   if test["module_type"] != "binary":
     return "unimplemented"
-  if "filename" in test: # and test["type"] in {"assert_return","assert_trap"}: #second part temporary
+  if "filename" in test: # TODO: delete this and do in caller
     store,moduleinst = test_opcode_module(test,store,modules,registered_modules)
     if moduleinst == "malformed":
       return "success"
@@ -302,7 +359,15 @@ def test_opcode_assert_invalid(test,store,modules,registered_modules,moduleinst)
 
 def test_opcode_assert_unlinkable(test,store,modules,registered_modules,moduleinst):
   #TODO
-  return "unimplemented"
+  if "filename" in test: # TODO: delete this and do in caller
+    store,moduleinst = test_opcode_module(test,store,modules,registered_modules)
+  if moduleinst == "unlinkable":
+    #print("SUCCESS UNLINKABLE")
+    return "success"
+  else:
+    #print("FAILURE UNLINKABLE")
+    return "failure"
+
 
 
 # action opcodes `get` and `invoke`
@@ -406,7 +471,9 @@ def run_test_file(jsonfilename):
   registered_modules={}	#all moduleinst's which can be imported from, indexed by their registered name
   store = pywebassembly.init_store()	#done once and lasts for lifetime of this abstract machine
   instantiate_spectest_module(store,modules,registered_modules)	#module "spectest" is imported from by many tests
+  instantiate_test_module(store,modules,registered_modules)	#module "est" is imported from by many tests
   registered_modules["spectest"] = modules["spectest"]	#register module "spectest" to be import-able
+  registered_modules["test"] = modules["test"]		#register module "test" to be import-able
   moduleinst = None
   num_tests_passed = 0
   num_tests_tried = 0

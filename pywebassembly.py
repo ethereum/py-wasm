@@ -28,6 +28,7 @@ This code follows the WebAssembly spec closely. Differences from spec:
    - the decimal module, tuned to behave like IEEE754-2008
  - The `store` is always modified in-place. Make a deep-copy if needed.
  - Exection in the spec uses rewrite/substitution rules on the instruction sequence, but this would be inefficient, so, like most implementations, we maintain stacks instead of modifying the instruction sequence. This is explained more in section 4.4.5 below.
+ - In instantiate_module() we also return the return value, since there seems to be no other way to get the value returned by the start function. We will approach the spec writers about this.
 """
 
 
@@ -44,6 +45,7 @@ verbose = 0
 ###############
 ###############
 
+#Chapter 2 defines the abstract syntax, which is used throughout the implementation. Not much is needed from this section, since most abstrct syntax is nested lists and dictionaries
 
 # 2.2.3 FLOATING-POINT
 
@@ -147,6 +149,7 @@ def spec_globals(star):
 ################
 ################
 
+#Chapter 3 defines validation rules over the abstract syntax. These rules constrain the syntax, but provide properties such as type-safety. An almost-complete implementation is available as a feature-branch.
 
 # 3.4.10 MODULE
 
@@ -215,6 +218,7 @@ def spec_validate_module(mod):
 ###############
 ###############
 
+#Chapter 4 defines execution semantics over the abstract syntax.
   
 
 ##############
@@ -1993,8 +1997,8 @@ def spec_instantiate(S,module,externvaln):
   for i in range(len(externvaln)):
     externtypei = spec_external_typing(S,externvaln[i])
     #print("externtypei",externtypei)
-    if externtypei == -1: return -1
-    if spec_externtype_matching(externtypei,externtypeimn[i])==-1: return -1
+    if externtypei == -1: return S,None,"unlinkable"
+    if spec_externtype_matching(externtypei,externtypeimn[i])==-1: return S,None,"unlinkable"
   # 5
   valstar = []
   moduleinstim = {"globaladdrs":[externval[1] for externval in externvaln if "global"==externval[0]]}
@@ -2027,7 +2031,7 @@ def spec_instantiate(S,module,externvaln):
     tableinsti = S["tables"][tableaddri]
     tableinst+=[tableinsti]
     eendi = eoi+len(elemi["init"])
-    if eendi > len(tableinsti["elem"]): return -1
+    if eendi > len(tableinsti["elem"]): return S,F,"unlinkable"
   # 10
   meminst = []
   do = []
@@ -2042,7 +2046,7 @@ def spec_instantiate(S,module,externvaln):
     meminsti = S["mems"][memaddri]
     meminst += [meminsti]
     dendi = doi+len(datai["init"])
-    if dendi > len(meminsti["data"]): return -1
+    if dendi > len(meminsti["data"]): return S,F,"unlinkable"
   # 11
   # 12
   framestack.pop()
@@ -2114,6 +2118,8 @@ def spec_invoke(S,funcaddr,valn):
 # 5 BINARY FORMAT #
 ###################
 ###################
+
+#Chapter 5 defines a binary syntax over the abstract syntax. The implementation is a recursive-descent parser which takes a `.wasm` file and builds an abstract syntax tree out of nested Python lists and dicts. Also implemented are inverses (up to a canonical form) which write an abstract syntax tree back to a `.wasm` file.
 
 # key-value pairs of binary opcodes and their text reperesentation
 opcodes_binary2text = {
@@ -3397,6 +3403,8 @@ def spec_binary_module_inv_to_file(mod,filename):
 ##############
 ##############
 
+# Chapter 7 is the Appendix. It defines a standard embedding, and a validation algorithm.
+
 ###############
 # 7.1 EMBEDDING
 ###############
@@ -3428,6 +3436,9 @@ def instantiate_module(store,module,externvalstar):
   #print("module:",module)
   #print("externvalstar:",externvalstar)
   store,F,ret = spec_instantiate(store,module,externvalstar)
+  # here, we deviate from the spec by also returning the return value
+  if ret=="unlinkable":
+    return store,"error","unlinkable"
   modinst = F["module"]
   if store and modinst:
     return store, modinst, ret
