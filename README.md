@@ -99,9 +99,7 @@ new version explicitly, like `make release bump="--new-version 4.0.0-alpha.1 dev
 
 # Legacy 
 
-*WARNING: This is nearing completion and still being tested.*
-
-*This is nearing completion!*
+*This is nearing completion! It needs a clean-up and an audit.*
 
 
 ## pywebassembly.py
@@ -115,7 +113,7 @@ Closely following the linked Spec document is useful for the following reasons.
  - PyWebAssembly does not introduce invariants or design decisions that are not in the Spec document. There are many subtleties in the 150 page Spec document, and invariants may be difficult to maintain, as I have learned. So it may be naive to over-engineer something beyond the spec.
  - Implementing the Spec document has allowed me to find errors and submit fixes to the Spec document, and I have more fixes coming.
 
-PyWebAssembly is also structured for my personal economy-of-thought as it is being developed and studied for errors. I plan to make it more aesthetically pleasing once it is done.
+PyWebAssembly is also structured for my personal economy-of-thought as it is being developed and studied for errors.
 
 **API**: It may be possible to limit the API to functions defined in the WebAssembly Spec section 7.1 Embedding. These functions are implemented in section "7.1" of pywebassembly.py, but please reference the spec for details. The only awkward part is that `invoke_func` requires specifying `i32.const`, `i64.const`, `f32.const`, or `f64.const` with each argument -- we are considering deviating from the spec and relaxing this requirement.
 
@@ -142,9 +140,9 @@ print(ret)						#list [89] of return values, limitted to one value in Wasm 1.0
 
 
 TODO:
+ * Clean-up the code, make it aesthetically pleasing, more maintainable.
+ * Refactor floating point values to use ctypes float32 and float64, then pass remaining`NaN` tests.
  * Support text format as described in chapter 6.
- * Finish validation, namely, validation of instruction sequences from chapter 3 should follow the validation algorithm in the appendix, which includes tricky cases like after `unreachable`. This is mostly implemented in a feature branch, but needs refactoring.
- * Implement remaining testing opcodes, see `tests/README.md`.
 
 
 ## examples/

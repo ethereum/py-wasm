@@ -13,11 +13,7 @@ python3 spec_tests.py spec_tests/
 ```
 
 Todo:
-support the other extra testing opcodes:
-  `assert_return_canonical_nan`,
-  `assert_return_arithmetic_nan`,
-  `assert_return` tests involving `NaN`'s significand, and
-  `assert_invalid`.
+All spec tests are passing except those involving `NaN`. I hope that using ctypes float32 and float64 will allow modifying the `Nan`'s significand which I don't know how to do with the Python float type currently being used.
 
 # spec_tests/
 

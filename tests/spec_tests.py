@@ -151,16 +151,32 @@ def instantiate_test_module(store,modules,registered_modules):
                                ]
                         }
 
+"""
+[['block', ['i64'], [
+ ['get_local', 0],
+ ['i64.eqz'],
+ ['if', 'i64', [
+  ['i64.const', 1],
+ ['else']], [
+  ['get_local', 0],
+  ['get_local', 0],
+  ['i64.const', 1],
+  ['i64.sub'],
+  ['i32.const', 12],
+  ['call_indirect', 6],
+  ['i64.mul'],
+  ['end']]],
+ ['end']]]] 
 
 
-
+"""
 
 
 ######################################################
 # Tests require instantiating modules from .wasm files
 ######################################################
 
-def instantiate_module_from_wasm_file(filename,store,registered_modules):
+def instantiate_module_from_wasm_file(test,filename,store,registered_modules):
   if verbose>2: print("instantiate_module_from_wasm_file(",filename,")")
   if filename[-5:]!=".wasm":
     if verbose>1: print("we don't yet support .wast or .wat text format files")
@@ -172,6 +188,12 @@ def instantiate_module_from_wasm_file(filename,store,registered_modules):
     module = pywebassembly.decode_module(wasmbytes)
     #print("module",module)
     if module=="malformed": return None,"malformed"
+    #validate
+    ret = pywebassembly.validate_module(module)
+    if ret=="error: invalid": return None,"invalid"
+    #if test["type"]=="assert_invalid" and ret!="error: invalid": #TODO remove this
+    #  print("INVALID MISSED !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!",test)
+    #  return None,"invalid"
     #imports preparation
     externvalstar = []
     #print("module",filename,module)
@@ -179,6 +201,9 @@ def instantiate_module_from_wasm_file(filename,store,registered_modules):
       if import_["module"] not in registered_modules: return store,"unlinkable"	#error: module name doesn't exist
       importmoduleinst = registered_modules[import_["module"]]
       externval = None
+      #print("importmoduleinst",importmoduleinst)
+      #for key in importmoduleinst:
+      #  print(key,importmoduleinst[key])
       for export in importmoduleinst["exports"]:
         if export["name"] == import_["name"]:
           externval = export["value"]
@@ -219,10 +244,9 @@ def int2float(N,int_):
   return value
 
 
+
 ###################################################
 # extra test opcodes, see list here: https://github.com/WebAssembly/spec/blob/master/interpreter/README.md#scripts
-# some assert opcodes not yet implemented, only assert_return is implemented
-# we plan to keep the following function structure once we support the text format <test>.wast
 ###################################################
 
 
@@ -231,10 +255,12 @@ def int2float(N,int_):
 #dir_ = "./"
 def test_opcode_module(test,store,modules,registered_modules):
   if verbose>2: print("test_opcode_module()")
+  #print("test_opcode_module()")
   moduleinst=None
   if "filename" in test:
-    store,moduleinst = instantiate_module_from_wasm_file(dir_+test["filename"],store,registered_modules)
+    store,moduleinst = instantiate_module_from_wasm_file(test,dir_+test["filename"],store,registered_modules)
     if moduleinst=="malformed": return store,"malformed"
+    if moduleinst=="invalid": return store,"invalid"
     if moduleinst and "name" in test:
       modules[test["name"]] = moduleinst
   if verbose>1 and moduleinst==None: print("could not instantiate")
@@ -354,11 +380,17 @@ def test_opcode_assert_malformed(test,store,modules,registered_modules,moduleins
   return "failure"
 
 def test_opcode_assert_invalid(test,store,modules,registered_modules,moduleinst):
-  #TODO
-  return "unimplemented"
+  if test["module_type"] != "binary":
+    return "unimplemented"
+  if "filename" in test: # TODO: delete this and do in caller
+    store,moduleinst = test_opcode_module(test,store,modules,registered_modules)
+    if moduleinst == "invalid":
+      #print("SUCCESS invalid")
+      return "success"
+  print("FAILURE invalid !!!!!!!!!")
+  return "failure"
 
 def test_opcode_assert_unlinkable(test,store,modules,registered_modules,moduleinst):
-  #TODO
   if "filename" in test: # TODO: delete this and do in caller
     store,moduleinst = test_opcode_module(test,store,modules,registered_modules)
   if moduleinst == "unlinkable":
@@ -399,6 +431,8 @@ def test_opcode_action_invoke(test,store,modules,registered_modules,moduleinst):
   funcaddr = None
   #print(moduleinst["exports"])
   #print("moduleinst",moduleinst)
+  #print("ok moduleinst",moduleinst)
+  #print("test ok",test)
   for export in moduleinst["exports"]:
     #print("export[\"name\"]",export["name"])
     if export["name"] == funcname:
@@ -479,6 +513,7 @@ def run_test_file(jsonfilename):
   num_tests_tried = 0
   for idx,test in enumerate(tests):	#iterate over tests in this file
     if verbose>1: print("\ntest #",idx, test["type"])
+    #print("\ntest #",idx, test["type"])
     if test["type"] == "module":		#module
       store,moduleinst = test_opcode_module(test,store,modules,registered_modules)
       num_tests_tried += 1
@@ -498,6 +533,11 @@ def run_test_file(jsonfilename):
       if ret=="success":
         num_tests_passed += 1
   if verbose>-1: print("Passed",num_tests_passed,"out of",num_tests_tried,"tests")  #"(actually, there are ",len(tests),"total tests, some test opcodes not implemented yet)")
+  if verbose>-1: 
+   if num_tests_passed!=num_tests_tried:
+     print("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
+
+  
   #if num_tests_passed!=num_tests_tried: print("#################### FAILED TESTS ########################")
 
 
