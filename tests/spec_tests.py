@@ -19,14 +19,14 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
 import os
 import sys
 sys.path.append('..')  #since pywebassembly.py is in parent dir
-import pywebassembly
+import pywebassembly_runtime_loop as pywebassembly
 
 import json
 import struct #for decoding floats
 import math
 
 
-verbose = 0
+verbose = 1
 
 
 
@@ -35,7 +35,7 @@ verbose = 0
 # module "spectest" with host functions which are imported by tests
 ###################################################################
 
-def instantiate_spectest_module(store,modules,registered_modules):
+def instantiate_spectest_module(store):
   def spectest__print_i32(store,arg):
     if verbose>1: print(arg)
     return store,[]
@@ -69,38 +69,39 @@ def instantiate_spectest_module(store,modules,registered_modules):
   pywebassembly.alloc_global(store, ["const", "f32"], 0.0)
   pywebassembly.alloc_global(store, ["const", "f64"], 0.0)
   pywebassembly.alloc_table(store, [{"min":10,"max":20}, "anyfunc"])  #max was 30, changed to 20 for import.wast
-  modules["spectest"] = {"types":[[["i32"],[]],
-                                  [["i64"],[]],
-                                  [["i32"],[]],
-                                  [["f64"],[]],
-                                  [["i32","f32"],[]],
-                                  [["f64","f64"],[]],
-                                  [[],[]],
-                                 ],
-                         "funcaddrs":[0,1,2,3,4,5,6],
-                         "tableaddrs":[0],
-                         "memaddrs":[0],
-                         "globaladdrs":[0,1,2],
-                         "exports":[{"name":"print_i32","value":["func",0]},
-                                    {"name":"print_i64","value":["func",1]},
-                                    {"name":"print_f32","value":["func",2]},
-                                    {"name":"print_f64","value":["func",3]},
-                                    {"name":"print_i32_f32","value":["func",4]},
-                                    {"name":"print_f64_f64","value":["func",5]},
-                                    {"name":"print","value":["func",6]},
-                                    {"name":"memory","value":["mem",0]},
-                                    {"name":"global_i32","value":["global",0]},
-                                    {"name":"global_f32","value":["global",1]},
-                                    {"name":"global_f64","value":["global",2]},
-                                    {"name":"table","value":["table",0]}
-                                   ]
-                        }
+  moduleinst = {"types":[[["i32"],[]],
+                          [["i64"],[]],
+                          [["i32"],[]],
+                          [["f64"],[]],
+                          [["i32","f32"],[]],
+                          [["f64","f64"],[]],
+                          [[],[]],
+                         ],
+                 "funcaddrs":[0,1,2,3,4,5,6],
+                 "tableaddrs":[0],
+                 "memaddrs":[0],
+                 "globaladdrs":[0,1,2],
+                 "exports":[{"name":"print_i32","value":["func",0]},
+                            {"name":"print_i64","value":["func",1]},
+                            {"name":"print_f32","value":["func",2]},
+                            {"name":"print_f64","value":["func",3]},
+                            {"name":"print_i32_f32","value":["func",4]},
+                            {"name":"print_f64_f64","value":["func",5]},
+                            {"name":"print","value":["func",6]},
+                            {"name":"memory","value":["mem",0]},
+                            {"name":"global_i32","value":["global",0]},
+                            {"name":"global_f32","value":["global",1]},
+                            {"name":"global_f64","value":["global",2]},
+                            {"name":"table","value":["table",0]}
+                           ]
+                }
+  return moduleinst
 
 
 
 
 # this module called "wast" is used by import.wast to test for assert_unlinkable
-def instantiate_test_module(store,modules,registered_modules):
+def instantiate_test_module(store):
   def test__func(store,arg):
     pass
   def test__func_i32(store,arg):
@@ -126,50 +127,32 @@ def instantiate_test_module(store,modules,registered_modules):
   pywebassembly.alloc_global(store, ["const", "i32"], 666)
   pywebassembly.alloc_global(store, ["const", "f32"], 0.0)
   pywebassembly.alloc_table(store, [{"min":10,"max":None}, "anyfunc"])
-  modules["test"] = {"types":[[["i32"],[]],
-                              [["f32"],[]],
-                              [[],["i32"]],
-                              [[],["f32"]],
-                              [["i32"],["i32"]],
-                              [["i64"],["i64"]]
-                             ],
-                     "funcaddrs":[0,1,2,3,4,5,6],
-                     "tableaddrs":[0],
-                     "memaddrs":[0],
-                     "globaladdrs":[0,1],
-                     "exports":[{"name":"func","value":["func",0]},
-                                {"name":"func_i32","value":["func",1]},
-                                {"name":"func_f32","value":["func",2]},
-                                {"name":"func__i32","value":["func",3]},
-                                {"name":"func__f32","value":["func",4]},
-                                {"name":"func__i32_i32","value":["func",5]},
-                                {"name":"func__i64_i64","value":["func",6]},
-                                {"name":"memory-2-inf","value":["mem",0]},
-                                {"name":"global-i32","value":["global",0]},
-                                {"name":"global-f32","value":["global",1]},
-                                {"name":"table-10-inf","value":["table",0]}
-                               ]
-                        }
+  moduleinst = {"types":[[["i32"],[]],
+                         [["f32"],[]],
+                         [[],["i32"]],
+                         [[],["f32"]],
+                         [["i32"],["i32"]],
+                         [["i64"],["i64"]]
+                        ],
+                "funcaddrs":[0,1,2,3,4,5,6],
+                "tableaddrs":[0],
+                "memaddrs":[0],
+                "globaladdrs":[0,1],
+                "exports":[{"name":"func","value":["func",0]},
+                           {"name":"func_i32","value":["func",1]},
+                           {"name":"func_f32","value":["func",2]},
+                           {"name":"func__i32","value":["func",3]},
+                           {"name":"func__f32","value":["func",4]},
+                           {"name":"func__i32_i32","value":["func",5]},
+                           {"name":"func__i64_i64","value":["func",6]},
+                           {"name":"memory-2-inf","value":["mem",0]},
+                           {"name":"global-i32","value":["global",0]},
+                           {"name":"global-f32","value":["global",1]},
+                           {"name":"table-10-inf","value":["table",0]}
+                          ]
+               }
+  return moduleinst
 
-"""
-[['block', ['i64'], [
- ['get_local', 0],
- ['i64.eqz'],
- ['if', 'i64', [
-  ['i64.const', 1],
- ['else']], [
-  ['get_local', 0],
-  ['get_local', 0],
-  ['i64.const', 1],
-  ['i64.sub'],
-  ['i32.const', 12],
-  ['call_indirect', 6],
-  ['i64.mul'],
-  ['end']]],
- ['end']]]] 
-
-
-"""
 
 
 ######################################################
@@ -190,7 +173,18 @@ def instantiate_module_from_wasm_file(test,filename,store,registered_modules):
     if module=="malformed": return None,"malformed"
     #validate
     ret = pywebassembly.validate_module(module)
-    if ret=="error: invalid": return None,"invalid"
+    if type(ret)==str and ret[:14]=="error: invalid":
+      #print(ret)
+      #print(test["text"])
+      #if ret=="error: invalid: pop_opd":
+      #  #print(test["text"])
+      #  if test["text"] != "type mismatch":
+      #    print("#######################################################")
+      #    print(test["text"])
+      #    print(ret)
+      #if ret=="pop_opd2" and test["text"]!="type mismatch":
+      #  print("#######################################################")
+      return None,"invalid"
     #if test["type"]=="assert_invalid" and ret!="error: invalid": #TODO remove this
     #  print("INVALID MISSED !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!",test)
     #  return None,"invalid"
@@ -504,8 +498,8 @@ def run_test_file(jsonfilename):
   modules = { }		#all moduleinst's indexed by their names, used to call funcs and resolve exports
   registered_modules={}	#all moduleinst's which can be imported from, indexed by their registered name
   store = pywebassembly.init_store()	#done once and lasts for lifetime of this abstract machine
-  instantiate_spectest_module(store,modules,registered_modules)	#module "spectest" is imported from by many tests
-  instantiate_test_module(store,modules,registered_modules)	#module "est" is imported from by many tests
+  modules["spectest"] = instantiate_spectest_module(store)	#module "spectest" is imported from by many tests
+  modules["test"] = instantiate_test_module(store)	#module "test" is imported from by many tests
   registered_modules["spectest"] = modules["spectest"]	#register module "spectest" to be import-able
   registered_modules["test"] = modules["test"]		#register module "test" to be import-able
   moduleinst = None
