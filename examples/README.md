@@ -1,7 +1,20 @@
   
-# METERING
+
+# EXPORTS AND IMPORTS
+
+**export_from_mod1_import_to_mod2.py**: This code uses the Embedding API to "spins-up" a VM instance, instantiate a module, registers its exports, instantiates another module which imports from the first module, and invokes its exported function.
+
+
+# METERING INJECTION metering.py
 
 **metering.py**: Injects a function call before each sequence of non-control-flow instructions, whose argument is the sum of costs of instructions in the sequence. Also injects helper functions, including the metering function which updates the cycle count and traps when a limit is exceeded.
+
+To run, execute:
+
+
+```
+python3 metering fibonacci.wasm
+```
 
 
 Before metering (see `fibonacci.wast` for full module, and the original fibonacci function in C).

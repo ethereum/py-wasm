@@ -13,7 +13,7 @@ python3 spec_tests.py spec_tests/
 ```
 
 Todo:
-All spec tests are passing except those involving `NaN`. I hope that using ctypes float32 and float64 will allow modifying the `Nan`'s significand which I don't know how to do with the Python float type currently being used.
+All spec tests are passing except those involving the significand of `NaN`. I hope that using ctypes `c_float` and `c_double` will allow modifying the `Nan`'s significand which I don't know how to do with the Python float type currently being used.
 
 # spec_tests/
 

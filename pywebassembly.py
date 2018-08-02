@@ -3040,7 +3040,7 @@ def spec_binary_valtype(raw,idx):
 
 def spec_binary_valtype_inv(node):
   #print("spec_binary_valtype_inv(",node,")")
-  if node in valtype2bin:
+  if node and node in valtype2bin:
     return bytearray([valtype2bin[node]])
   else:
     return bytearray([]) #error
@@ -3054,7 +3054,8 @@ def spec_binary_blocktype(raw,idx):
   return idx, t
 
 def spec_binary_blocktype_inv(node):
-  if node==None:
+  #print("spec_binary_blocktype_inv(",node,")")
+  if not node:
     return bytearray([0x40])
   else:
     return spec_binary_valtype_inv(node)
