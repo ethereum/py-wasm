@@ -157,23 +157,20 @@ def spec_globals(star):
 # 3.2.1 LIMITS
 
 def spec_validate_limit(limits):
-  if limits["max"] != None and limits["max"]<limits["min"]:
-    return "invalid" #error: validate_limit"
+  if limits["max"] != None and limits["max"]<limits["min"]: raise Exception("invalid")
   return limits
 
 # 3.2.2 FUNCTION TYPES
 
 def spec_validate_functype(ft):
-  if len(ft[1])>1:
-    return "invalid" #error: validate_functype"
+  if len(ft[1])>1: raise Exception("invalid")
   return ft
 
 # 3.2.3 TABLE TYPES
 
 def spec_validate_tabletype(tt):
   limits, elemtype = tt
-  ret = spec_validate_limit(limits)
-  if ret == "invalid": return ret
+  spec_validate_limit(limits)
   return tt
 
 # 3.2.4 MEMORY TYPES
@@ -223,63 +220,62 @@ def spec_validate_select():
 # 3.3.3 VARIABLE INSTRUCTIONS
 
 def spec_validate_get_local(C,x):
-  if len(C["locals"]) <= x:
-    return -1
+  if len(C["locals"]) <= x: raise Exception("invalid")
   t = C["locals"][x]
   return [],[t] 
 
 def spec_validate_set_local(C,x):
-  if len(C["locals"]) <= x: return -1
+  if len(C["locals"]) <= x: raise Exception("invalid")
   t = C["locals"][x]
   return [t],[]
 
 def spec_validate_tee_local(C,x):
-  if len(C["locals"]) <= x: return -1
+  if len(C["locals"]) <= x: raise Exception("invalid")
   t = C["locals"][x]
   return [t],[t]
 
 def spec_validate_get_global(C,x):
-  if len(C["globals"]) <= x: return -1
+  if len(C["globals"]) <= x: raise Exception("invalid")
   mut,t = C.globals[x]
   return [],[t]
 
 def spec_validate_set_global(C,x):
-  if len(C["globals"]) <= x: return -1
+  if len(C["globals"]) <= x: raise Exception("invalid")
   mut,t = C.globals[x]
-  if mut!="var": return -1
+  if mut!="var": raise Exception("invalid")
   return [t],[]
 
 
 # 3.3.4 MEMORY INSTRUCTIONS
 
 def spec_validate_t_load(C,t,memarg):
-  if len(C["mems"])<1: return -1
+  if len(C["mems"])<1: raise Exception("invalid")
   tval = int(t[1:2]) # invariant: t has form: letter digit digit  eg i32
-  if 2**memarg["align"]>tval//8: return -1
+  if 2**memarg["align"]>tval//8: raise Exception("invalid")
   return ["i32"],[t]
 
 def spec_validate_tloadNsx(C,t,N,memarg):
-  if len(C["mems"])<1: return -1
-  if 2**memarg["align"]>N//8: return -1
+  if len(C["mems"])<1: raise Exception("invalid")
+  if 2**memarg["align"]>N//8: raise Exception("invalid")
   return ["i32"],[t]
 
 def spec_validate_tstore(C,t,memarg):
-  if len(C["mems"])<1: return -1
+  if len(C["mems"])<1: raise Exception("invalid")
   tval = int(t[1:2]) # invariant: t has form: letter digit digit  eg i32
-  if 2**memarg["align"]>tval//8: return -1
+  if 2**memarg["align"]>tval//8: raise Exception("invalid")
   return ["i32",t],[]
 
 def spec_validate_tstoreN(C,t,N,memarg):
-  if len(C["mems"])<1: return -1
-  if 2**memarg["align"]>N//8: return -1
+  if len(C["mems"])<1: raise Exception("invalid")
+  if 2**memarg["align"]>N//8: raise Exception("invalid")
   return ["i32",t],[]
 
 def spec_validate_memorysize(C):
-  if len(C["mems"])<1: return -1
+  if len(C["mems"])<1: raise Exception("invalid")
   return [],["i32"]
 
 def spec_validate_memorygrow(C):
-  if len(C["mems"])<1: return -1
+  if len(C["mems"])<1: raise Exception("invalid")
   return ["i32"],["i32"]
 
 
@@ -295,57 +291,57 @@ def spec_validate_block(C,tq,instrstar):
   C["labels"].append([tq] if tq else [])
   type_ = spec_validate_instrstar(C,instrstar)  
   C["labels"].pop()
-  if type_ != ([],[tq] if tq else []): return -1
+  if type_ != ([],[tq] if tq else []): raise Exception("invalid")
   return type_
 
 def spec_validate_loop(C,tq,instrstar):
   C["labels"].append([])
   type_ = spec_validate_instrstar(C,instrstar)  
   C["labels"].pop()
-  if type_ != ([],[tq] if tq else []): return -1
+  if type_ != ([],[tq] if tq else []): raise Exception("invalid")
   return type_
 
 def spec_validate_if(C,tq,instrstar1,instrstar2):
   C["labels"].append([tq] if tq else [])
   type_ = spec_validate_instrstar(C,instrstar1)  
-  if type_ != ([],[tq] if tq else []): return -1
+  if type_ != ([],[tq] if tq else []): raise Exception("invalid")
   type_ = spec_validate_instrstar(C,instrstar2)  
-  if type_ != ([],[tq] if tq else []): return -1
+  if type_ != ([],[tq] if tq else []): raise Exception("invalid")
   C["labels"].pop()
   return ["i32"],[tq] if tq else []
 
 def spec_validate_br(C,l):
-  if len(C["labels"]) <= l: return -1
+  if len(C["labels"]) <= l: raise Exception("invalid")
   tq_in_brackets = C["labels"][l]
   return ["t1*"] + tq_in_brackets, ["t2*"]
   
 def spec_validate_br_if(C,l):
-  if len(C["labels"]) <= l: return -1
+  if len(C["labels"]) <= l: raise Exception("invalid")
   tq_in_brackets = C["labels"][l]
   return tq_in_brackets + ["i32"], tq_in_brackets
 
 def spec_validate_br_table(C,lstar,lN):
-  if len(C["labels"]) <= lN: return -1
+  if len(C["labels"]) <= lN: raise Exception("invalid")
   tq_in_brackets = C["labels"][lN]
   for li in lstar:
-    if len(C["labels"]) <= li: return -1
-    if C["labels"][li] != tq_in_brackets: return -1
+    if len(C["labels"]) <= li: raise Exception("invalid")
+    if C["labels"][li] != tq_in_brackets: raise Exception("invalid")
   return ["t1*"] + tq_in_brackes + ["i32"], ["t2*"]
 
 def spec_validate_return(C):
-  if C["return"] == None: return -1
+  if C["return"] == None: raise Exception("invalid")
   tq_in_brackets = C["return"]
   return ["t1*"] + tq_in_brackes + ["i32"], ["t2*"]
 
 def spec_validate_call(C,x):
-  if len(C["funcs"]) <= x: return -1
+  if len(C["funcs"]) <= x: raise Exception("invalid")
   return C["funcs"][x]
 
 def spec_validate_call_indirect(C,x):
-  if C["tables"]==None or len(C["tables"]) < 1: return -1
+  if C["tables"]==None or len(C["tables"]) < 1: raise Exception("invalid")
   limits,elemtype = C["tables"][0]
-  if elemtype != "anyfunc": return -1
-  if C["types"]==None or len(C["types"]) <= x: return -1
+  if elemtype != "anyfunc": raise Exception("invalid")
+  if C["types"]==None or len(C["types"]) <= x: raise Exception("invalid")
   return C["types"][x][0]+["i32"],C["types"][x][1]
 
 
@@ -358,26 +354,21 @@ def spec_validate_call_indirect(C,x):
 def spec_validate_expr(C,expr):
   opd_stack = []
   ctrl_stack = []
-  ret = iterate_through_expression_and_validate_each_opcode(expr,C,opd_stack,ctrl_stack) # call to the algorithm in the appendix
-  if ret == "invalid": return ret
-  if len(opd_stack)>1: return "invalid"
+  iterate_through_expression_and_validate_each_opcode(expr,C,opd_stack,ctrl_stack) # call to the algorithm in the appendix
+  if len(opd_stack)>1: raise Exception("invalid")
   else: return opd_stack
 
 def spec_validate_const_instr(C,instr):
-  if instr[0] not in {"i32.const","i64.const","f32.const","f64.const","get_global"}:
-    return "invalid"
-  if instr[0] == "get_global" and C["globals"][instr[1]][0] != "const":
-    return "invalid"
+  if instr[0] not in {"i32.const","i64.const","f32.const","f64.const","get_global"}: raise Exception("invalid")
+  if instr[0] == "get_global" and C["globals"][instr[1]][0] != "const": raise Exception("invalid")
   return "const"
 
 def spec_validate_const_expr(C,expr):
   #expr is in AST form
   stack = []
   for e in expr[:-1]:
-    ret = spec_validate_const_instr(C,e)
-    if ret == "invalid": return ret
-  if expr[-1][0] != "end":
-    return "invalid"
+    spec_validate_const_instr(C,e)
+  if expr[-1][0] != "end": raise Exception("invalid")
   return "const"
 
 
@@ -389,7 +380,7 @@ def spec_validate_const_expr(C,expr):
 
 def spec_validate_func(C,func,raw=None):
   x = func["type"]
-  if len(C["types"])<=x: return "invalid"
+  if len(C["types"])<=x: raise Exception("invalid")
   t1 = C["types"][x][0]
   t2 = C["types"][x][1]
   C["locals"] = t1 + func["locals"]
@@ -398,7 +389,6 @@ def spec_validate_func(C,func,raw=None):
   # validate body using algorithm in appendix
   instrstar = [["block",t2,func["body"]]] # spec didn't nest func body in a block, but algorithm in appendix gives errors otherwise
   ft = spec_validate_expr(C,instrstar)
-  if ft=="invalid": return ft
   #clear out function-specific things
   C["locals"] = []
   C["labels"] = []
@@ -416,9 +406,8 @@ def spec_validate_table(table):
 
 def spec_validate_mem(mem):
   ret = spec_validate_memtype(mem["type"])
-  if ret=="invalid": return ret
-  if mem["type"]["min"]>65536: return "invalid"
-  if mem["type"]["max"] and mem["type"]["max"]>65536: return "invalid"
+  if mem["type"]["min"]>65536: raise Exception("invalid")
+  if mem["type"]["max"] and mem["type"]["max"]>65536: raise Exception("invalid")
   return ret
 
 
@@ -426,16 +415,13 @@ def spec_validate_mem(mem):
 
 def spec_validate_global(C,global_):
   #print("spec_validate_global(",C,global_,")")
-  ret = spec_validate_globaltype(global_["type"])
-  if ret == "invalid": return ret
+  spec_validate_globaltype(global_["type"])
   # validate expr, but wrap it in a block first since empty control stack gives errors
   # but first wrap in block with appropriate return type
   instrstar = [["block",global_["type"][1],global_["init"]]]
   ret = spec_validate_expr(C,instrstar)
-  if ret=="invalid": return ret
-  if ret != [global_["type"][1]]: return "error: validate_global1"
+  if ret != [global_["type"][1]]: raise Exception("invalid")
   ret = spec_validate_const_expr(C,global_["init"])
-  if ret=="invalid": return ret
   return global_["type"]
 
 
@@ -443,41 +429,40 @@ def spec_validate_global(C,global_):
 
 def spec_validate_elem(C,elem):
   x = elem["table"]
-  if "tables" not in C or len(C["tables"])<=x: return "invalid"
+  if "tables" not in C or len(C["tables"])<=x: raise Exception("invalid")
   tabletype = C["tables"][x]
   limits = tabletype[0]
   elemtype = tabletype[1]
-  if elemtype != "anyfunc": return "invalid"
+  if elemtype != "anyfunc": raise Exception("invalid")
   # first wrap in block with appropriate return type
   instrstar = [["block","i32",elem["offset"]]]
   ret = spec_validate_expr(C,instrstar)
-  if ret=="invalid": return ret
-  if ret != ["i32"]: return "invalid"
-  ret = spec_validate_const_expr(C,elem["offset"])
-  if ret=="invalid": return ret
+  if ret != ["i32"]: raise Exception("invalid")
+  spec_validate_const_expr(C,elem["offset"])
   for y in elem["init"]:
-    if len(C["funcs"])<=y: return "invalid"
+    if len(C["funcs"])<=y: raise Exception("invalid")
+  return 0
 
 
 # 3.4.6 DATA SEGMENTS
 
 def spec_validate_data(C,data):
   x = data["data"]
-  if len(C["mems"])<=x: return "invalid"
+  if len(C["mems"])<=x: raise Exception("invalid")
   instrstar = [["block","i32",data["offset"]]]
   ret = spec_validate_expr(C,instrstar)
-  if ret=="invalid": return ret
-  if ret != ["i32"]: return "invalid"
-  ret = spec_validate_const_expr(C,data["offset"])
-  if ret=="invalid": return ret
+  if ret != ["i32"]: raise Exception("invalid")
+  spec_validate_const_expr(C,data["offset"])
+  return 0
 
 
 # 3.4.7 START FUNCTION
 
 def spec_validate_start(C,start):
   x = start["func"]
-  if len(C["funcs"])<=x: return "invalid"
-  if C["funcs"][x] != [[],[]]: return "invalid"
+  if len(C["funcs"])<=x: raise Exception("invalid")
+  if C["funcs"][x] != [[],[]]: raise Exception("invalid")
+  return 0
   
 
 # 3.4.8 EXPORTS
@@ -488,20 +473,20 @@ def spec_validate_export(C,export):
 def spec_validate_exportdesc(C,exportdesc):
   x = exportdesc[1]
   if exportdesc[0]=="func":
-    if len(C["funcs"])<=x: return "invalid"
+    if len(C["funcs"])<=x: raise Exception("invalid")
     return ["func",C["funcs"][x]]
   elif exportdesc[0]=="table":
-    if len(C["tables"])<=x: return "invalid"
+    if len(C["tables"])<=x: raise Exception("invalid")
     return ["table",C["tables"][x]]
   elif exportdesc[0]=="mem":
-    if len(C["mems"])<=x: return "invalid"
+    if len(C["mems"])<=x: raise Exception("invalid")
     return ["mem",C["mems"][x]]
   elif exportdesc[0]=="global":
-    if len(C["globals"])<=x: return "invalid"
+    if len(C["globals"])<=x: raise Exception("invalid")
     mut,t = C["globals"][x]
-    if mut != "const": return "invalid"
+    if mut != "const": raise Exception("invalid")
     return ["global",C["globals"][x]]
-  else: return "invalid"
+  else: raise Exception("invalid")
   
 
 # 3.4.9 IMPORTS
@@ -512,25 +497,22 @@ def spec_validate_import(C,import_):
 def spec_validate_importdesc(C,importdesc):
   if importdesc[0]=="func":
     x = importdesc[1]
-    if len(C["funcs"])<=x: return "invalid"
+    if len(C["funcs"])<=x: raise Exception("invalid")
     return ["func",C["types"][x]]
   elif importdesc[0]=="table":
     tabletype = importdesc[1]
-    ret = spec_validate_tabletype(tabletype)
-    if ret=="invalid": return ret
+    spec_validate_tabletype(tabletype)
     return ["table",tabletype]
   elif importdesc[0]=="mem":
     memtype = importdesc[1]
-    ret = spec_validate_memtype(memtype)
-    if ret == "invalid": return ret
+    spec_validate_memtype(memtype)
     return ["mem",memtype]
   elif importdesc[0]=="global":
     globaltype = importdesc[1]
-    ret = spec_validate_globaltype(globaltype)
-    if ret == "invalid": return ret
-    if globaltype[0] != "const": return "invalid"
+    spec_validate_globaltype(globaltype)
+    if globaltype[0] != "const": raise Exception("invalid")
     return ["global",globaltype]
-  else: return "invalid"
+  else: raise Exception("invalid")
 
 
 
@@ -540,7 +522,7 @@ def spec_validate_module(mod):
   # mod is the module to validate
   ftstar = []
   for func in mod["funcs"]:
-    if len(mod["types"]) <= func["type"]: return "invalid" # this was not explicit in spec, how about other *tstar
+    if len(mod["types"]) <= func["type"]: raise Exception("invalid") # this was not explicit in spec, how about other *tstar
     ftstar += [mod["types"][func["type"]]]
   ttstar = [ table["type"] for table in mod["tables"] ]
   mtstar = [ mem["type"] for mem in mod["mems"] ]
@@ -548,9 +530,7 @@ def spec_validate_module(mod):
   itstar = []
   for import_ in mod["imports"]:
     if import_["desc"][0] == "func":
-      if len(mod["types"])<=import_["desc"][1]: # this was not explicit in spec
-        #print("invalid index to import funcs")
-        return "invalid"
+      if len(mod["types"])<=import_["desc"][1]: raise Exception("invalid") # this was not explicit in spec
       itstar.append( ["func",mod["types"][import_["desc"][1]]] )
     else:
       itstar.append( import_["desc"] )
@@ -582,65 +562,50 @@ def spec_validate_module(mod):
   etstar = []
   for export in mod["exports"]:
     if export["desc"][0] == "func":
-      if len(C["funcs"])<=export["desc"][1]: # this was not explicit in spec
-        return "invalid"
+      if len(C["funcs"])<=export["desc"][1]: raise Exception("invalid") # this was not explicit in spec
       etstar.append( [ "func",C["funcs"][export["desc"][1]] ] )
     elif export["desc"][0] == "table":
-      if len(C["tables"])<=export["desc"][1]: # this was not explicit in spec
-        return "invalid"
+      if len(C["tables"])<=export["desc"][1]: raise Exception("invalid") # this was not explicit in spec
       etstar.append( ["table",C["tables"][export["desc"][1]]] )
     elif export["desc"][0] == "mem":
-      if len(C["mems"])<=export["desc"][1]: # this was not explicit in spec
-        return "invalid"
+      if len(C["mems"])<=export["desc"][1]: raise Exception("invalid") # this was not explicit in spec
       etstar.append( ["mem",C["mems"][export["desc"][1]]] )
     elif export["desc"][0] == "global":
-      if len(C["globals"])<=export["desc"][1]: # this was not explicit in spec
-        return "invalid"
+      if len(C["globals"])<=export["desc"][1]: raise Exception("invalid") # this was not explicit in spec
       etstar.append( ["global",C["globals"][export["desc"][1]]] )
   # under the context C
   for functypei in mod["types"]:
-    ft = spec_validate_functype(functypei)
-    if ft == "invalid": return ft
+    spec_validate_functype(functypei)
   for i,func in enumerate(mod["funcs"]):
     ft = spec_validate_func(C, func)
-    if ft == "invalid": return ft 
-    if ft != ftstar[i][1]: return "invalid"
+    if ft != ftstar[i][1]: raise Exception("invalid")
   for i,table in enumerate(mod["tables"]):
     tt = spec_validate_table(table)
-    if tt == "invalid": return tt
-    if tt != ttstar[i]: return "invalid"
+    if tt != ttstar[i]: raise Exception("invalid")
   for i,mem in enumerate(mod["mems"]):
     mt = spec_validate_mem(mem)
-    if mt == "invalid": return mt
-    if mt != mtstar[i]: return "invalid"
+    if mt != mtstar[i]: raise Exception("invalid")
   for i,global_ in enumerate(mod["globals"]):
     gt = spec_validate_global(Cprime,global_)
-    if gt == "invalid": return gt
-    if gt != gtstar[i]: return "invalid"
+    if gt != gtstar[i]: raise Exception("invalid")
   for elem in mod["elem"]:
-    valid = spec_validate_elem(C,elem)
-    if valid == "invalid": return valid
+    spec_validate_elem(C,elem)
   for data in mod["data"]:
-    valid = spec_validate_data(C,data)
-    if valid == "invalid": return valid
+    spec_validate_data(C,data)
   if mod["start"]:
-    start = spec_validate_start(C,mod["start"])
-    if start == "invalid": return start
+    spec_validate_start(C,mod["start"])
   for i,import_ in enumerate(mod["imports"]):
     it = spec_validate_import(C,import_)
-    if it=="invalid": return it
-    if it != itstar[i]: return "invalid"
+    if it != itstar[i]: raise Exception("invalid")
   for i,export in enumerate(mod["exports"]):
     et = spec_validate_export(C,export)
-    if et == "invalid": return et
-    if et != etstar[i]: return "invalid"
-  if len(C["tables"])>1: return "invalid"
-  if len(C["mems"])>1: return "invalid"
+    if et != etstar[i]: raise Exception("invalid")
+  if len(C["tables"])>1: raise Exception("invalid")
+  if len(C["mems"])>1: raise Exception("invalid")
   # export names must be unique
   exportnames = set()
   for export in mod["exports"]:
-    if export["name"] in exportnames:
-      return "invalid"
+    if export["name"] in exportnames: raise Exception("invalid")
     exportnames.add(export["name"])
   return [itstar, etstar]
 
@@ -893,28 +858,28 @@ def spec_imulN(N,i1,i2):
 
 def spec_idiv_uN(N,i1,i2):
   if verbose>=1: print("spec_idiv_uN(",N,i1,i2,")")
-  if i2==0: return "trap"
+  if i2==0: raise Exception("trap")
   return spec_trunc((i1,i2))
 
 def spec_idiv_sN(N,i1,i2):
   if verbose>=1: print("spec_idiv_sN(",N,i1,i2,")")
   j1 = spec_signediN(N,i1)
   j2 = spec_signediN(N,i2)
-  if j2==0: return "trap"
+  if j2==0: raise Exception("trap")
   #assuming j1 and j2 are N-bit
-  if j1//j2 == 2**(N-1): return "trap"
+  if j1//j2 == 2**(N-1): raise Exception("trap")
   return spec_signediN_inv(N,spec_trunc((j1,j2)))
 
 def spec_irem_uN(N,i1,i2):
   if verbose>=1: print("spec_irem_uN(",i1,i2,")")
-  if i2==0: return "trap"
+  if i2==0:raise Exception("trap")
   return i1-i2*spec_trunc((i1,i2))
 
 def spec_irem_sN(N,i1,i2):
   if verbose>=1: print("spec_irem_sN(",N,i1,i2,")")
   j1 = spec_signediN(N,i1)
   j2 = spec_signediN(N,i2)
-  if i2==0: return "trap"
+  if i2==0: raise Exception("trap")
   #print(j1,j2,spec_trunc((j1,j2)))
   return spec_signediN_inv(N,j1-j2*spec_trunc((j1,j2)))
   
@@ -1419,18 +1384,15 @@ def spec_wrapMN(M,N,i):
 
 def spec_trunc_uMN(M,N,z):
   if verbose>=1: print("spec_trunc_uMN(",M,N,z,")")
-  if math.isnan(z) or math.isinf(z):
-    return "trap"
+  if math.isnan(z) or math.isinf(z): raise Exception("trap")
   ztrunc = spec_ftruncN(M,z) 
   if -1 < ztrunc < 2**N:
     return int(ztrunc)
-  else:
-    return "trap"
+  else: raise Exception("trap")
 
 def spec_trunc_sMN(M,N,z):
   if verbose>=1: print("spec_trunc_sMN(",M,N,z,")")
-  if math.isnan(z) or math.isinf(z):
-    return "trap"
+  if math.isnan(z) or math.isinf(z): raise Exception("trap")
   ztrunc = spec_ftruncN(M,z) 
   if -(2**(N-1))-1 < ztrunc < 2**(N-1):
     iztrunc = int(ztrunc)
@@ -1439,7 +1401,7 @@ def spec_trunc_sMN(M,N,z):
     else:
       return iztrunc
   else:
-    return "trap"
+    raise Exception("trap")
 
 def spec_promoteMN(M,N,z):
   if verbose>=1: print("spec_promoteMN(",M,N,z,")")
@@ -1676,8 +1638,7 @@ def spec_tload(config):
   else:
     N=int(t[1:])
   # 10
-  if ea+N//8 > len(mem["data"]):
-    return "trap"
+  if ea+N//8 > len(mem["data"]): raise Exception("trap")
   # 11
   bstar = mem["data"][ea:ea+N//8]
   # 12
@@ -1716,8 +1677,7 @@ def spec_tstore(config):
   else:
     N=int(t[1:])
   # 12
-  if ea+N//8 > len(mem["data"]):
-    return "trap"
+  if ea+N//8 > len(mem["data"]): raise Exception("trap")
   # 13
   if Nflag:
     M=int(t[1:])
@@ -1748,7 +1708,7 @@ def spec_memorygrow(config):
   mem = S["mems"][a]
   sz = len(mem["data"])//65536  #page size = 64 Ki = 65536
   n = config["operand_stack"].pop()
-  ret = spec_growmem(mem,n)
+  spec_growmem(mem,n)
   if sz+n == len(mem["data"])//65536: #success
     config["operand_stack"].append(sz)
   else: 
@@ -1773,7 +1733,7 @@ def spec_nop(config):
 
 def spec_unreachable(config):
   if verbose>=1: print("spec_unreachable(",")")
-  return "trap"
+  raise Exception("trap")
 
 
 def spec_block(config):
@@ -1918,7 +1878,8 @@ def spec_call(config):
   # 3
   a = F["module"]["funcaddrs"][x]
   # 4
-  spec_invoke_function_address(config,a)
+  ret = spec_invoke_function_address(config,a)
+  if ret=="exhaustion": return ret
 
 def spec_call_indirect(config):
   if verbose>=1: print("spec_call_indirect(",")")
@@ -1935,11 +1896,9 @@ def spec_call_indirect(config):
   # 9
   i = config["operand_stack"].pop()
   # 10
-  if len(tab["elem"])<=i:
-    return "trap"
+  if len(tab["elem"])<=i: raise Exception("trap")
   # 11
-  if tab["elem"][i] == None:
-    return "trap"
+  if tab["elem"][i] == None: raise Exception("trap")
   # 12
   a = tab["elem"][i]
   # 14
@@ -1947,10 +1906,10 @@ def spec_call_indirect(config):
   # 15
   ftactual = f["type"]
   # 16
-  if ftexpect != ftactual:
-    return "trap"
+  if ftexpect != ftactual: raise Exception("trap")
   # 17
-  spec_invoke_function_address(config,a)
+  ret = spec_invoke_function_address(config,a)
+  if ret=="exhaustion": return ret
 
 
 # 4.4.6 BLOCKS
@@ -1981,6 +1940,8 @@ def spec_invoke_function_address(config, a=None):
   # a is address
   S = config["S"]
   F = config["F"]
+  if len(F)>1024: #TODO: this is not part of spec, but this is required to pass tests. Tests pass with limit 10000, maybe more
+    return "exhaustion"
   instrstar = config["instrstar"]
   idx = config["idx"]
   operand_stack  = config["operand_stack"]
@@ -2275,29 +2236,20 @@ opcode2exec = {
 
 # this is the main loop over instr* end
 # this is not in the spec
-#def instrstarend_loop(config):
-#  if verbose>=1: print("instrstar_loop()")
-#  while 1:
-#    instr = config["instrstar"][config["idx"]][0]  # idx<len(instrs) since instrstar[-1]=="end" which changes instrstar
-#    #print()
-#    if len(config["instrstar"][config["idx"]])>1:
-#      immediate = config["instrstar"][config["idx"]][1]
-#    else: immediate = ""
-#    print(" ",instr,immediate)
-#    input()
-#    #immediate = None if len(config["instrstar"][config["idx"]])==1 else config["instrstar"][config["idx"]][1]
-#    ret = opcode2exec[instr][0](config)
-#    print(" ",config["operand_stack"])
-#    if config["F"]: print(" ",config["F"][-1]["locals"])
-#    #print(" ",config["control_stack"])
-#    print()
-#    print()
-#    #print("  len(F)",len(config["F"]))
-#    #print("  config[control_stack]",config["control_stack"])
-#    #print("  config[operand_stack]",config["operand_stack"])
-#    #print("  config[instrstar]",config["instrstar"])
-#    #print("  config[idx]",config["idx"])
-#    if ret: return ret,config["operand_stack"]	#eg "trap" or "done"
+def instrstarend_loop(config):
+  if verbose>=1: print("instrstar_loop()")
+  while 1:
+    instr = config["instrstar"][config["idx"]][0]  # idx<len(instrs) since instrstar[-1]=="end" which changes instrstar
+    #print()
+    #print(" ",instr)
+    #immediate = None if len(config["instrstar"][config["idx"]])==1 else config["instrstar"][config["idx"]][1]
+    ret = opcode2exec[instr][0](config)
+    #print("  len(F)",len(config["F"]))
+    #print("  config[control_stack]",config["control_stack"])
+    #print("  config[operand_stack]",config["operand_stack"])
+    #print("  config[instrstar]",config["instrstar"])
+    #print("  config[idx]",config["idx"])
+    if ret: return ret,config["operand_stack"]	#eg "trap" or "done"
 
 
 
@@ -2313,19 +2265,21 @@ def spec_expr(config):
   #idx = config["idx"]
   #if len(config["instrstar"])==0: return operand_stack
   #print(instrstar)
-  #config["idx"]=0
+  config["idx"]=0
   while 1:
     instr = config["instrstar"][config["idx"]][0]  # idx<len(instrs) since instrstar[-1]=="end" which changes instrstar
     #print(instr)
     #immediate = None if len(config["instrstar"][config["idx"]])==1 else config["instrstar"][config["idx"]][1]
     ret = opcode2exec[instr][0](config)
-    if ret: return ret,config["operand_stack"]
-    #if ret=="trap": return ret	#eg "trap" or "return"
+    if ret == "trap": raise Exception("trap")
+    if ret == "exhaustion": raise Exception("exhaustion") 
+    if ret: return config["operand_stack"]
     #print("locals",F[-1]["locals"])
     if verbose >= 2: print("operand_stack",config["operand_stack"])
     #print("control_stack",len(config["control_stack"]),config["control_stack"])
     #print()
     if verbose >= 4: print("control_stack",config["control_stack"])
+  #return "done",config["operand_stack"]
 
 
 
@@ -2341,26 +2295,26 @@ def spec_external_typing(S,externval):
   if verbose>=1: print("spec_external_typing(",externval,")")
   if "func" == externval[0]:
     a = externval[1]
-    if len(S["funcs"])<a: return -1
+    if len(S["funcs"])<a: raise Exception("unlinkable")
     funcinst = S["funcs"][a]
     return ["func",funcinst["type"]]
   elif "table" == externval[0]:
     a = externval[1]
-    if len(S["tables"])<a: return -1
+    if len(S["tables"])<a: raise Exception("unlinkable")
     tableinst = S["tables"][a]
     return ["table",[{"min":len(tableinst["elem"]),"max":tableinst["max"]},"anyfunc"]]
   elif "mem" == externval[0]:
     a = externval[1]
-    if len(S["mems"])<a: return -1
+    if len(S["mems"])<a: raise Exception("unlinkable")
     meminst = S["mems"][a]
     return ["mem",{"min":len(meminst["data"])//65536,"max":meminst["max"]}]  #page size = 64 Ki = 65536
   elif "global" == externval[0]:
     a = externval[1]
-    if len(S["globals"])<a: return -1
+    if len(S["globals"])<a: raise Exception("unlinkable")
     globalinst = S["globals"][a]
     return [ "global", [globalinst["mut"],globalinst["value"][0][:3]] ]
   else:
-    return -1
+    raise Exception("unlinkable")
 
 
 # 4.5.2 IMPORT MATCHING
@@ -2371,9 +2325,9 @@ def spec_externtype_matching_limits(limits1,limits2):
   m1 = limits1["max"]
   n2 = limits2["min"]
   m2 = limits2["max"]
-  if n1<n2: return -1
+  if n1<n2: raise Exception("unlinkable")
   if m2==None or (m1!=None and m2!=None and m1<=m2): return "<="
-  else: return -1
+  else: raise Exception("unlinkable")
 
 def spec_externtype_matching(externtype1,externtype2):
   if verbose>=1: print("spec_externtype_matching(",externtype1,externtype2,")")
@@ -2383,8 +2337,7 @@ def spec_externtype_matching(externtype1,externtype2):
   elif "table"==externtype1[0] and "table"==externtype2[0]:
     limits1 = externtype1[1][0]
     limits2 = externtype2[1][0]
-    if spec_externtype_matching_limits(limits1,limits2) == -1:
-      return -1
+    spec_externtype_matching_limits(limits1,limits2)
     elemtype1 = externtype1[1][1]
     elemtype2 = externtype2[1][1]
     if elemtype1 == elemtype2:
@@ -2397,7 +2350,7 @@ def spec_externtype_matching(externtype1,externtype2):
   elif "global"==externtype1[0] and "global"==externtype2[0]:
     if externtype1[1] == externtype2[1]:
       return "<="
-  return -1
+  raise Exception("unlinkable")
 
 
 # 4.5.3 ALLOCATION
@@ -2448,16 +2401,15 @@ def spec_allocglobal(S,globaltype,val):
   
 def spec_growtable(tableinst,n):
   if verbose>=1: print("spec_growtable(",")")
-  if tablinst["max"]!=None and tableinst["max"] < n+len(tableinst["elem"]):
-    return -1
+  if tablinst["max"]!=None and tableinst["max"] < n+len(tableinst["elem"]): return "fail" #TODO: what does fail mean? raise Exception("trap")
   tableinst["elem"]+=[None for i in range(n)]
   return tableinst
 
 def spec_growmem(meminst,n):
   if verbose>=1: print("spec_growmem(",")")
   len_ = n*65536  #page size = 64 Ki = 65536
-  if (meminst["max"]!=None and meminst["max"]*65536 < len_+len(meminst["data"])) or len_+len(meminst["data"]) > 2**32:
-    return -1  #fail
+  if (meminst["max"]!=None and meminst["max"]*65536 < len_+len(meminst["data"])): return "fail"; #TODO: what does fail mean? raise Exception("trap")
+  if len_+len(meminst["data"]) > 2**32: return "fail" # raise Exception("grow mem") #TODO: this is not part of the spec, maybe should be
   else:
     meminst["data"] += bytearray(len_) # each page created with bytearray(65536) which is 0s
   
@@ -2508,19 +2460,13 @@ def spec_instantiate(S,module,externvaln):
   # 1
   # 2
   ret = spec_validate_module(module)
-  if ret=="invalid": return "error: invalid"
   externtypeimn,externtypeexstar = ret
   # 3
-  if len(module["imports"]) != len(externvaln):
-    #return None,None,"error"
-    return "error: unlinkable?"
+  if len(module["imports"]) != len(externvaln): raise Exception("unlinkable")
   # 4
   for i in range(len(externvaln)):
     externtypei = spec_external_typing(S,externvaln[i])
-    if externtypei == -1:
-      return "error: unlinkable"
-    if spec_externtype_matching(externtypei,externtypeimn[i])==-1:
-      return "error: unlinkable"
+    spec_externtype_matching(externtypei,externtypeimn[i])
   # 5
   valstar = []
   moduleinstim = {"globaladdrs":[externval[1] for externval in externvaln if "global"==externval[0]]}
@@ -2530,7 +2476,6 @@ def spec_instantiate(S,module,externvaln):
   for globali in module["globals"]:
     config = {"S":S,"F":framestack,"instrstar":globali["init"],"idx":0,"operand_stack":[],"control_stack":[]}
     ret = spec_expr( config )[0]
-    if ret=="trap": return "error: trap"
     valstar += [ ret ]
   framestack.pop()
   # 6
@@ -2545,7 +2490,6 @@ def spec_instantiate(S,module,externvaln):
   for elemi in module["elem"]:
     config = {"S":S,"F":framestack,"instrstar":elemi["offset"],"idx":0,"operand_stack":[],"control_stack":[]}
     eovali = spec_expr(config)[0]
-    if eovali=="trap": return "error: trap"
     eoi = eovali
     eo+=[eoi]
     tableidxi = elemi["table"]
@@ -2554,14 +2498,13 @@ def spec_instantiate(S,module,externvaln):
     tableinst+=[tableinsti]
     #print("eoi",eoi)
     eendi = eoi+len(elemi["init"])
-    if eendi > len(tableinsti["elem"]): return "error: unlinkable"
+    if eendi > len(tableinsti["elem"]): raise Exception("unlinkable")
   # 10
   meminst = []
   do = []
   for datai in module["data"]:
     config = {"S":S,"F":framestack,"instrstar":datai["offset"],"idx":0,"operand_stack":[],"control_stack":[]}
     dovali = spec_expr(config)[0]
-    if dovali=="trap": return "error: trap"
     doi = dovali
     do+=[doi]
     memidxi = datai["data"]
@@ -2569,7 +2512,7 @@ def spec_instantiate(S,module,externvaln):
     meminsti = S["mems"][memaddri]
     meminst += [meminsti]
     dendi = doi+len(datai["init"])
-    if dendi > len(meminsti["data"]): return "error: unlinkable"
+    if dendi > len(meminsti["data"]): raise Exception("unlinkable")
   # 11
   # 12
   framestack.pop()
@@ -2597,16 +2540,16 @@ def spec_instantiate(S,module,externvaln):
 def spec_invoke(S,funcaddr,valn):
   if verbose>=1: print("spec_invoke(",")")
   # 1
-  if len(S["funcs"]) < funcaddr or funcaddr < 0: return -1
+  if len(S["funcs"]) < funcaddr or funcaddr < 0: raise Exception("bad address")
   # 2
   funcinst = S["funcs"][funcaddr]  
   # 5
   t1n,t2m = funcinst["type"]
   # 4
-  if len(valn)!=len(t1n): return -1
+  if len(valn)!=len(t1n): raise Exception("wrong number of arguments")
   # 5
   for ti,vali in zip(t1n,valn):
-    if vali[0][:3]!=ti: return -1
+    if vali[0][:3]!=ti: raise Exception("argument type mismatch")
   # 6
   operand_stack = []
   for ti,vali in zip(t1n,valn):
@@ -2623,13 +2566,12 @@ def spec_invoke(S,funcaddr,valn):
     config = {"S":S,"F":[],"instrstar":[["invoke",funcaddr],["end",None]],"idx":0,"operand_stack":operand_stack,"control_stack":[]}
     valresm = spec_expr(config) #instrstarend_loop(config)
     #moved this here from bottom
-    if valresm[0]=="trap": return valresm[0]
-    else: return valresm[1]
+    return valresm
   elif "hostcode" in funcinst:
     S,valresm = funcinst["hostcode"](S,operand_stack)
     #moved this here from bottom
     return valresm
-  else: return -1
+  else: raise Exception("")
   #return valresm  #TODO: toggle these back when uncomment main loop execution
 
 
@@ -2845,11 +2787,9 @@ for opcode in opcodes_binary2text:
 def spec_binary_vec(raw,idx,B):
   #print("spec_binary_vec(",idx,")")
   idx,n=spec_binary_uN(raw,idx,32)
-  if n == "malformed": return idx,n
   xn = []
   for i in range(n):
     idx,x = B(raw,idx)
-    if x=="malformed": return idx,x
     xn+=[x]
   return idx,xn
 
@@ -2858,7 +2798,7 @@ def spec_binary_vec_inv(mynode,myfunc):
   xn_bytes=bytearray()
   for x in mynode:
     xn_bytes+=myfunc(x)
-  return n_bytes+xn_bytes
+  return n_bytes+xn_bytes 
 
 
 ############
@@ -2868,7 +2808,7 @@ def spec_binary_vec_inv(mynode,myfunc):
 # 5.2.1 BYTES
 
 def spec_binary_byte(raw,idx):
-  if len(raw)<=idx: return idx,"malformed"
+  if len(raw)<=idx: raise Exception("malformed")
   return idx+1,raw[idx]
 
 def spec_binary_byte_inv(node):
@@ -2880,15 +2820,13 @@ def spec_binary_byte_inv(node):
 def spec_binary_uN(raw,idx,N):
   #print("spec_binary_uN(",idx,N,")")
   idx,n=spec_binary_byte(raw,idx)
-  if n=="malformed": return idx,n
   if n<2**7 and n<2**N:
     return idx,n
   elif n>=2**7 and N>7:
     idx,m=spec_binary_uN(raw,idx,N-7)
-    if m=="malformed": return idx,m
     return idx, (2**7)*m+(n-2**7)
   else:
-    return idx,"malformed"
+    raise Exception("malformed")
 
 def spec_binary_uN_inv(k,N):
   #print("spec_binary_uN_inv(",k,N,")")
@@ -2897,7 +2835,7 @@ def spec_binary_uN_inv(k,N):
   elif k>=2**7 and N>7:
     return bytearray([k%(2**7)+2**7])+spec_binary_uN_inv(k//(2**7),N-7)
   else:
-    return None
+    raise Exception("malformed")
 
 #signed
 def spec_binary_sN(raw,idx,N):
@@ -2909,25 +2847,23 @@ def spec_binary_sN(raw,idx,N):
     return idx,n-2**7
   elif n>=2**7 and N>7:
     idx,m=spec_binary_sN(raw,idx,N-7)
-    if m=="malformed": return idx,m
     return idx,2**7*m+(n-2**7)
   else:
-    return idx,"malformed"
+    raise Exception("malformed")
 
 def spec_binary_sN_inv(k,N):
   if 0<=k<2**6 and k<2**N:
     return bytearray([k])
   elif 2**6<=k+2**7<2**7: # and k+2**7>=2**7-2**(N-1):
     return bytearray([k+2**7])
-  elif (k>=2**6 or k<2**6) and N>7: #TODO: the first part is always true #(k<0 and k+2**7>=2**6)) and N>7:
+  elif (k>=2**6 or k<2**6) and N>7: #(k<0 and k+2**7>=2**6)) and N>7:
     return bytearray([k%(2**7)+2**7])+spec_binary_sN_inv((k//(2**7)),N-7)
   else:
-    return "malformed"
+    raise Exception("malformed")
 
 #uninterpretted integers
 def spec_binary_iN(raw,idx,N):
   idx,n=spec_binary_sN(raw,idx,N)
-  if n=="malformed": return idx,n
   i = spec_signediN_inv(N,n)
   return idx, i
 
@@ -2958,51 +2894,50 @@ def spec_binary_name(raw,idx):
   #print("spec_binary_name()")
   idx,bstar = spec_binary_vec(raw,idx,spec_binary_byte)
   #print("bstar",bstar)
-  if bstar=="malformed": return idx,bstar
   nametxt=""
   try:
     nametxt=bytearray(bstar).decode()
   except:
-    return idx,("malformed",)
+    raise Exception("malformed")
   return idx,nametxt
   #rest is unused, for finding inverse of utf8(name)=b*, keep since want to correct spec doc
   bstaridx=0
   lenbstar = len(bstar)
   name=[]
   while bstaridx<lenbstar:
-    if bstaridx>=len(bstar): return idx,"malformed"
+    if bstaridx>=len(bstar): raise Exception("malformed")
     b1=bstar[bstaridx]
     bstaridx+=1
     if b1<0x80:
       name+=[b1]
       continue
-    if bstaridx>=len(bstar): return idx,"malformed"
+    if bstaridx>=len(bstar): raise Exception("malformed")
     b2=bstar[bstaridx]
-    if b2>>6 != 0b01: return idx,"malformed"
+    if b2>>6 != 0b01: raise Exception("malformed")
     bstaridx+=1
     c=(2**6)*(b1-0xc0) + (b2-0x80)
     #c_check = 2**6*(b1-192) + (b2-128)
     if 0x80<=c<0x800:
       name+=[c]
       continue
-    if bstaridx>=len(bstar): return idx,"malformed"
+    if bstaridx>=len(bstar): raise Exception("malformed")
     b3=bstar[bstaridx]
-    if b2>>5 != 0b011: return idx,"malformed"
+    if b2>>5 != 0b011: raise Exception("malformed")
     bstaridx+=1
     c=(2**12)*(b1-0xe0) + (2**6)*(b2-0x80) + (b3-0x80)
     if 0x800<=c<0x10000 and (b2>>6 == 0b01):
       name+=[c]
       continue
-    if bstaridx>=len(bstar): return idx,"malformed"
+    if bstaridx>=len(bstar):raise Exception("malformed")
     b4=bstar[bstaridx]
-    if b2>>4 != 0b0111: return idx,"malformed"
+    if b2>>4 != 0b0111: raise Exception("malformed")
     bstaridx+=1
     c=2**18*(b1-0xf0) + 2**12*(b2-0x80) + 2**6*(b3-0x80) + (b4-0x80)
     if 0x10000<=c<0x110000:
       name+=[c]
     else:
       #print("malformed character")
-      return idx,("malformed",) # tuple since utf8 string "malformed"
+      raise Exception("malformed")
   #convert each codepoint to utf8 character
   #print("utf8 name",name, len(name), name=="")
   nametxt = ""
@@ -3040,15 +2975,15 @@ valtype2bin={"i32":0x7f,"i64":0x7e,"f32":0x7d,"f64":0x7c}
 bin2valtype={val:key for key,val in valtype2bin.items()}
 
 def spec_binary_valtype(raw,idx):
-  if idx>=len(raw): return idx,"malformed"
+  if idx>=len(raw): raise Exception("malformed")
   if raw[idx] in bin2valtype:
     return idx+1,bin2valtype[raw[idx]]
   else:
-    return idx,"malformed"
+    raise Exception("malformed")
 
 def spec_binary_valtype_inv(node):
   #print("spec_binary_valtype_inv(",node,")")
-  if node and node in valtype2bin:
+  if node in valtype2bin:
     return bytearray([valtype2bin[node]])
   else:
     return bytearray([]) #error
@@ -3062,8 +2997,7 @@ def spec_binary_blocktype(raw,idx):
   return idx, t
 
 def spec_binary_blocktype_inv(node):
-  #print("spec_binary_blocktype_inv(",node,")")
-  if not node:
+  if node==None:
     return bytearray([0x40])
   else:
     return spec_binary_valtype_inv(node)
@@ -3072,13 +3006,10 @@ def spec_binary_blocktype_inv(node):
 # 5.3.3 FUNCTION TYPES
 
 def spec_binary_functype(raw,idx):
-  if raw[idx]!=0x60:
-    return idx, "malformed"
+  if raw[idx]!=0x60: raise Exception("malformed")
   idx+=1
   idx,t1star=spec_binary_vec(raw,idx,spec_binary_valtype)
-  if t1star=="malformed": return idx,t1star
   idx,t2star=spec_binary_vec(raw,idx,spec_binary_valtype)
-  if t2star=="malformed": return idx,t2star
   return idx,[t1star,t2star]
 
 def spec_binary_functype_inv(node):
@@ -3090,13 +3021,10 @@ def spec_binary_functype_inv(node):
 def spec_binary_limits(raw,idx):
   if raw[idx]==0x00:
     idx,n = spec_binary_uN(raw,idx+1,32)
-    if n=="malformed": return idx,n
     return idx,{"min":n,"max":None}
   elif raw[idx]==0x01:
     idx,n = spec_binary_uN(raw,idx+1,32)
-    if n=="malformed": return idx,n
     idx,m = spec_binary_uN(raw,idx,32)
-    if m=="malformed": return idx,m
     return idx,{"min":n,"max":m}
   else:
     return idx,None #error
@@ -3121,16 +3049,14 @@ def spec_binary_memtype_inv(node):
 
 def spec_binary_tabletype(raw,idx):
   idx,et = spec_binary_elemtype(raw,idx)
-  if et=="malformed": return idx,et
   idx,lim = spec_binary_limits(raw,idx)
-  if lim=="malformed": return idx,lim
   return idx,[lim,et]
 
 def spec_binary_elemtype(raw,idx):
   if raw[idx]==0x70:
     return idx+1,"anyfunc"
   else:
-    return idx,"malformed"
+    raise Exception("malformed")
 
 def spec_binary_tabletype_inv(node):
   return spec_binary_elemtype_inv(node[1])+spec_binary_limits_inv(node[0])
@@ -3143,9 +3069,7 @@ def spec_binary_elemtype_inv(node):
 
 def spec_binary_globaltype(raw,idx):
   idx,t = spec_binary_valtype(raw,idx)
-  if t=="malformed": return idx,t
   idx,m = spec_binary_mut(raw,idx)
-  if m=="malformed": return idx,m
   return idx,[m,t]
 
 def spec_binary_mut(raw,idx):
@@ -3154,7 +3078,7 @@ def spec_binary_mut(raw,idx):
   elif raw[idx]==0x01:
     return idx+1,"var"
   else:
-    return idx, "malformed"
+    raise Exception("malformed")
 
 def spec_binary_globaltype_inv(node):
   return spec_binary_valtype_inv(node[1])+spec_binary_mut_inv(node[0])
@@ -3176,9 +3100,7 @@ def spec_binary_mut_inv(node):
 
 def spec_binary_memarg(raw,idx):
   idx,a=spec_binary_uN(raw,idx,32)
-  if a=="malformed": return idx,a
   idx,o=spec_binary_uN(raw,idx,32)
-  if o=="malformed": return idx,o
   return idx,{"align":a,"offset":o}
 
 def spec_binary_memarg_inv(node):
@@ -3192,7 +3114,6 @@ def spec_binary_instr(raw,idx):
   idx+=1
   if instr_text in {"block","loop","if"}:      #block, loop, if
     idx,rt=spec_binary_blocktype(raw,idx)
-    if rt=="malformed": return idx,rt
     instar=[]
     if instr_text=="if":
       instar2=[]
@@ -3217,7 +3138,6 @@ def spec_binary_instr(raw,idx):
     return idx, [instr_text,l]
   elif instr_text == "br_table":               # br_table
     idx,lstar=spec_binary_vec(raw,idx,spec_binary_labelidx)
-    if lstar=="malformed": return idx,lstar
     idx,lN=spec_binary_labelidx(raw,idx)
     return idx, ["br_table",lstar,lN]
   elif instr_text in {"call","call_indirect"}: # call, call_indirect
@@ -3225,7 +3145,7 @@ def spec_binary_instr(raw,idx):
       idx,x=spec_binary_funcidx(raw,idx)
     if instr_text=="call_indirect":
       idx,x=spec_binary_typeidx(raw,idx)
-      if raw[idx]!=0x00: return idx,"malformed"
+      if raw[idx]!=0x00: raise Exception("malformed")
       idx+=1
     return idx, [instr_text,x]
   elif 0x20<=instr_binary<=0x22:               # get_local, etc
@@ -3236,27 +3156,24 @@ def spec_binary_instr(raw,idx):
     return idx, [instr_text,x]
   elif 0x28<=instr_binary<=0x3e:               # i32.load, i64.store, etc
     idx,m = spec_binary_memarg(raw,idx)
-    if m=="malformed": return idx,m
     return idx, [instr_text,m]
   elif 0x3f<=instr_binary<=0x40:               # current_memory, grow_memory
-    if raw[idx]!=0x00: return idx,"malformed"
+    if raw[idx]!=0x00: raise Exception("malformed")
     return idx+1, [instr_text,]
   elif 0x41<=instr_binary<=0x42:               # i32.const, etc
     n=0
     if instr_text=="i32.const":
       idx,n = spec_binary_iN(raw,idx,32)
-      if n=="malformed": return idx,n
     if instr_text=="i64.const":
       idx,n = spec_binary_iN(raw,idx,64)
-      if n=="malformed": return idx,n
     return idx, [instr_text,n]
   elif 0x43<=instr_binary<=0x44:               # f32.const, etc
     z=0
     if instr_text=="f32.const":
-      if len(raw)<=idx+4: return idx,"malformed"
+      if len(raw)<=idx+4: raise Exception("malformed")
       idx,z = spec_binary_fN(raw,idx,32)
     if instr_text=="f64.const":
-      if len(raw)<=idx+8: return idx,"malformed"
+      if len(raw)<=idx+8: raise Exception("malformed")
       idx,z = spec_binary_fN(raw,idx,64)
     return idx, [instr_text,z]
   else:
@@ -3317,7 +3234,6 @@ def spec_binary_expr(raw,idx):
   instar = []
   while raw[idx] != 0x0b:
     idx,ins = spec_binary_instr(raw,idx)
-    if ins=="malformed": return idx,ins
     instar+=[ins]
   if raw[idx] != 0x0b: return idx,None #error
   return idx+1, instar +[['end']]
@@ -3400,7 +3316,6 @@ def spec_binary_sectionN(raw,idx,N,B,skip):
     return idx, []  #this sec not included
   idx+=1
   idx,size = spec_binary_uN(raw,idx,32)
-  if size=="malformed": return idx,size
   idx_plus_size = idx+size
   if skip:
     return idx+size,[]
@@ -3410,9 +3325,7 @@ def spec_binary_sectionN(raw,idx,N,B,skip):
     idx, ret = B(raw,idx)
   else:
     idx,ret = spec_binary_vec(raw,idx,B)
-  if ret=="malformed": return idx,ret
-  if idx != idx_plus_size:
-    return idx,"malformed"
+  if idx != idx_plus_size: raise Exception("malformed")
   return idx,ret
 
 def spec_binary_sectionN_inv(cont,Binv,N):
@@ -3436,18 +3349,15 @@ def spec_binary_customsec(raw,idx,skip):
   while idx<len(raw) and raw[idx]==0:
     #print("found custom section",idx,raw[idx])
     idx,customsec = spec_binary_sectionN(raw,idx,0,spec_binary_custom,skip) 
-    if customsec=="malformed": return idx,"malformed"
     customsecstar += [customsec]
   return idx,customsecstar
 
 def spec_binary_custom(raw,idx,endidx):
   idx,name = spec_binary_name(raw,idx)
   #print(name)
-  if name==("malformed",): return idx,name[0]
   bytestar=bytearray()
   while idx<endidx:
     idx,byte = spec_binary_byte(raw,idx)
-    if byte == "malformed": return name,byte
     bytestar+=bytearray([byte])
     idx+=1
   return [name,bytestar]
@@ -3476,11 +3386,8 @@ def spec_binary_importsec(raw,idx,skip=0):
 
 def spec_binary_import(raw,idx):
   idx,mod = spec_binary_name(raw,idx)
-  if mod==("malformed",): return idx,mod[0]
   idx,nm = spec_binary_name(raw,idx)
-  if nm==("malformed",): return idx,nm[0]
   idx,d = spec_binary_importdesc(raw,idx)
-  if d=="malformed": return idx,d
   return idx,{"module":mod,"name":nm,"desc":d}
 
 def spec_binary_importdesc(raw,idx):
@@ -3489,15 +3396,12 @@ def spec_binary_importdesc(raw,idx):
     return idx,["func",x]
   elif raw[idx]==0x01:
     idx,tt=spec_binary_tabletype(raw,idx+1)
-    if tt=="malformed": return idx,tt
     return idx,["table",tt]
   elif raw[idx]==0x02:
     idx,mt=spec_binary_memtype(raw,idx+1)
-    if mt=="malformed": return idx,mt
     return idx,["mem",mt]
   elif raw[idx]==0x03:
     idx,gt=spec_binary_globaltype(raw,idx+1)
-    if gt=="malformed": return idx,gt
     return idx,["global",gt]
   else:
     return idx,None #error
@@ -3538,7 +3442,6 @@ def spec_binary_tablesec(raw,idx,skip=0):
 
 def spec_binary_table(raw,idx):
   idx,tt=spec_binary_tabletype(raw,idx)
-  if tt=="malformed": return idx,tt
   return idx,{"type":tt}
 
 def spec_binary_tablesec_inv(node):
@@ -3555,7 +3458,6 @@ def spec_binary_memsec(raw,idx,skip=0):
 
 def spec_binary_mem(raw,idx):
   idx,mt = spec_binary_memtype(raw,idx)
-  if mt=="malformed": return idx,mt
   return idx,{"type":mt}
 
 def spec_binary_memsec_inv(node):
@@ -3572,9 +3474,7 @@ def spec_binary_globalsec(raw,idx,skip=0):
 
 def spec_binary_global(raw,idx):
   idx,gt=spec_binary_globaltype(raw,idx)
-  if gt=="malformed": return idx,gt
   idx,e=spec_binary_expr(raw,idx)
-  if e=="malformed": return idx,e
   return idx,{"type":gt,"init":e}
 
 def spec_binary_globalsec_inv(node):
@@ -3592,10 +3492,8 @@ def spec_binary_exportsec(raw,idx,skip=0):
 def spec_binary_export(raw,idx):
   idx,nm = spec_binary_name(raw,idx)
   #print("nm",nm)
-  if nm==("malformed",): return idx,nm[0]
   idx,d = spec_binary_exportdesc(raw,idx)
   #print("d",d)
-  if d=="malformed": return idx,d
   return idx,{"name":nm,"desc":d}
 
 def spec_binary_exportdesc(raw,idx):
@@ -3665,9 +3563,7 @@ def spec_binary_elemsec(raw,idx,skip=0):
 def spec_binary_elem(raw,idx):
   idx,x=spec_binary_tableidx(raw,idx)
   idx,e=spec_binary_expr(raw,idx)
-  if e=="malformed": return idx,e
   idx,ystar=spec_binary_vec(raw,idx,spec_binary_funcidx)
-  if ystar=="malformed": return idx,ystar
   return idx,{"table":x,"offset":e,"init":ystar}
 
 def spec_binary_elemsec_inv(node):
@@ -3684,29 +3580,22 @@ def spec_binary_codesec(raw,idx,skip=0):
 
 def spec_binary_code(raw,idx):
   idx,size=spec_binary_uN(raw,idx,32)
-  if size=="malformed": return idx,size
   idx_end = idx+size
   idx,code=spec_binary_func(raw,idx)
-  if idx_end != idx:
-    return idx,"malformed"
-  if len(code) >= 2**32:
-    return idx,"malformed"
+  if idx_end != idx: raise Exception("malformed")
+  if len(code) >= 2**32: raise Exception("malformed")
   return idx,code
 
 def spec_binary_func(raw,idx):
   idx,tstarstar=spec_binary_vec(raw,idx,spec_binary_locals)
-  if tstarstar=="malformed": return idx,tstarstar
   idx,e=spec_binary_expr(raw,idx)
-  if e=="malformed": return idx,e
   concattstarstar=[t for tstar in tstarstar for t in tstar] 
-  if len(concattstarstar) >= 2**32: return idx,"malformed"
+  if len(concattstarstar) >= 2**32: raise Exception("malformed")
   return idx, [concattstarstar,e]
 
 def spec_binary_locals(raw,idx):
   idx,n=spec_binary_uN(raw,idx,32)
-  if n=="malformed": return idx,n
   idx,t=spec_binary_valtype(raw,idx)
-  if t=="malformed": return idx,t
   tn=[t]*n
   return idx,tn
 
@@ -3742,11 +3631,8 @@ def spec_binary_datasec(raw,idx,skip=0):
 
 def spec_binary_data(raw,idx):
   idx,x=spec_binary_memidx(raw,idx)
-  if x=="malformed": return idx,x
   idx,e=spec_binary_expr(raw,idx)
-  if e=="malformed": return idx,e
   idx,bstar=spec_binary_vec(raw,idx,spec_binary_byte)
-  if bstar=="malformed": return idx,bstar
   return idx, {"data":x,"offset":e,"init":bstar}
 
 def spec_binary_datasec_inv(node):
@@ -3761,94 +3647,69 @@ def spec_binary_data_inv(node):
 def spec_binary_module(raw):
   idx=0
   magic=[0x00,0x61,0x73,0x6d]
-  if magic!=[x for x in raw[idx:idx+4]]:
-    return "malformed"
+  if magic!=[x for x in raw[idx:idx+4]]: raise Exception("malformed")
   idx+=4
   version=[0x01,0x00,0x00,0x00]
-  if version!=[x for x in raw[idx:idx+4]]:
-    return "malformed"
+  if version!=[x for x in raw[idx:idx+4]]: raise Exception("malformed")
   idx+=4
 
   idx,customsecstar = spec_binary_customsec(raw,idx,0)
   if verbose==-1: print("customsecstar",customsecstar)
-  if  customsecstar=="malformed": return "malformed"
 
   idx,functypestar=spec_binary_typesec(raw,idx,0)
   if verbose==-1: print("functypestar",functypestar)
-  if  functypestar=="malformed": return "malformed"
 
   idx,customsecstar = spec_binary_customsec(raw,idx,0)
-  if  customsecstar=="malformed": return "malformed"
 
   idx,importstar=spec_binary_importsec(raw,idx,0)
   if verbose==-1: print("importstar",importstar)
-  if  importstar=="malformed": return "malformed"
 
   idx,customsecstar = spec_binary_customsec(raw,idx,0)
-  if  customsecstar=="malformed": return "malformed"
 
   idx,typeidxn=spec_binary_funcsec(raw,idx,0)
   if verbose==-1: print("typeidxn",typeidxn)
-  if  typeidxn=="malformed": return "malformed"
 
   idx,customsecstar = spec_binary_customsec(raw,idx,0)
-  if  customsecstar=="malformed": return "malformed"
 
   idx,tablestar=spec_binary_tablesec(raw,idx,0)
   if verbose==-1: print("tablestar",tablestar)
-  if  tablestar=="malformed": return "malformed"
 
   idx,customsecstar = spec_binary_customsec(raw,idx,0)
-  if  customsecstar=="malformed": return "malformed"
 
   idx,memstar=spec_binary_memsec(raw,idx,0)
   if verbose==-1: print("memstar",memstar)
-  if  memstar=="malformed": return "malformed"
 
   idx,customsecstar = spec_binary_customsec(raw,idx,0)
-  if  customsecstar=="malformed": return "malformed"
 
   idx,globalstar=spec_binary_globalsec(raw,idx,0)
   if verbose==-1: print("globalstar",globalstar)
-  if  globalstar=="malformed": return "malformed"
 
   idx,customsecstar = spec_binary_customsec(raw,idx,0)
-  if  customsecstar=="malformed": return "malformed"
 
   idx,exportstar=spec_binary_exportsec(raw,idx,0)
   if verbose==-1: print("exportstar",exportstar)
-  if  exportstar=="malformed": return "malformed"
 
   idx,customsecstar = spec_binary_customsec(raw,idx,0)
-  if  customsecstar=="malformed": return "malformed"
 
   idx,startq=spec_binary_startsec(raw,idx,0)
   if verbose==-1: print("startq",startq)
-  if  startq=="malformed": return "malformed"
 
   idx,customsecstar = spec_binary_customsec(raw,idx,0)
-  if  customsecstar=="malformed": return "malformed"
 
   idx,elemstar=spec_binary_elemsec(raw,idx,0)
   if verbose==-1: print("elemstar",elemstar)
-  if  elemstar=="malformed": return "malformed"
 
   idx,customsecstar = spec_binary_customsec(raw,idx,0)
-  if  customsecstar=="malformed": return "malformed"
 
   idx,coden=spec_binary_codesec(raw,idx,0)
   if verbose==-1: print("coden",coden)
-  if  coden=="malformed": return "malformed"
 
   idx,customsecstar = spec_binary_customsec(raw,idx,0)
-  if  customsecstar=="malformed": return "malformed"
 
   idx,datastar=spec_binary_datasec(raw,idx,0)
   if verbose==-1: print("datastar",datastar)
-  if  datastar=="malformed": return "malformed"
 
   idx,customsecstar = spec_binary_customsec(raw,idx,0)
-  if  customsecstar=="malformed": return "malformed"
 
   funcn=[]
   if typeidxn and coden and len(typeidxn)==len(coden):
@@ -3912,7 +3773,10 @@ def init_store():
 # 7.1.2 MODULES
 
 def decode_module(bytestar):
-  mod = spec_binary_module(bytestar)
+  try:
+    mod = spec_binary_module(bytestar)
+  except:
+    return "malformed"
   return mod
   
 def parse_module(codepointstar):
@@ -3920,25 +3784,28 @@ def parse_module(codepointstar):
   return -1
 
 def validate_module(module):
-  ret = spec_validate_module(module)
-  if ret=="invalid": return ret
+  try:
+    spec_validate_module(module)
+  except Exception as e:
+    return "error: invalid"
   return None
 
 def instantiate_module(store,module,externvalstar):
-  ret = spec_instantiate(store,module,externvalstar)
-  # here, we deviate from the spec by also returning the return value
-  if ret[:5] == "error": 
-    return store, "error", ret[7:]
+  # we deviate from the spec by also returning the return value
+  try:
+    ret = spec_instantiate(store,module,externvalstar)
+  except Exception as e:
+    return store,"error",e.args[0]
   store,F,startret = ret
   modinst = F["module"]
   return store, modinst, startret
 
 def module_imports(module):
-  ret = spec_validate_module(mod)
-  if ret=="invalid": return "error: invalid"
+  try: spec_validate_module(mod)
+  except: return "error: invalid"
   externtypestar, extertypeprimestar = ret
   importstar = module["imports"]
-  if len(importstar) != len(externtypestar): return "error: wrong length?"
+  if len(importstar) != len(externtypestar): return "error: wrong import length"
   result = []
   for i in range(len(importstar)):
     importi = importstar[i]
@@ -3948,11 +3815,11 @@ def module_imports(module):
   return result
 
 def module_exports(module):
-  ret = spec_validate_module(mod)
-  if ret=="error": return "error: invalid"
+  try: ret = spec_validate_module(mod)
+  except: return "error: invalid"
   externtypestar, extertypeprimestar = ret
   exportstar = module["exports"]
-  if len(exportstar) != len(externtypeprimestar): return "error: wrong length"
+  assert len(exportstar) == len(externtypeprimestar)
   result = []
   for i in range(len(importstar)):
     exporti = exportstar[i]
@@ -3983,7 +3850,10 @@ def type_func(store,funcaddr):
   return functype
 
 def invoke_func(store,funcaddr,valstar):
-  ret = spec_invoke(store,funcaddr,valstar)
+  try: 
+    ret = spec_invoke(store,funcaddr,valstar)
+  except Exception as e:
+    return store,e.args[0]
   return store,ret
   
 # 7.1.4 TABLES
@@ -4021,8 +3891,10 @@ def size_table(store, tableaddr):
 
 def grow_table(store, tableaddr, n):
   if len(store["tables"]) <= tableaddr: return "error"
-  if type(n)!=int or n < 0: return -1
-  store["tables"][tableaddr]["elem"] += [{"elem":[], "max":None} for i in range(n)]  # see spec \S 4.2.7 Table Instances for discussion on uninitialized table elements.
+  if type(n)!=int or n < 0: return "error"
+  try: spec_growtable(store["tabless"][tableaddr],n)
+  except: return "error"
+  #store["tables"][tableaddr]["elem"] += [{"elem":[], "max":None} for i in range(n)]  # see spec \S 4.2.7 Table Instances for discussion on uninitialized table elements.
   return store
 
 # 7.1.6 MEMORIES
@@ -4059,14 +3931,17 @@ def size_mem(store,memaddr):
 def grow_mem(store,memaddr,n):
   if len(store["mems"]) <= memaddr: return "error"
   if type(n)!=int or n < 0: return "error"
-  ret = spec_growmem(store["mems"][memaddr],n)
-  if ret==-1: return "error"
+  try: spec_growmem(store["mems"][memaddr],n)
+  except: return "error"
   return store
 
 # 7.1.7 GLOBALS
   
 def alloc_global(store,globaltype,val):
-  store,globaladdr = spec_allocglobal(store,globaltype,val)
+  try:
+    store,globaladdr = spec_allocglobal(store,globaltype,val)
+  except:
+     return store,"error"
   return store,globaladdr
 
 def type_global(store, globaladdr):
@@ -4114,35 +3989,35 @@ def spec_pop_opd(opds,ctrls):
   # but if underflows and unreachable, which can happen if unconditional branch, when stack is typed polymorphically, operands are still pushed and popped to check if code after unreachable is valid, polymorphic stack can't underflow
   if len(opds) == ctrls[-1]["height"] and ctrls[-1]["unreachable"]:
     return "Unknown"
-  if len(opds) == ctrls[-1]["height"]:
-    return "invalid" #: type mismatch"
-  if len(opds)==0: return "invalid" #not in spec
+  if len(opds) == ctrls[-1]["height"]: raise Exception("invalid") #error
+  if len(opds) == 0: raise Exception("invalid") #error, not in spec
   to_return = opds[-1]
   del opds[-1]
   return to_return
 
 def spec_pop_opd_expect(opds,ctrls,expect):
   actual = spec_pop_opd(opds,ctrls)
-  if actual == "invalid": return actual
+  if actual == -1:  raise Exception("invalid") #error
   # in case one is unknown, the more specific one is returned
   if actual == "Unknown":
     return expect
   if expect == "Unknown":
     return actual
-  if actual != expect:
-    return "invalid"
+  if actual != expect: raise Exception("invalid") #error
   return actual
 
 def spec_push_opds(opds,ctrls,types):
   for t in types:
     spec_push_opd(opds,t)
+  return 0
 
 def spec_pop_opds_expect(opds,ctrls,types):
   if types:
     for t in reversed(types):
       r = spec_pop_opd_expect(opds,ctrls,t)
-      if r=="invalid": return r
     return r
+  else:
+    return None
 
 def spec_ctrl_frame(label_types, end_types, height, unreachable):
   #args are:
@@ -4157,14 +4032,14 @@ def spec_push_ctrl(opds,ctrls,label,out):
   ctrls.append(frame)
 
 def spec_pop_ctrl(opds,ctrls):
-  if len(ctrls)<1: return "invalid"
+  if len(ctrls)<1:  raise Exception("invalid") #error
   frame = ctrls[-1]
   #verify opd stack has right types to exit block, and pops them
   #print("frame[\"end_types\"]",frame["end_types"])
   r = spec_pop_opds_expect(opds,ctrls,frame["end_types"])
-  if r=="invalid": return r
+  if r==-1:  raise Exception("invalid") #error
   #make shure stack is back to original height
-  if len(opds) != frame["height"]: return "invalid"
+  if len(opds) != frame["height"]:  raise Exception("invalid") #error
   del ctrls[-1]
   return frame["end_types"]
 
@@ -4198,137 +4073,115 @@ def spec_validate_opcode(C,opds,ctrls,opcode,immediates):
       elif opcode_binary==0x03:			# loop
         spec_push_ctrl(opds,ctrls,[],rt)
       else:					# if
-        ret = spec_pop_opd_expect(opds,ctrls,"i32")
-        if ret == "invalid": return ret
+        spec_pop_opd_expect(opds,ctrls,"i32")
         spec_push_ctrl(opds,ctrls,rt,rt)
     elif opcode_binary==0x05:			# else
       results = spec_pop_ctrl(opds,ctrls)
-      if results=="invalid": return results
       if results!=[] and type(results)!=list: results=[results]
       spec_push_ctrl(opds,ctrls,results,results)
     elif opcode_binary==0x0b:			# end
       results = spec_pop_ctrl(opds,ctrls)
-      if results=="invalid": return results
       spec_push_opds(opds,ctrls,results)
     elif opcode_binary==0x0c:			# br
       n = immediates
-      if n==None: return "invalid"
-      if len(ctrls) <= n: return "invalid"
-      ret = spec_pop_opds_expect(opds,ctrls,ctrls[-1-n]["label_types"])
-      if ret == "invalid": return ret
+      if n==None: raise Exception("invalid")
+      if len(ctrls) <= n:  raise Exception("invalid")
+      spec_pop_opds_expect(opds,ctrls,ctrls[-1-n]["label_types"])
       spec_unreachable_(opds,ctrls)
     elif opcode_binary==0x0d:			# br_if
       n = immediates
-      if n==None: return "invalid"
-      if len(ctrls) <= n: return "invalid"
-      ret = spec_pop_opd_expect(opds,ctrls,"i32")
-      if ret=="invalid": return ret
-      ret = spec_pop_opds_expect(opds,ctrls,ctrls[-1-n]["label_types"]) 
-      if ret == "invalid": return ret
+      if n==None: raise Exception("invalid")
+      if len(ctrls) <= n: raise Exception("invalid")
+      spec_pop_opd_expect(opds,ctrls,"i32")
+      spec_pop_opds_expect(opds,ctrls,ctrls[-1-n]["label_types"]) 
       spec_push_opds(opds,ctrls,ctrls[-1-n]["label_types"])
     elif opcode_binary==0x0e:			# br_table
       nstar = immediates[0]
       m = immediates[1]
-      if len(ctrls)<=m: return "invalid"
+      if len(ctrls)<=m: raise Exception("invalid")
       for n in nstar:
-        if len(ctrls)<=n or ctrls[-1-n]["label_types"] != ctrls[-1-m]["label_types"]: return "invalid"
-      ret = spec_pop_opd_expect(opds,ctrls,"i32")
-      if ret == "invalid": return ret
-      ret = spec_pop_opds_expect(opds,ctrls,ctrls[-1-m]["label_types"])
-      if ret == "invalid": return ret
+        if len(ctrls)<=n or ctrls[-1-n]["label_types"] != ctrls[-1-m]["label_types"]: raise Exception("invalid")
+      spec_pop_opd_expect(opds,ctrls,"i32")
+      spec_pop_opds_expect(opds,ctrls,ctrls[-1-m]["label_types"])
       spec_unreachable_(opds,ctrls)
     elif opcode_binary==0x0f:			# return
-      if "return" not in C: return "invalid"
+      if "return" not in C: raise Exception("invalid")
       t = C["return"]
-      ret = spec_pop_opds_expect(opds,ctrls,t)
-      if ret == "invalid": return ret
+      spec_pop_opds_expect(opds,ctrls,t)
       spec_unreachable_(opds,ctrls)
     elif opcode_binary==0x10:			# call
       x = immediates
-      if ("funcs" not in C) or len(C["funcs"])<=x: return "invalid"
-      ret = spec_pop_opds_expect(opds,ctrls,C["funcs"][x][0])
-      if ret=="invalid": return ret
+      if ("funcs" not in C) or len(C["funcs"])<=x: raise Exception("invalid")
+      spec_pop_opds_expect(opds,ctrls,C["funcs"][x][0])
       spec_push_opds(opds,ctrls,C["funcs"][x][1])
     elif opcode_binary==0x11:			# call_indirect
       x = immediates
-      if ("tables" not in C) or len(C["tables"])==0: return "invalid"
-      if C["tables"][0][1] != "anyfunc": return "invalid"
-      if len(C["types"])<=x: return "invalid"
-      ret = spec_pop_opd_expect(opds,ctrls,"i32")
-      if ret == "invalid": return ret
-      ret = spec_pop_opds_expect(opds,ctrls,C["types"][x][0])
-      if ret == "invalid": return ret
+      if ("tables" not in C) or len(C["tables"])==0: raise Exception("invalid")
+      if C["tables"][0][1] != "anyfunc": raise Exception("invalid")
+      if len(C["types"])<=x: raise Exception("invalid")
+      spec_pop_opd_expect(opds,ctrls,"i32")
+      spec_pop_opds_expect(opds,ctrls,C["types"][x][0])
       spec_push_opds(opds,ctrls,C["types"][x][1])
   elif 0x1a<=opcode_binary<=0x1b:		# PARAMETRIC INSTRUCTIONS
     if opcode_binary==0x1a:			# drop
-      ret = spec_pop_opd(opds,ctrls)
-      if ret == "invalid": return ret
+      spec_pop_opd(opds,ctrls)
     elif opcode_binary==0x1b:			# select
-      ret = spec_pop_opd_expect(opds,ctrls,"i32")
-      if ret == "invalid": return ret
+      spec_pop_opd_expect(opds,ctrls,"i32")
       t1 = spec_pop_opd(opds,ctrls)
-      if t1 == "invalid": return t1
       t2 = spec_pop_opd_expect(opds,ctrls,t1)
-      if t2 == "invalid": return t2
       spec_push_opd(opds,t2)
   elif 0x20<=opcode_binary<=0x24:		# VARIABLE INSTRUCTIONS
     if opcode_binary==0x20:			# get_local
       x = immediates
-      if len(C["locals"])<=x: return "invalid"
+      if len(C["locals"])<=x: raise Exception("invalid")
       if C["locals"][x]=="i32": spec_push_opd(opds,"i32")
       elif C["locals"][x]=="i64": spec_push_opd(opds,"i64")
       elif C["locals"][x]=="f32": spec_push_opd(opds,"f32")
       elif C["locals"][x]=="f64": spec_push_opd(opds,"f64")
-      else: return "invalid"
+      else: raise Exception("invalid")
     if opcode_binary==0x21:			# set_local
       x = immediates
-      if len(C["locals"])<=x: return "invalid"
+      if len(C["locals"])<=x: raise Exception("invalid")
       if C["locals"][x]=="i32": ret = spec_pop_opd_expect(opds,ctrls,"i32")
       elif C["locals"][x]=="i64": ret = spec_pop_opd_expect(opds,ctrls,"i64")
       elif C["locals"][x]=="f32": ret = spec_pop_opd_expect(opds,ctrls,"f32")
       elif C["locals"][x]=="f64": ret = spec_pop_opd_expect(opds,ctrls,"f64")
-      else: return "invalid"
-      if ret == "invalid": return ret
+      else: raise Exception("invalid")
     if opcode_binary==0x22:			# tee_local
       x = immediates
-      if len(C["locals"])<=x: return "invalid"
+      if len(C["locals"])<=x: raise Exception("invalid")
       if C["locals"][x]=="i32":
-        ret = spec_pop_opd_expect(opds,ctrls,"i32")
-        if ret == "invalid": return ret
+        spec_pop_opd_expect(opds,ctrls,"i32")
         spec_push_opd(opds,"i32")
       elif C["locals"][x]=="i64":
-        ret = spec_pop_opd_expect(opds,ctrls,"i64")
-        if ret == "invalid": return ret
+        spec_pop_opd_expect(opds,ctrls,"i64")
         spec_push_opd(opds,"i64")
       elif C["locals"][x]=="f32":
-        ret = spec_pop_opd_expect(opds,ctrls,"f32")
-        if ret == "invalid": return ret
+        spec_pop_opd_expect(opds,ctrls,"f32")
         spec_push_opd(opds,"f32")
       elif C["locals"][x]=="f64":
-        ret = spec_pop_opd_expect(opds,ctrls,"f64")
-        if ret == "invalid": return ret
+        spec_pop_opd_expect(opds,ctrls,"f64")
         spec_push_opd(opds,"f64")
-      else: return "invalid"
+      else: raise Exception("invalid")
     if opcode_binary==0x23:			# get_global
       x = immediates
-      if len(C["globals"])<=x: return "invalid"
+      if len(C["globals"])<=x: raise Exception("invalid")
       if C["globals"][x][1]=="i32": spec_push_opd(opds,"i32")
       elif C["globals"][x][1]=="i64": spec_push_opd(opds,"i64")
       elif C["globals"][x][1]=="f32": spec_push_opd(opds,"f32")
       elif C["globals"][x][1]=="f64": spec_push_opd(opds,"f64")
-      else: return "invalid"
+      else: raise Exception("invalid")
     if opcode_binary==0x24:			# set_global
       x = immediates
-      if len(C["globals"])<=x: return "invalid"
-      if C["globals"][x][0] != "var": return "invalid"
+      if len(C["globals"])<=x: raise Exception("invalid")
+      if C["globals"][x][0] != "var": raise Exception("invalid")
       if C["globals"][x][1]=="i32": ret = spec_pop_opd_expect(opds,ctrls,"i32")
       elif C["globals"][x][1]=="i64": ret = spec_pop_opd_expect(opds,ctrls,"i64")
       elif C["globals"][x][1]=="f32": ret = spec_pop_opd_expect(opds,ctrls,"f32")
       elif C["globals"][x][1]=="f64": ret = spec_pop_opd_expect(opds,ctrls,"f64")
-      else: return "invalid"
-      if ret == "invalid": return ret
+      else: raise Exception("invalid")
   elif 0x28<=opcode_binary<=0x40:		# MEMORY INSTRUCTIONS
-    if "mems" not in C or len(C["mems"])==0: return "invalid"
+    if "mems" not in C or len(C["mems"])==0: raise Exception("invalid")
     if opcode_binary<=0x35:
       memarg = immediates
       if opcode_binary==0x28:			# i32.load
@@ -4349,9 +4202,8 @@ def spec_validate_opcode(C,opds,ctrls,opcode,immediates):
         N=16; t="i64"
       elif opcode_binary <= 0x35:		# i64.load32_s, i64.load32_u
         N=32; t="i64"
-      if 2**memarg["align"]>N//8: return "invalid"
-      ret = spec_pop_opd_expect(opds,ctrls,"i32")
-      if ret == "invalid": return ret
+      if 2**memarg["align"]>N//8: raise Exception("invalid")
+      spec_pop_opd_expect(opds,ctrls,"i32")
       spec_push_opd(opds,t)
     elif opcode_binary<=0x3e:
       memarg = immediates
@@ -4373,16 +4225,13 @@ def spec_validate_opcode(C,opds,ctrls,opcode,immediates):
         N=16; t="i64"
       elif opcode_binary==0x3e:			# i64.store32
         N=32; t="i64"
-      if 2**memarg["align"]>N//8: return "invalid"
-      ret = spec_pop_opd_expect(opds,ctrls,t)
-      if ret == "invalid": return ret
-      ret = spec_pop_opd_expect(opds,ctrls,"i32")
-      if ret == "invalid": return ret
+      if 2**memarg["align"]>N//8: raise Exception("invalid")
+      spec_pop_opd_expect(opds,ctrls,t)
+      spec_pop_opd_expect(opds,ctrls,"i32")
     elif opcode_binary==0x3f:			# memory.size
       spec_push_opd(opds,"i32")
     elif opcode_binary==0x40:			# memory.grow
-      ret = spec_pop_opd_expect(opds,ctrls,"i32")
-      if ret == "invalid": return ret
+      spec_pop_opd_expect(opds,ctrls,"i32")
       spec_push_opd(opds,"i32")
   elif 0x41<=opcode_binary<=0xbf:		# NUMERIC INSTRUCTIONS
     if opcode_binary<=0x44:
@@ -4396,155 +4245,117 @@ def spec_validate_opcode(C,opds,ctrls,opcode,immediates):
         spec_push_opd(opds,"f64")
     elif opcode_binary<=0x4f:
       if opcode_binary==0x45:			# i32.eqz
-        ret = spec_pop_opd_expect(opds,ctrls,"i32")
-        if ret == "invalid": return ret
+        spec_pop_opd_expect(opds,ctrls,"i32")
         spec_push_opd(opds,"i32")
       else:					# i32.eq, i32.ne, i32.lt_s, i32.lt_u, i32.gt_s, i32.gt_u, i32.le_s, i32.le_u, i32.ge_s, i32.ge_u
-        ret = spec_pop_opd_expect(opds,ctrls,"i32")
-        if ret == "invalid": return ret
-        ret = spec_pop_opd_expect(opds,ctrls,"i32")
-        if ret == "invalid": return ret
+        spec_pop_opd_expect(opds,ctrls,"i32")
+        spec_pop_opd_expect(opds,ctrls,"i32")
         spec_push_opd(opds,"i32")
     elif opcode_binary<=0x5a:
       if opcode_binary==0x50:			# i64.eqz
-        ret = spec_pop_opd_expect(opds,ctrls,"i64")
-        if ret == "invalid": return ret
+        spec_pop_opd_expect(opds,ctrls,"i64")
         spec_push_opd(opds,"i32")
       else:					# i64.eq, i64.ne, i64.lt_s, i64.lt_u, i64.gt_s, i64.gt_u, i64.le_s, i64.le_u, i64.ge_s, i64.ge_u
-        ret = spec_pop_opd_expect(opds,ctrls,"i64")
-        if ret == "invalid": return ret
-        ret = spec_pop_opd_expect(opds,ctrls,"i64")
-        if ret == "invalid": return ret
+        spec_pop_opd_expect(opds,ctrls,"i64")
+        spec_pop_opd_expect(opds,ctrls,"i64")
         spec_push_opd(opds,"i32")
     elif opcode_binary<=0x60:			# f32.eq, f32.ne, f32.lt, f32.gt, f32.le, f32.ge
-      ret = spec_pop_opd_expect(opds,ctrls,"f32")
-      if ret == "invalid": return ret
-      ret = spec_pop_opd_expect(opds,ctrls,"f32")
-      if ret == "invalid": return ret
+      spec_pop_opd_expect(opds,ctrls,"f32")
+      spec_pop_opd_expect(opds,ctrls,"f32")
       spec_push_opd(opds,"i32")
     elif opcode_binary<=0x66:			# f64.eq, f64.ne, f64.lt, f64.gt, f64.le, f64.ge
-      ret = spec_pop_opd_expect(opds,ctrls,"f64")
-      if ret == "invalid": return ret
-      ret = spec_pop_opd_expect(opds,ctrls,"f64")
-      if ret == "invalid": return ret
+      spec_pop_opd_expect(opds,ctrls,"f64")
+      spec_pop_opd_expect(opds,ctrls,"f64")
       spec_push_opd(opds,"i32")
     elif opcode_binary<=0x78:
       if opcode_binary<=0x69:			# i32.clz, i32.ctz, i32.popcnt
-        ret = spec_pop_opd_expect(opds,ctrls,"i32")
-        if ret == "invalid": return ret
+        spec_pop_opd_expect(opds,ctrls,"i32")
         spec_push_opd(opds,"i32")
       else:					# i32.add, i32.sub, i32.mul, i32.div_s, i32.div_u, i32.rem_s, i32.rem_u, i32.and, i32.or, i32.xor, i32.shl, i32.shr_s, i32.shr_u, i32.rotl, i32.rotr
-        ret = spec_pop_opd_expect(opds,ctrls,"i32")
-        if ret == "invalid": return ret
-        ret = spec_pop_opd_expect(opds,ctrls,"i32")
-        if ret == "invalid": return ret
+        spec_pop_opd_expect(opds,ctrls,"i32")
+        spec_pop_opd_expect(opds,ctrls,"i32")
         spec_push_opd(opds,"i32")
     elif opcode_binary<=0x8a:
       if opcode_binary<=0x7b:			# i64.clz, i64.ctz, i64.popcnt
-        ret = spec_pop_opd_expect(opds,ctrls,"i64")
-        if ret == "invalid": return ret
+        spec_pop_opd_expect(opds,ctrls,"i64")
         spec_push_opd(opds,"i64")
       else:					# i64.add, i64.sub, i64.mul, i64.div_s, i64.div_u, i64.rem_s, i64.rem_u, i64.and, i64.or, i64.xor, i64.shl, i64.shr_s, i64.shr_u, i64.rotl, i64.rotr
-        ret = spec_pop_opd_expect(opds,ctrls,"i64")
-        if ret == "invalid": return ret
-        ret = spec_pop_opd_expect(opds,ctrls,"i64")
-        if ret == "invalid": return ret
+        spec_pop_opd_expect(opds,ctrls,"i64")
+        spec_pop_opd_expect(opds,ctrls,"i64")
         spec_push_opd(opds,"i64")
     elif opcode_binary<=0x98:
       if opcode_binary<=0x91:			# f32.abs, f32.neg, f32.ceil, f32.floor, f32.trunc, f32.nearest, f32.sqrt,
-        ret = spec_pop_opd_expect(opds,ctrls,"f32")
-        if ret == "invalid": return ret
+        spec_pop_opd_expect(opds,ctrls,"f32")
         spec_push_opd(opds,"f32")
       else:					# f32.add, f32.sub, f32.mul, f32.div, f32.min, f32.max, f32.copysign
-        ret = spec_pop_opd_expect(opds,ctrls,"f32")
-        if ret == "invalid": return ret
-        ret = spec_pop_opd_expect(opds,ctrls,"f32")
-        if ret == "invalid": return ret
+        spec_pop_opd_expect(opds,ctrls,"f32")
+        spec_pop_opd_expect(opds,ctrls,"f32")
         spec_push_opd(opds,"f32")
     elif opcode_binary<=0xa6:
       if opcode_binary<=0x9f:			# f64.abs, f64.neg, f64.ceil, f64.floor, f64.trunc, f64.nearest, f64.sqrt,
-        ret = spec_pop_opd_expect(opds,ctrls,"f64")
-        if ret == "invalid": return ret
+        spec_pop_opd_expect(opds,ctrls,"f64")
         spec_push_opd(opds,"f64")
       else:					# f64.add, f64.sub, f64.mul, f64.div, f64.min, f64.max, f64.copysign
-        ret = spec_pop_opd_expect(opds,ctrls,"f64")
-        if ret == "invalid": return ret
-        ret = spec_pop_opd_expect(opds,ctrls,"f64")
-        if ret == "invalid": return ret
+        spec_pop_opd_expect(opds,ctrls,"f64")
+        spec_pop_opd_expect(opds,ctrls,"f64")
         spec_push_opd(opds,"f64")
     elif opcode_binary<=0xbf:
       if opcode_binary==0xa7:			# i32.wrap/i64
-        ret = spec_pop_opd_expect(opds,ctrls,"i64")
-        if ret == "invalid": return ret
+        spec_pop_opd_expect(opds,ctrls,"i64")
         spec_push_opd(opds,"i32")
       elif opcode_binary<=0xa9:			# i32.trunc_s/f32, i32.trunc_u/f32
-        ret = spec_pop_opd_expect(opds,ctrls,"f32")
-        if ret == "invalid": return ret
+        spec_pop_opd_expect(opds,ctrls,"f32")
         spec_push_opd(opds,"i32")
       elif opcode_binary<=0xab:			# i32.trunc_s/f64, i32.trunc_u/f64
-        ret = spec_pop_opd_expect(opds,ctrls,"f64")
-        if ret == "invalid": return ret
+        spec_pop_opd_expect(opds,ctrls,"f64")
         spec_push_opd(opds,"i32")
       elif opcode_binary<=0xad:			# i64.extend_s/i32, i64.extend_u/i32
-        ret = spec_pop_opd_expect(opds,ctrls,"i32")
-        if ret == "invalid": return ret
+        spec_pop_opd_expect(opds,ctrls,"i32")
         spec_push_opd(opds,"i64")
       elif opcode_binary<=0xaf:			# i64.trunc_s/f32, i64.trunc_u/f32
-        ret = spec_pop_opd_expect(opds,ctrls,"f32")
-        if ret == "invalid": return ret
+        spec_pop_opd_expect(opds,ctrls,"f32")
         spec_push_opd(opds,"i64")
       elif opcode_binary<=0xb1:			# i64.trunc_s/f64, i64.trunc_u/f64
-        ret = spec_pop_opd_expect(opds,ctrls,"f64")
-        if ret == "invalid": return ret
+        spec_pop_opd_expect(opds,ctrls,"f64")
         spec_push_opd(opds,"i64")
       elif opcode_binary<=0xb3:			# f32.convert_s/i32, f32.convert_u/i32
-        ret = spec_pop_opd_expect(opds,ctrls,"i32")
-        if ret == "invalid": return ret
+        spec_pop_opd_expect(opds,ctrls,"i32")
         spec_push_opd(opds,"f32")
       elif opcode_binary<=0xb5:			# f32.convert_s/i64, f32.convert_u/i64
-        ret = spec_pop_opd_expect(opds,ctrls,"i64")
-        if ret == "invalid": return ret
+        spec_pop_opd_expect(opds,ctrls,"i64")
         spec_push_opd(opds,"f32")
       elif opcode_binary<=0xb6:			# f32.demote/f64
-        ret = spec_pop_opd_expect(opds,ctrls,"f64")
-        if ret == "invalid": return ret
+        spec_pop_opd_expect(opds,ctrls,"f64")
         spec_push_opd(opds,"f32")
       elif opcode_binary<=0xb8:			# f64.convert_s/i32, f64.convert_u/i32
-        ret = spec_pop_opd_expect(opds,ctrls,"i32")
-        if ret == "invalid": return ret
+        spec_pop_opd_expect(opds,ctrls,"i32")
         spec_push_opd(opds,"f64")
       elif opcode_binary<=0xba:			# f64.convert_s/i64, f64.convert_u/i64
-        ret = spec_pop_opd_expect(opds,ctrls,"i64")
-        if ret == "invalid": return ret
+        spec_pop_opd_expect(opds,ctrls,"i64")
         spec_push_opd(opds,"f64")
       elif opcode_binary==0xbb:			# f64.promote/f32
-        ret = spec_pop_opd_expect(opds,ctrls,"f32")
-        if ret == "invalid": return ret
+        spec_pop_opd_expect(opds,ctrls,"f32")
         spec_push_opd(opds,"f64")
       elif opcode_binary==0xbc:			# i32.reinterpret/f32
-        ret = spec_pop_opd_expect(opds,ctrls,"f32")
-        if ret == "invalid": return ret
+        spec_pop_opd_expect(opds,ctrls,"f32")
         spec_push_opd(opds,"i32")
       elif opcode_binary==0xbd:			# i64.reinterpret/f64
-        ret = spec_pop_opd_expect(opds,ctrls,"f64")
-        if ret == "invalid": return ret
+        spec_pop_opd_expect(opds,ctrls,"f64")
         spec_push_opd(opds,"i64")
       elif opcode_binary==0xbe:			# f32.reinterpret/i32
-        ret = spec_pop_opd_expect(opds,ctrls,"i32")
-        if ret == "invalid": return ret
+        spec_pop_opd_expect(opds,ctrls,"i32")
         spec_push_opd(opds,"f32")
       else:					# f64.reinterpret/i64
-        ret = spec_pop_opd_expect(opds,ctrls,"i64")
-        if ret == "invalid": return ret
+        spec_pop_opd_expect(opds,ctrls,"i64")
         spec_push_opd(opds,"f64")
-    else: return "invalid" #opcode not in the correct ranges
+    else: raise Exception("invalid") #error, opcode not in the correct ranges
   return 0 #success, valid so far
  
 
 # args when called the first time:  
 def iterate_through_expression_and_validate_each_opcode(expression,Context,opds,ctrls):
   for node in expression:
-    if type(node[0])!=str: return "invalid"
+    if type(node[0])!=str: raise Exception("invalid") #error
     opcode = node[0]
     #get immediate
     immediate=None
@@ -4554,17 +4365,13 @@ def iterate_through_expression_and_validate_each_opcode(expression,Context,opds,
       immediate = [node[1],node[2]]
     #print(opcode,immediate)
     #validate
-    ret = spec_validate_opcode(Context,opds,ctrls,opcode,immediate)
-    if ret=="invalid": return ret
+    spec_validate_opcode(Context,opds,ctrls,opcode,immediate)
     #recurse for block, loop, if
     if node[0] in {"block","loop","if"}:
-      ret = iterate_through_expression_and_validate_each_opcode(node[2],Context,opds,ctrls)
-      if ret=="invalid": return ret
-      #if ret == -1: return -1
+      iterate_through_expression_and_validate_each_opcode(node[2],Context,opds,ctrls)
       if len(node)==4: #if with else
-        ret = iterate_through_expression_and_validate_each_opcode(node[3],Context,opds,ctrls)
-        if ret=="invalid": return ret
-        #if ret == -1: return -1
+        iterate_through_expression_and_validate_each_opcode(node[3],Context,opds,ctrls)
+  return 0
 
   
   

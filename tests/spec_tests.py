@@ -19,14 +19,15 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
 import os
 import sys
 sys.path.append('..')  #since pywebassembly.py is in parent dir
-import pywebassembly_runtime_loop as pywebassembly
+#import pywebassembly_runtime_loop_works as pywebassembly
+import pywebassembly
 
 import json
 import struct #for decoding floats
 import math
 
 
-verbose = 1
+verbose = 0
 
 
 
@@ -211,6 +212,7 @@ def instantiate_module_from_wasm_file(test,filename,store,registered_modules):
     #print("moduleinst",moduleinst)
     #print(store["mems"][0]["data"])
     if moduleinst=="error":
+      #print("instantiate_module_from_wasm_file",moduleinst,ret)
       return store,ret #ret is the actual error, eg "unlinkable"
   return store,moduleinst
 
@@ -291,6 +293,10 @@ def test_opcode_assertion(test,store,modules,registered_modules,moduleinst):
     ret = test_opcode_assert_invalid(test,store,modules,registered_modules,moduleinst)
   elif test["type"] == "assert_unlinkable":
     ret = test_opcode_assert_unlinkable(test,store,modules,registered_modules,moduleinst)
+  elif test["type"] == "assert_exhaustion":
+    ret = test_opcode_assert_exhaustion(test,store,modules,registered_modules,moduleinst)
+  else:
+    print("assertion not yet implemented!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! ",test["type"])
   if verbose>1: print(ret)
   return ret
 
@@ -304,6 +310,7 @@ def test_opcode_assert_return(test,store,modules,registered_modules,moduleinst):
   #print("ret",ret)
   #print("test[\"expected\"]",test["expected"])
   if len(ret) != len(test["expected"]):
+    print("ret=",ret,len(ret),"   test[\"expected\"]", test["expected"], len(test["expected"]))
     if verbose>1: print("FAILURE different number of expected and returned values")
     return "failure"
   if len(ret)==0 and len(test["expected"]) == 0:
@@ -362,6 +369,20 @@ def test_opcode_assert_trap(test,store,modules,registered_modules,moduleinst):
     return "success"
   else:
     if verbose>=1: print("assert_trap FAILURE")
+    return "failure"
+
+def test_opcode_assert_exhaustion(test,store,modules,registered_modules,moduleinst):
+  #print("checking for exhaustion for ", test)
+  if "action" in test:
+    ret = test_opcode_action(test,store,modules,registered_modules,moduleinst)
+  elif "module" in test:
+    _,ret = test_opcode_module(test,store,modules,registered_modules)
+  if ret=="exhaustion":
+    if verbose>=2: print("assert_exhaustion SUCCESS")
+    return "success"
+  else:
+    print("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
+    if verbose>=1: print("assert_exhaustion FAILURE")
     return "failure"
 
 def test_opcode_assert_malformed(test,store,modules,registered_modules,moduleinst):
@@ -467,6 +488,7 @@ def test_opcode_action_get(test,store,modules,registered_modules,moduleinst):
     if export["name"] == test["action"]["field"]:
       globaladdr = export["value"][1]
       value = store["globals"][globaladdr]["value"][1]
+      #print("test_opcode_action_get",value)
       return [value]
       #num_tests_tried+=1
       #if value != test["expected"][0]["value"]:
@@ -526,10 +548,12 @@ def run_test_file(jsonfilename):
         num_tests_tried += 1
       if ret=="success":
         num_tests_passed += 1
+    else:
+      print("test not yet implemented!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! ", test["type"])
   if verbose>-1: print("Passed",num_tests_passed,"out of",num_tests_tried,"tests")  #"(actually, there are ",len(tests),"total tests, some test opcodes not implemented yet)")
   if verbose>-1: 
    if num_tests_passed!=num_tests_tried:
-     print("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
+     print("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
 
   
   #if num_tests_passed!=num_tests_tried: print("#################### FAILED TESTS ########################")
