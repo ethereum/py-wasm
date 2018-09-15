@@ -117,7 +117,7 @@ PyWebAssembly is also structured for my personal economy-of-thought as it is bei
 
 **API**: It may be possible to limit the API to functions defined in the WebAssembly Spec section 7.1 Embedding. These functions are implemented in section "7.1" of pywebassembly.py, but please reference the spec for details. The only awkward part is that `invoke_func` requires specifying `i32.const`, `i64.const`, `f32.const`, or `f64.const` with each argument -- we are considering deviating from the spec and relaxing this requirement.
 
-The following code "spins-up" a VM instance, instantiate a module, and invoke its exported function. See the `examples` directory for more examples.
+The following code "spins-up" a VM instance, instantiates a module, and invokes an exported function. See the `examples` directory for more examples.
 
 
 ```
@@ -143,7 +143,7 @@ print(ret)						#list [89] of return values, limitted to one value in Wasm 1.0
 
 TODO:
  * Clean-up the code, make it aesthetically pleasing, more maintainable.
- * Refactor floating point values to use ctypes float32 and float64, then pass remaining`NaN` tests.
+ * Refactor floating point values to use ctypes float32 and float64, then pass remaining floating point tests.
  * Support text format as described in chapter 6.
 
 

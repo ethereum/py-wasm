@@ -27,7 +27,7 @@ import struct #for decoding floats
 import math
 
 
-verbose = 0
+verbose = 1
 
 
 
@@ -251,7 +251,6 @@ def int2float(N,int_):
 #dir_ = "./"
 def test_opcode_module(test,store,modules,registered_modules):
   if verbose>2: print("test_opcode_module()")
-  #print("test_opcode_module()")
   moduleinst=None
   if "filename" in test:
     store,moduleinst = instantiate_module_from_wasm_file(test,dir_+test["filename"],store,registered_modules)
@@ -487,6 +486,8 @@ def test_opcode_action_get(test,store,modules,registered_modules,moduleinst):
   for export in exports:
     if export["name"] == test["action"]["field"]:
       globaladdr = export["value"][1]
+      #print("store",store)
+      #print("store[\"gloabls\"]",store["globals"])
       value = store["globals"][globaladdr]["value"][1]
       #print("test_opcode_action_get",value)
       return [value]
@@ -543,6 +544,7 @@ def run_test_file(jsonfilename):
       num_tests_tried += 1
       num_tests_passed+=1
     elif test["type"][:7] == "assert_":		#assertion
+      #print("store",store)
       ret = test_opcode_assertion(test,store,modules,registered_modules,moduleinst)
       if ret in {"success","failure"}:
         num_tests_tried += 1

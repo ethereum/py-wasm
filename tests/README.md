@@ -1,19 +1,19 @@
 
 # spec_tests.py
 
- This file runs official Wasm spec tests, including their extra opcodes for testing such as `assert_return` and `assert_trap`. Because PyWebAssembly does _not_ yet support text format `.wast` (or `.wat`) files, we use `wabt`'s `wast2json` to convert each `<test>.wast` to `<test>.json` and corresponding `<test>.0.wasm`, `<test>.1.wasm`, ... . 
+ This file runs official Wasm spec tests, including their extra opcodes for testing such as `assert_return` and `assert_trap`. Because PyWebAssembly does _not_ yet support text format `.wast` (or `.wat`) files, we use `wabt`'s `wast2json` to convert each `<test>.wast` to `<test>.wast.json` and corresponding `<test>.0.wasm`, `<test>.1.wasm`, ... . 
 
-This python script parses the `<test>.json` files and executes the tests. Currently, all tests pass except `assert_validate` and tests pass related to `NaN`'s significand.  Execute this file as follows.
+This python script parses the `<test>.wast.json` files and executes the tests. Currently, all tests pass except tests pass related to floating point `NaN`'s significand.  Execute this file as follows.
 
 ```
-#execute this file on any <test>.json test file
-python3 spec_tests.py spec_tests/address.json
+#execute this file on any <test>.wast.json test file
+python3 spec_tests.py spec_tests/address.wast.json
 #or execute this file on all .json test files
 python3 spec_tests.py spec_tests/
 ```
 
 Todo:
-All spec tests are passing except those involving the significand of `NaN`. I hope that using ctypes `c_float` and `c_double` will allow modifying the `Nan`'s significand which I don't know how to do with the Python float type currently being used.
+All spec tests are passing except some floating point tests involving the significand of `NaN`. I don't know how to do with the Python float type, so I hope that using ctypes `c_float` and `c_double` may be necessary.
 
 # spec_tests/
 
@@ -44,6 +44,3 @@ for filename in $(find *.wast 2> /dev/null); do
 done
 cd ..
 ```
-
-
-

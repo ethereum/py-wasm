@@ -156,9 +156,12 @@ def spec_globals(star):
 
 # 3.2.1 LIMITS
 
-def spec_validate_limit(limits):
-  if limits["max"] != None and limits["max"]<limits["min"]: raise Exception("invalid")
-  return limits
+def spec_validate_limit(limits,k):
+  n=limits["min"]
+  m=limits["max"]
+  if n>k: raise Exception("invalid")
+  if m != None and (m>k or m<n): raise Exception("invalid")
+  return k
 
 # 3.2.2 FUNCTION TYPES
 
@@ -170,13 +173,14 @@ def spec_validate_functype(ft):
 
 def spec_validate_tabletype(tt):
   limits, elemtype = tt
-  spec_validate_limit(limits)
+  spec_validate_limit(limits,2**32)
   return tt
 
 # 3.2.4 MEMORY TYPES
 
 def spec_validate_memtype(limits):
-  return spec_validate_limit(limits)
+  spec_validate_limit(limits,2**16)
+  return limits
 
 # 3.2.5 GLOBAL TYPES
 
@@ -471,6 +475,8 @@ def spec_validate_export(C,export):
   return spec_validate_exportdesc(C,export["desc"])
   
 def spec_validate_exportdesc(C,exportdesc):
+  #print("C",C)
+  #print("exportdesc",exportdesc)
   x = exportdesc[1]
   if exportdesc[0]=="func":
     if len(C["funcs"])<=x: raise Exception("invalid")
@@ -482,9 +488,12 @@ def spec_validate_exportdesc(C,exportdesc):
     if len(C["mems"])<=x: raise Exception("invalid")
     return ["mem",C["mems"][x]]
   elif exportdesc[0]=="global":
+    #print("global")
+    #print(len(C["globals"]),x)
     if len(C["globals"])<=x: raise Exception("invalid")
     mut,t = C["globals"][x]
-    if mut != "const": raise Exception("invalid")
+    #print(mut)
+    #if mut != "const": raise Exception("invalid") #TODO: this was in the spec, but tests fail linking.wast: $Mg exports a mutable global, seems not to parse in wabt
     return ["global",C["globals"][x]]
   else: raise Exception("invalid")
   
@@ -510,7 +519,7 @@ def spec_validate_importdesc(C,importdesc):
   elif importdesc[0]=="global":
     globaltype = importdesc[1]
     spec_validate_globaltype(globaltype)
-    if globaltype[0] != "const": raise Exception("invalid")
+    #if globaltype[0] != "const": raise Exception("invalid") #TODO: this was in the spec, but tests fail linking.wast: $Mg exports a mutable global, seems not to parse in wabt
     return ["global",globaltype]
   else: raise Exception("invalid")
 
@@ -597,9 +606,13 @@ def spec_validate_module(mod):
   for i,import_ in enumerate(mod["imports"]):
     it = spec_validate_import(C,import_)
     if it != itstar[i]: raise Exception("invalid")
+  #print("ok9")
+  #print("mod[\"exports\"]",mod["exports"])
   for i,export in enumerate(mod["exports"]):
     et = spec_validate_export(C,export)
+    #print("ok9.5")
     if et != etstar[i]: raise Exception("invalid")
+  #print("ok10")
   if len(C["tables"])>1: raise Exception("invalid")
   if len(C["mems"])>1: raise Exception("invalid")
   # export names must be unique
@@ -2401,17 +2414,23 @@ def spec_allocglobal(S,globaltype,val):
   
 def spec_growtable(tableinst,n):
   if verbose>=1: print("spec_growtable(",")")
-  if tablinst["max"]!=None and tableinst["max"] < n+len(tableinst["elem"]): return "fail" #TODO: what does fail mean? raise Exception("trap")
+  len_ = n + len(tableinst["elem"])
+  if len_>2**32: return "fail"
+  if tablinst["max"]!=None and tableinst["max"] < len_: return "fail" #TODO: what does fail mean? raise Exception("trap")
   tableinst["elem"]+=[None for i in range(n)]
   return tableinst
 
 def spec_growmem(meminst,n):
   if verbose>=1: print("spec_growmem(",")")
-  len_ = n*65536  #page size = 64 Ki = 65536
-  if (meminst["max"]!=None and meminst["max"]*65536 < len_+len(meminst["data"])): return "fail"; #TODO: what does fail mean? raise Exception("trap")
-  if len_+len(meminst["data"]) > 2**32: return "fail" # raise Exception("grow mem") #TODO: this is not part of the spec, maybe should be
-  else:
-    meminst["data"] += bytearray(len_) # each page created with bytearray(65536) which is 0s
+  #print("ok",len(meminst["data"]))
+  assert len(meminst["data"])%65536 == 0        #ie divisible by page size = 64 Ki = 65536
+  len_ = n + len(meminst["data"])//65536
+  if len_>2**16: return "fail"
+  if (meminst["max"]!=None and meminst["max"] < len_): return "fail"; #TODO: what does fail mean? raise Exception("trap")
+  #if len_+len(meminst["data"]) > 2**32: return "fail" # raise Exception("grow mem") #TODO: this is not part of the spec, maybe should be
+  #else:
+  meminst["data"] += bytearray(n*65536) # each page created with bytearray(65536) which is 0s
+
   
 
 def spec_allocmodule(S,module,externvalimstar,valstar):  
