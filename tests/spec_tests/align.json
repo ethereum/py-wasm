@@ -1,8 +1,0 @@
-{"source_filename": "align.wast",
- "commands": [
-  {"type": "assert_malformed", "line": 2, "filename": "align.0.wat", "text": "alignment", "module_type": "text"}, 
-  {"type": "assert_malformed", "line": 8, "filename": "align.1.wat", "text": "alignment", "module_type": "text"}, 
-  {"type": "assert_invalid", "line": 14, "filename": "align.2.wasm", "text": "alignment", "module_type": "binary"}, 
-  {"type": "assert_malformed", "line": 19, "filename": "align.3.wat", "text": "alignment", "module_type": "text"}, 
-  {"type": "assert_malformed", "line": 25, "filename": "align.4.wat", "text": "alignment", "module_type": "text"}, 
-  {"type": "assert_invalid", "line": 31, "filename": "align.5.wasm", "text": "alignment", "module_type": "binary"}]}
