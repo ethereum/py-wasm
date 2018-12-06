@@ -4,6 +4,9 @@
 
 **export_from_mod1_import_to_mod2.py**: This code uses the Embedding API to "spins-up" a VM instance, instantiate a module, registers its exports, instantiates another module which imports from the first module, and invokes its exported function.
 
+# WEBASSEMBLY TRANSFORMATION
+
+**ewasm_chisel.py** is a simple tool for modifying a WebAssembly module's imports and exports to suit one's need.
 
 # METERING INJECTION metering.py
 

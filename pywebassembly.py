@@ -3016,7 +3016,8 @@ def spec_binary_blocktype(raw,idx):
   return idx, t
 
 def spec_binary_blocktype_inv(node):
-  if node==None:
+  #print("spec_binary_blocktype_inv(",node,")")
+  if node==[]:
     return bytearray([0x40])
   else:
     return spec_binary_valtype_inv(node)
@@ -3328,7 +3329,6 @@ def spec_binary_labelidx_inv(node):
 # 5.5.2 SECTIONS
 
 def spec_binary_sectionN(raw,idx,N,B,skip):
-  #print("spec_binary_sectionN(",idx,N,")")
   if idx>=len(raw):
     return idx,[] #already at end
   if raw[idx]!=N:
@@ -3363,23 +3363,19 @@ def spec_binary_sectionN_inv(cont,Binv,N):
 # 5.5.3 CUSTOM SECTION
 
 def spec_binary_customsec(raw,idx,skip):
-  #print("spec_binary_customsec(",idx,")")
   customsecstar = []
-  while idx<len(raw) and raw[idx]==0:
-    #print("found custom section",idx,raw[idx])
-    idx,customsec = spec_binary_sectionN(raw,idx,0,spec_binary_custom,skip) 
-    customsecstar += [customsec]
-  return idx,customsecstar
+  idx,customsec = spec_binary_sectionN(raw,idx,0,spec_binary_custom,skip) 
+  return idx,customsec
 
 def spec_binary_custom(raw,idx,endidx):
-  idx,name = spec_binary_name(raw,idx)
-  #print(name)
   bytestar=bytearray()
+  idx,name = spec_binary_name(raw,idx)
   while idx<endidx:
     idx,byte = spec_binary_byte(raw,idx)
     bytestar+=bytearray([byte])
-    idx+=1
-  return [name,bytestar]
+    if idx!=endidx:
+      idx+=1
+  return idx,[name,bytestar]
 
 def spec_binary_customsec_inv(node):
   return spec_binary_sectionN_inv(node,spec_binary_custom_inv)
@@ -3672,63 +3668,74 @@ def spec_binary_module(raw):
   if version!=[x for x in raw[idx:idx+4]]: raise Exception("malformed")
   idx+=4
 
-  idx,customsecstar = spec_binary_customsec(raw,idx,0)
-  if verbose==-1: print("customsecstar",customsecstar)
+  while idx<len(raw) and raw[idx]==0:
+    idx,customsec = spec_binary_customsec(raw,idx,0)
 
   idx,functypestar=spec_binary_typesec(raw,idx,0)
   if verbose==-1: print("functypestar",functypestar)
 
-  idx,customsecstar = spec_binary_customsec(raw,idx,0)
+  while idx<len(raw) and raw[idx]==0:
+    idx,customsec = spec_binary_customsec(raw,idx,0)
 
   idx,importstar=spec_binary_importsec(raw,idx,0)
   if verbose==-1: print("importstar",importstar)
 
-  idx,customsecstar = spec_binary_customsec(raw,idx,0)
+  while idx<len(raw) and raw[idx]==0:
+    idx,customsec = spec_binary_customsec(raw,idx,0)
 
   idx,typeidxn=spec_binary_funcsec(raw,idx,0)
   if verbose==-1: print("typeidxn",typeidxn)
 
-  idx,customsecstar = spec_binary_customsec(raw,idx,0)
+  while idx<len(raw) and raw[idx]==0:
+    idx,customsec = spec_binary_customsec(raw,idx,0)
 
   idx,tablestar=spec_binary_tablesec(raw,idx,0)
   if verbose==-1: print("tablestar",tablestar)
 
-  idx,customsecstar = spec_binary_customsec(raw,idx,0)
+  while idx<len(raw) and raw[idx]==0:
+    idx,customsec = spec_binary_customsec(raw,idx,0)
 
   idx,memstar=spec_binary_memsec(raw,idx,0)
   if verbose==-1: print("memstar",memstar)
 
-  idx,customsecstar = spec_binary_customsec(raw,idx,0)
+  while idx<len(raw) and raw[idx]==0:
+    idx,customsec = spec_binary_customsec(raw,idx,0)
 
   idx,globalstar=spec_binary_globalsec(raw,idx,0)
   if verbose==-1: print("globalstar",globalstar)
 
-  idx,customsecstar = spec_binary_customsec(raw,idx,0)
+  while idx<len(raw) and raw[idx]==0:
+    idx,customsec = spec_binary_customsec(raw,idx,0)
 
   idx,exportstar=spec_binary_exportsec(raw,idx,0)
   if verbose==-1: print("exportstar",exportstar)
 
-  idx,customsecstar = spec_binary_customsec(raw,idx,0)
+  while idx<len(raw) and raw[idx]==0:
+    idx,customsec = spec_binary_customsec(raw,idx,0)
 
   idx,startq=spec_binary_startsec(raw,idx,0)
   if verbose==-1: print("startq",startq)
 
-  idx,customsecstar = spec_binary_customsec(raw,idx,0)
+  while idx<len(raw) and raw[idx]==0:
+    idx,customsec = spec_binary_customsec(raw,idx,0)
 
   idx,elemstar=spec_binary_elemsec(raw,idx,0)
   if verbose==-1: print("elemstar",elemstar)
 
-  idx,customsecstar = spec_binary_customsec(raw,idx,0)
+  while idx<len(raw) and raw[idx]==0:
+    idx,customsec = spec_binary_customsec(raw,idx,0)
 
   idx,coden=spec_binary_codesec(raw,idx,0)
   if verbose==-1: print("coden",coden)
 
-  idx,customsecstar = spec_binary_customsec(raw,idx,0)
+  while idx<len(raw) and raw[idx]==0:
+    idx,customsec = spec_binary_customsec(raw,idx,0)
 
   idx,datastar=spec_binary_datasec(raw,idx,0)
   if verbose==-1: print("datastar",datastar)
 
-  idx,customsecstar = spec_binary_customsec(raw,idx,0)
+  while idx<len(raw) and raw[idx]==0:
+    idx,customsec = spec_binary_customsec(raw,idx,0)
 
   funcn=[]
   if typeidxn and coden and len(typeidxn)==len(coden):
