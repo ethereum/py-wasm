@@ -22,16 +22,22 @@ sys.path.append('..')
 from pywebassembly import *
 
 def export_only_main_and_memory(mod):
+  print("\nexports (should be main function and the memory):")
   for export_ in mod["exports"][:]:
     if export_["name"]=="_main":
       export_["name"]="main"
     if export_["name"] not in {"main","memory"}:
       mod["exports"].remove(export_)
+  for export_ in mod["exports"][:]:
+    print(export_)
 
 def import_only_ethereum_eei(mod):
+  print("\nimports (should be only ewasm helper functions):")
   for import_ in mod["imports"]:
     if import_["module"] != "ethereum":
       import_["module"] = "ethereum"
+  for import_ in mod["imports"]:
+    print(import_)
 
 def parse_wasm_and_clean_up(filename):
   #print("reading ",filename)
