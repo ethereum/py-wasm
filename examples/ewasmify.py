@@ -46,7 +46,7 @@ def parse_wasm_and_clean_up(filename):
     mod = decode_module(wasm)
     export_only_main_and_memory(mod)
     import_only_ethereum_eei(mod)
-    spec_binary_module_inv_to_file(mod,filename.rsplit('.',1)[0]+"_chiseled.wasm")
+    spec_binary_module_inv_to_file(mod,filename.rsplit('.',1)[0]+"_ewasmified.wasm")
 
 
 if __name__ == "__main__":
