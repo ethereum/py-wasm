@@ -36,14 +36,14 @@ extras_require['dev'] = (
 )
 
 setup(
-    name='<PYPI_NAME>',
+    name='py-wasm',
     # *IMPORTANT*: Don't manually change the version here. Use `make bump`, as described in readme
     version='0.1.0-alpha.0',
-    description="""<PYPI_NAME>: <SHORT_DESCRIPTION>""",
+    description="""py-wasm: A python implementation of the web assembly interpreter""",
     long_description_markdown_filename='README.md',
     author='Jason Carver',
     author_email='ethcalibur+pip@gmail.com',
-    url='https://github.com/ethereum/<REPO_NAME>',
+    url='https://github.com/ethereum/py-wasm',
     include_package_data=True,
     install_requires=[
         "eth-utils>=1,<2",
@@ -51,7 +51,7 @@ setup(
     setup_requires=['setuptools-markdown'],
     python_requires='>=3.5, <4',
     extras_require=extras_require,
-    py_modules=['<MODULE_NAME>'],
+    py_modules=['wasm'],
     license="MIT",
     zip_safe=False,
     keywords='ethereum',

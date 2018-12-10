@@ -1,1 +1,1 @@
-<PYPI_NAME>[doc]
+py-wasm[doc]

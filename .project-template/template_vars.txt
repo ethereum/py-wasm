@@ -1,6 +1,6 @@
-<MODULE_NAME>
-<PYPI_NAME>
-<REPO_NAME>
-<RTD_NAME>
-<PROJECT_NAME>
-<SHORT_DESCRIPTION>
+wasm
+py-wasm
+py-wasm
+py-wasm
+py-wasm
+A python implementation of the web assembly interpreter

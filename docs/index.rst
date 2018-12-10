@@ -1,7 +1,7 @@
-<PROJECT_NAME>
+py-wasm
 ==============================
 
-<SHORT_DESCRIPTION>
+A python implementation of the web assembly interpreter
 
 Contents
 --------
@@ -9,7 +9,7 @@ Contents
 .. toctree::
     :maxdepth: 3
 
-    <MODULE_NAME>
+    wasm
     releases
 
 
