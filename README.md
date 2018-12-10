@@ -97,12 +97,8 @@ If you are in a beta version, `make release bump=stage` will switch to a stable.
 To issue an unstable version when the current version is stable, specify the
 new version explicitly, like `make release bump="--new-version 4.0.0-alpha.1 devnum"`
 
-# Legacy 
 
-*This is nearing completion! It is currently being cleaned-up and is in need of an audit.*
-
-
-## pywebassembly.py
+# Legacy README from `pywebassembly.py`
 
 PyWebAssembly closely follows [WebAssembly Specification, Release 1.0](https://webassembly.github.io/spec/core/_download/WebAssembly.pdf) (pdf), implementing necessary parts of chapters 2, 3, 4, 5, and 7. Each section of pywebassembly.py references its definition in the Spec document, and follows the same order as the Spec document.
 
