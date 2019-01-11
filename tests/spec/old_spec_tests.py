@@ -1,4 +1,3 @@
-
 """
 University of Illinois/NCSA Open Source License
 Copyright (c) 2018 Paul Dworzanski
@@ -124,7 +123,7 @@ def instantiate_test_module(store):
   pywebassembly.alloc_func(store, [[],["f32"]], test__func__f32)
   pywebassembly.alloc_func(store, [["i32"],["i32"]], test__func_i32_i32)
   pywebassembly.alloc_func(store, [["i64"],["i64"]], test__func_i64_i64)
-  pywebassembly.alloc_mem(store, {"min":1,"max":None})	
+  pywebassembly.alloc_mem(store, {"min":1,"max":None})
   pywebassembly.alloc_global(store, ["const", "i32"], 666)
   pywebassembly.alloc_global(store, ["const", "f32"], 0.0)
   pywebassembly.alloc_table(store, [{"min":10,"max":None}, "anyfunc"])
@@ -553,15 +552,12 @@ def run_test_file(jsonfilename):
     else:
       print("test not yet implemented!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! ", test["type"])
   if verbose>-1: print("Passed",num_tests_passed,"out of",num_tests_tried,"tests")  #"(actually, there are ",len(tests),"total tests, some test opcodes not implemented yet)")
-  if verbose>-1: 
+  if verbose>-1:
    if num_tests_passed!=num_tests_tried:
      print("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
 
-  
+
   #if num_tests_passed!=num_tests_tried: print("#################### FAILED TESTS ########################")
-
-
-
 
 
 
@@ -591,4 +587,3 @@ if __name__ == "__main__":
     if dir_[-1]!='/':
       dir_+='/'
     res = run_test_file(dir_+file_)
-
