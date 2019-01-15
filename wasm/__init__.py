@@ -27,6 +27,7 @@ This code follows the WebAssembly spec closely. Differences from spec follow.
  - Exection in the spec uses rewrite/substitution rules on the instruction sequence, but this would be inefficient, so, like most implementations, we maintain stacks instead of modifying the instruction sequence. This is explained more in section 4.4.5 below.
  - In instantiate_module() we also return the return value, since there seems to be no other way to get the value returned by the start function. We will approach the spec writers about this.
 """
+import logging
 import math  # for some floating-point methods
 import struct  # for encoding/decoding floats
 from typing import NamedTuple
@@ -42,7 +43,7 @@ from wasm._utils.types import (
 )
 
 
-verbose = 0
+logger = logging.getLogger('wasm.spec')
 
 
 ###############
@@ -67,6 +68,7 @@ def spec_fN(N, f):
 
 
 def spec_fNmag(N, f):
+    # TODO: this function appears to be a noop
     M = spec_signif(N)
     E = spec_expon(N)
     e = bitstring[1 : E + 1]
@@ -76,47 +78,47 @@ def spec_fNmag(N, f):
 
 
 def spec_signif(N):
-    if verbose >= 1:
-        print("spec_signif(", N, ")")
+    logging.debug("spec_signif(%s)", N)
+
     if N == 32:
         return 23
     elif N == 64:
         return 52
     else:
-        return None
+        raise Exception(f"Invariant: got '{N}' | expected one of 32/64")
 
 
 def spec_signif_inv(signif):
-    if verbose >= 1:
-        print("spec_signif_inv(", signif, ")")
+    logging.debug("spec_signif_inv(%s)", N)
+
     if signif == 23:
         return 32
     elif signif == 52:
         return 64
     else:
-        return None
+        raise Exception(f"Invariant: got '{N}' | expected one of 32/64")
 
 
 def spec_expon(N):
-    if verbose >= 1:
-        print("spec_expon(", N, ")")
+    logging.debug("spec_expon(%s)", N)
+
     if N == 32:
         return 8
     elif N == 64:
         return 11
     else:
-        return None
+        raise Exception(f"Invariant: got '{N}' | expected one of 32/64")
 
 
 def spec_expon_inv(expon):
-    if verbose >= 1:
-        print("spec_expon_inv(", expon, ")")
+    logging.debug("spec_expon_inv(%s)", expon)
+
     if expon == 8:
         return 32
     elif expon == 11:
         return 64
     else:
-        return None
+        raise Exception(f"Invariant: got '{expon}' | expected one of 8/11")
 
 
 # 2.3.8 EXTERNAL TYPES
@@ -533,7 +535,6 @@ def spec_validate_mem(mem):
 
 
 def spec_validate_global(C, global_):
-    # print("spec_validate_global(",C,global_,")")
     spec_validate_globaltype(global_["type"])
     # validate expr, but wrap it in a block first since empty control stack gives errors
     # but first wrap in block with appropriate return type
@@ -604,8 +605,6 @@ def spec_validate_export(C, export):
 
 
 def spec_validate_exportdesc(C, exportdesc):
-    # print("C",C)
-    # print("exportdesc",exportdesc)
     x = exportdesc[1]
     if exportdesc[0] == "func":
         if len(C["funcs"]) <= x:
@@ -620,13 +619,9 @@ def spec_validate_exportdesc(C, exportdesc):
             raise Exception("invalid")
         return ["mem", C["mems"][x]]
     elif exportdesc[0] == "global":
-        # print("global")
-        # print(len(C["globals"]),x)
         if len(C["globals"]) <= x:
             raise Exception("invalid")
         mut, t = C["globals"][x]
-        # print(mut)
-        # if mut != "const": raise Exception("invalid") #TODO: this was in the spec, but tests fail linking.wast: $Mg exports a mutable global, seems not to parse in wabt
         return ["global", C["globals"][x]]
     else:
         raise Exception("invalid")
@@ -701,7 +696,6 @@ def spec_validate_module(mod):
         "labels": [],
         "return": [],
     }
-    # print("C",C)
     Cprime = {
         "types": [],
         "funcs": [],
@@ -760,14 +754,10 @@ def spec_validate_module(mod):
         it = spec_validate_import(C, import_)
         if it != itstar[i]:
             raise Exception("invalid")
-    # print("ok9")
-    # print("mod[\"exports\"]",mod["exports"])
     for i, export in enumerate(mod["exports"]):
         et = spec_validate_export(C, export)
-        # print("ok9.5")
         if et != etstar[i]:
             raise Exception("invalid")
-    # print("ok10")
     if len(C["tables"]) > 1:
         raise Exception("invalid")
     if len(C["mems"]) > 1:
@@ -796,8 +786,8 @@ def spec_validate_module(mod):
 
 
 def spec_trunc(q):
-    if verbose >= 1:
-        print("spec_trunc(", q, ")")
+    logger.debug("spec_trunc(%s)", q)
+
     # round towards zero
     # q can be float or rational as tuple (numerator,denominator)
     if type(q) == tuple:  # rational
@@ -818,8 +808,7 @@ def spec_trunc(q):
 
 
 def spec_bitst(t, c):
-    if verbose >= 1:
-        print("spec_bitst(", t, c, ")")
+    logger.debug("spec_bitst(%s, %s)", t, c)
 
     N = get_bit_size(t)
 
@@ -832,8 +821,7 @@ def spec_bitst(t, c):
 
 
 def spec_bitst_inv(t, bits):
-    if verbose >= 1:
-        print("spec_bitst_inv(", t, bits, ")")
+    logger.debug("spec_bitst_inv(%s, %s)", t, bits)
 
     N = get_bit_size(t)
 
@@ -846,26 +834,26 @@ def spec_bitst_inv(t, bits):
 
 
 def spec_bitsiN(N, i):
-    if verbose >= 1:
-        print("spec_bitsiN(", N, i, ")")
+    logger.debug("spec_bitsiN(%s, %s)", N, i)
+
     return spec_ibitsN(N, i)
 
 
 def spec_bitsiN_inv(N, bits):
-    if verbose >= 1:
-        print("spec_bitsiN_inv(", N, bits, ")")
+    logger.debug("spec_bitsiN_inv(%s, %s)", N, bits)
+
     return spec_ibitsN_inv(N, bits)
 
 
 def spec_bitsfN(N, z):
-    if verbose >= 1:
-        print("spec_bitsfN(", N, z, ")")
+    logger.debug("spec_bitsfN(%s, %s)", N, z)
+
     return spec_fbitsN(N, z)
 
 
 def spec_bitsfN_inv(N, bits):
-    if verbose >= 1:
-        print("spec_bitsfN_inv(", N, bits, ")")
+    logger.debug("spec_bitsfN_inv(%s, %s)", N, bits)
+
     return spec_fbitsN_inv(N, bits)
 
 
@@ -873,15 +861,14 @@ def spec_bitsfN_inv(N, bits):
 
 
 def spec_ibitsN(N, i):
-    if verbose >= 1:
-        print("spec_ibitsN(", N, i, ")")
-    # print(bin(i)[2:].zfill(N))
+    logger.debug("spec_ibitsN(%s, %s)", N, i)
+
     return bin(i)[2:].zfill(N)
 
 
 def spec_ibitsN_inv(N, bits):
-    if verbose >= 1:
-        print("spec_ibitsN_inv(", N, bits, ")")
+    logger.debug("spec_ibitsN_inv(%s, %s)", N, bits)
+
     return int(bits, 2)
 
 
@@ -889,12 +876,17 @@ def spec_ibitsN_inv(N, bits):
 
 
 def spec_fbitsN(N, z):
-    if verbose >= 1:
-        print("spec_fbitsN(", N, z, ")")
+    logger.debug("spec_fbitsN(%s, %s)", N, z)
+
     if N == 32:
         z_bytes = struct.pack(">f", z)
     elif N == 64:
         z_bytes = struct.pack(">d", z)
+    else:
+        raise Exception(
+            f"Invariant: bit size must be one of 32/64 - Got '{N}'"
+        )
+
     # stryct.pack() gave us bytes, need bits
     bits = ""
     for byte in z_bytes:
@@ -903,9 +895,8 @@ def spec_fbitsN(N, z):
 
 
 def spec_fbitsN_inv(N, bits):
-    # this is used by reinterpret
-    if verbose >= 1:
-        print("spec_fbitsN_inv(", N, bits, ")")
+    logger.debug("spec_fbitsN_inv(%s, %s)", N, bits)
+
     # will use struct.unpack() so need bytearray
     bytes_ = bytearray()
     for i in range(len(bits) // 8):
@@ -918,19 +909,14 @@ def spec_fbitsN_inv(N, bits):
 
 
 def spec_fsign(z):
+    logger.debug("spec_fsign(%s)", z)
+
     bytes_ = spec_bytest(constants.FLOAT64, z)
-    # print("fsign bytes_",bytes_, [bin(byte).lstrip('0b').zfill(8) for byte in bytes_])
     sign = bytes_[-1] & 0b10000000  # -1 since littleendian
-    # print("spec_fsign(",z,")",sign)
     if sign:
         return 1
     else:
         return 0
-    # z_bytes = struct.pack('d',z)
-    # if bin(z_bytes[0]).replace('0b','')[0] == '1':
-    #  return 1
-    # else:
-    #  return 0
 
 
 # decided to just use struct.pack() and struct.unpack()
@@ -944,8 +930,7 @@ def spec_fsign(z):
 
 
 def spec_bytest(t, i):
-    if verbose >= 1:
-        print("spec_bytest(", t, i, ")")
+    logger.debug("spec_bytest(%s, %s)", t, i)
 
     if is_integer_type(t):
         bits = spec_bitsiN(get_bit_size(t), i)
@@ -958,8 +943,7 @@ def spec_bytest(t, i):
 
 
 def spec_bytest_inv(t, bytes_):
-    if verbose >= 1:
-        print("spec_bytest_inv(", t, bytes_, ")")
+    logger.debug("spec_bytest_inv(%s, %s)", t, bytes_)
 
     bits = spec_littleendian_inv(bytes_)
 
@@ -972,8 +956,8 @@ def spec_bytest_inv(t, bytes_):
 
 
 def spec_bytesiN(N, i):
-    if verbose >= 1:
-        print("spec_bytesiN(", N, i, ")")
+    logger.debug("spec_bytesiN(%s, %s)", N, i)
+
     bits = spec_bitsiN(N, i)
     # convert bits to bytes
     bytes_ = bytearray()
@@ -983,8 +967,8 @@ def spec_bytesiN(N, i):
 
 
 def spec_bytesiN_inv(N, bytes_):
-    if verbose >= 1:
-        print("spec_bytesiN_inv(", N, bytes_, ")")
+    logger.debug("spec_bytesiN_inv(%s, %s)", N, bytes_)
+
     bits = ""
     for byte in bytes_:
         bits += spec_ibitsN(8, byte)
@@ -993,28 +977,34 @@ def spec_bytesiN_inv(N, bytes_):
 
 # TODO: these are unused, but might use when refactor floats to pass NaN significand tests
 def spec_bytesfN(N, z):
-    if verbose >= 1:
-        print("spec_bytesfN(", N, z, ")")
+    logger.debug("spec_bytesfN(%s, %s)", N, z)
+
     if N == 32:
         z_bytes = struct.pack(">f", z)
     elif N == 64:
         z_bytes = struct.pack(">d", z)
+    else:
+        raise Exception(f"Invariant: bit size must be one of 32/64 - Got '{N}'")
+
     return z_bytes
 
 
 def spec_bytesfN_inv(N, bytes_):
-    if verbose >= 1:
-        print("spec_bytesfN_inv(", N, bytes_, ")")
+    logger.debug("spec_bytesfN_inv(%s, %s)", N, bytes_)
+
     if N == 32:
         z = struct.unpack(">f", bytes_)[0]
     elif N == 64:
         z = struct.unpack(">d", bytes_)[0]
+    else:
+        raise Exception(f"Invariant: bit size must be one of 32/64 - Got '{N}'")
+
     return z
 
 
 def spec_littleendian(d):
-    if verbose >= 1:
-        print("spec_littleendian(", d, ")")
+    logger.debug("spec_littleendian(%s)", d)
+
     # same behavior for both 32 and 64-bit values
     # this assumes len(d) is divisible by 8
     if len(d) == 0:
@@ -1023,12 +1013,11 @@ def spec_littleendian(d):
     d2Nm8 = d[8:]
     d18_as_int = spec_ibitsN_inv(8, d18)
     return spec_littleendian(d2Nm8) + bytearray([d18_as_int])
-    # return bytearray([d18_as_int]) + spec_littleendian(d2Nm8)
 
 
 def spec_littleendian_inv(bytes_):
-    if verbose >= 1:
-        print("spec_littleendian_inv(", bytes_, ")")
+    logger.debug("spec_littleendian_inv(%s)", bytes_)
+
     # same behavior for both 32 and 64-bit values
     # this assumes len(d) is divisible by 8
     # this converts bytes to bits
@@ -1036,8 +1025,6 @@ def spec_littleendian_inv(bytes_):
         return ""
     bits = bin(int(bytes_[-1])).lstrip("0b").zfill(8)
     return bits + spec_littleendian_inv(bytes_[:-1])
-    # bits = bin( int(bytes_[0]) ).lstrip('0b').zfill(8)
-    # return spec_littleendian_inv( bytes_[1:] ) + bits
 
 
 # 4.3.2 INTEGER OPERATIONS
@@ -1045,56 +1032,60 @@ def spec_littleendian_inv(bytes_):
 
 # two's comlement
 def spec_signediN(N, i):
-    if verbose >= 1:
-        print("spec_signediN(", N, i, ")")
+    """
+    TODO: see if this is faster
+    return i - int((i << 1) & 2**N) #https://stackoverflow.com/a/36338336
+    """
+    logger.debug("spec_signediN(%s, %s)", N, i)
+
     if 0 <= i < 2 ** (N - 1):
         return i
     elif 2 ** (N - 1) <= i < 2 ** N:
         return i - 2 ** N
-    # alternative 2's comlement
-    #  return i - int((i << 1) & 2**N) #https://stackoverflow.com/a/36338336
+    else:
+        raise Exception(f"Invariant: bit size out of range - Got '{N}'")
 
 
 def spec_signediN_inv(N, i):
-    if verbose >= 1:
-        print("spec_signediN_inv(", N, i, ")")
+    logger.debug("spec_signediN_inv(%s, %s)", N, i)
+
     if 0 <= i < 2 ** (N - 1):
         return i
     elif -1 * (2 ** (N - 1)) <= i < 0:
         return i + 2 ** N
     else:
-        return None
+        raise Exception(f"Invariant: bit size out of range - Got '{N}'")
 
 
 def spec_iaddN(N, i1, i2):
-    if verbose >= 1:
-        print("spec_iaddN(", N, i1, i2, ")")
+    logger.debug("spec_iaddN(%s, %s, %s)", N, i1, i2)
+
     return (i1 + i2) % 2 ** N
 
 
 def spec_isubN(N, i1, i2):
-    if verbose >= 1:
-        print("spec_isubN(", N, i1, i2, ")")
+    logger.debug("spec_isubN(%s, %s, %s)", N, i1, i2)
+
     return (i1 - i2 + 2 ** N) % 2 ** N
 
 
 def spec_imulN(N, i1, i2):
-    if verbose >= 1:
-        print("spec_imulN(", N, i1, i2, ")")
+    logger.debug("spec_imulN(%s, %s, %s)", N, i1, i2)
+
     return (i1 * i2) % 2 ** N
 
 
 def spec_idiv_uN(N, i1, i2):
-    if verbose >= 1:
-        print("spec_idiv_uN(", N, i1, i2, ")")
+    logger.debug("spec_idiv_uN(%s, %s, %s)", N, i1, i2)
+
     if i2 == 0:
         raise Exception("trap")
     return spec_trunc((i1, i2))
 
 
 def spec_idiv_sN(N, i1, i2):
-    if verbose >= 1:
-        print("spec_idiv_sN(", N, i1, i2, ")")
+    logger.debug("spec_idiv_sN(%s, %s, %s)", N, i1, i2)
+
     j1 = spec_signediN(N, i1)
     j2 = spec_signediN(N, i2)
     if j2 == 0:
@@ -1106,73 +1097,68 @@ def spec_idiv_sN(N, i1, i2):
 
 
 def spec_irem_uN(N, i1, i2):
-    if verbose >= 1:
-        print("spec_irem_uN(", i1, i2, ")")
+    logger.debug("spec_irem_uN(%s, %s, %s)", N, i1, i2)
+
     if i2 == 0:
         raise Exception("trap")
     return i1 - i2 * spec_trunc((i1, i2))
 
 
 def spec_irem_sN(N, i1, i2):
-    if verbose >= 1:
-        print("spec_irem_sN(", N, i1, i2, ")")
+    logger.debug("spec_irem_sN(%s, %s, %s)", N, i1, i2)
+
     j1 = spec_signediN(N, i1)
     j2 = spec_signediN(N, i2)
     if i2 == 0:
         raise Exception("trap")
-    # print(j1,j2,spec_trunc((j1,j2)))
     return spec_signediN_inv(N, j1 - j2 * spec_trunc((j1, j2)))
 
 
 def spec_iandN(N, i1, i2):
-    if verbose >= 1:
-        print("spec_iandN(", N, i1, i2, ")")
+    logger.debug("spec_iandN(%s, %s, %s)", N, i1, i2)
+
     return i1 & i2
 
 
 def spec_iorN(N, i1, i2):
-    if verbose >= 1:
-        print("spec_iorN(", N, i1, i2, ")")
+    logger.debug("spec_iorN(%s, %s, %s)", N, i1, i2)
+
     return i1 | i2
 
 
 def spec_ixorN(N, i1, i2):
-    if verbose >= 1:
-        print("spec_ixorN(", N, i1, i2, ")")
+    logger.debug("spec_ixorN(%s, %s, %s)", N, i1, i2)
+
     return i1 ^ i2
 
 
 def spec_ishlN(N, i1, i2):
-    if verbose >= 1:
-        print("spec_ishlN(", N, i1, i2, ")")
+    logger.debug("spec_ishlN(%s, %s, %s)", N, i1, i2)
+
     k = i2 % N
     return (i1 << k) % (2 ** N)
 
 
 def spec_ishr_uN(N, i1, i2):
-    if verbose >= 1:
-        print("spec_ishr_uN(", N, i1, i2, ")")
+    logger.debug("spec_ishr_uN(%s, %s, %s)", N, i1, i2)
+
     j2 = i2 % N
     return i1 >> j2
 
 
 def spec_ishr_sN(N, i1, i2):
-    if verbose >= 1:
-        print("spec_ishr_sN(", N, i1, i2, ")")
-    # print("spec_ishr_sN(",N,i1,i2,")")
+    logger.debug("spec_ishr_sN(%s, %s, %s)", N, i1, i2)
+
     k = i2 % N
-    # print(k)
     d0d1Nmkm1d2k = spec_ibitsN(N, i1)
     d0 = d0d1Nmkm1d2k[0]
     d1Nmkm1 = d0d1Nmkm1d2k[1 : N - k]
-    # print(d0*k)
-    # print(d0*(k+1) + d1Nmkm1)
     return spec_ibitsN_inv(N, d0 * (k + 1) + d1Nmkm1)
 
 
 def spec_irotlN(N, i1, i2):
-    if verbose >= 1:
-        print("spec_irotlN(", N, i1, i2, ")")
+    logger.debug("spec_irotlN(%s, %s, %s)", N, i1, i2)
+
     k = i2 % N
     d1kd2Nmk = spec_ibitsN(N, i1)
     d2Nmk = d1kd2Nmk[k:]
@@ -1181,8 +1167,8 @@ def spec_irotlN(N, i1, i2):
 
 
 def spec_irotrN(N, i1, i2):
-    if verbose >= 1:
-        print("spec_irotrN(", N, i1, i2, ")")
+    logger.debug("spec_irotrN(%s, %s, %s)", N, i1, i2)
+
     k = i2 % N
     d1Nmkd2k = spec_ibitsN(N, i1)
     d1Nmk = d1Nmkd2k[: N - k]
@@ -1191,8 +1177,8 @@ def spec_irotrN(N, i1, i2):
 
 
 def spec_iclzN(N, i):
-    if verbose >= 1:
-        print("spec_iclzN(", N, i, ")")
+    logger.debug("spec_iclzN(%s, %s)", N, i)
+
     k = 0
     for b in spec_ibitsN(N, i):
         if b == "0":
@@ -1203,8 +1189,8 @@ def spec_iclzN(N, i):
 
 
 def spec_ictzN(N, i):
-    if verbose >= 1:
-        print("spec_ictzN(", N, i, ")")
+    logger.debug("spec_ictzN(%s, %s)", N, i)
+
     k = 0
     for b in reversed(spec_ibitsN(N, i)):
         if b == "0":
@@ -1215,8 +1201,8 @@ def spec_ictzN(N, i):
 
 
 def spec_ipopcntN(N, i):
-    if verbose >= 1:
-        print("spec_ipopcntN(", N, i, ")")
+    logger.debug("spec_ipopcntN(%s, %s)", N, i)
+
     k = 0
     for b in spec_ibitsN(N, i):
         if b == "1":
@@ -1225,8 +1211,8 @@ def spec_ipopcntN(N, i):
 
 
 def spec_ieqzN(N, i):
-    if verbose >= 1:
-        print("spec_ieqzN(", N, i, ")")
+    logger.debug("spec_ieqzN(%s, %s)", N, i)
+
     if i == 0:
         return 1
     else:
@@ -1234,8 +1220,8 @@ def spec_ieqzN(N, i):
 
 
 def spec_ieqN(N, i1, i2):
-    if verbose >= 1:
-        print("spec_ieqN(", N, i1, i2, ")")
+    logger.debug("spec_ieqN(%s, %s, %s)", N, i1, i2)
+
     if i1 == i2:
         return 1
     else:
@@ -1243,8 +1229,8 @@ def spec_ieqN(N, i1, i2):
 
 
 def spec_ineN(N, i1, i2):
-    if verbose >= 1:
-        print("spec_ineN(", N, i1, i2, ")")
+    logger.debug("spec_ineN(%s, %s, %s)", N, i1, i2)
+
     if i1 != i2:
         return 1
     else:
@@ -1252,8 +1238,8 @@ def spec_ineN(N, i1, i2):
 
 
 def spec_ilt_uN(N, i1, i2):
-    if verbose >= 1:
-        print("spec_ilt_uN(", N, i1, i2, ")")
+    logger.debug("spec_ilt_uN(%s, %s, %s)", N, i1, i2)
+
     if i1 < i2:
         return 1
     else:
@@ -1261,8 +1247,8 @@ def spec_ilt_uN(N, i1, i2):
 
 
 def spec_ilt_sN(N, i1, i2):
-    if verbose >= 1:
-        print("spec_ilt_sN(", N, i1, i2, ")")
+    logger.debug("spec_ilt_sN(%s, %s, %s)", N, i1, i2)
+
     j1 = spec_signediN(N, i1)
     j2 = spec_signediN(N, i2)
     if j1 < j2:
@@ -1272,8 +1258,8 @@ def spec_ilt_sN(N, i1, i2):
 
 
 def spec_igt_uN(N, i1, i2):
-    if verbose >= 1:
-        print("spec_igt_uN(", N, i1, i2, ")")
+    logger.debug("spec_igt_uN(%s, %s, %s)", N, i1, i2)
+
     if i1 > i2:
         return 1
     else:
@@ -1281,8 +1267,8 @@ def spec_igt_uN(N, i1, i2):
 
 
 def spec_igt_sN(N, i1, i2):
-    if verbose >= 1:
-        print("spec_igt_sN(", N, i1, i2, ")")
+    logger.debug("spec_igt_sN(%s, %s, %s)", N, i1, i2)
+
     j1 = spec_signediN(N, i1)
     j2 = spec_signediN(N, i2)
     if j1 > j2:
@@ -1292,8 +1278,8 @@ def spec_igt_sN(N, i1, i2):
 
 
 def spec_ile_uN(N, i1, i2):
-    if verbose >= 1:
-        print("spec_ile_uN(", N, i2, i1, ")")
+    logger.debug("spec_ile_uN(%s, %s, %s)", N, i1, i2)
+
     if i1 <= i2:
         return 1
     else:
@@ -1301,8 +1287,8 @@ def spec_ile_uN(N, i1, i2):
 
 
 def spec_ile_sN(N, i1, i2):
-    if verbose >= 1:
-        print("spec_ile_sN(", N, i1, i2, ")")
+    logger.debug("spec_ile_sN(%s, %s, %s)", N, i1, i2)
+
     j1 = spec_signediN(N, i1)
     j2 = spec_signediN(N, i2)
     if j1 <= j2:
@@ -1312,8 +1298,8 @@ def spec_ile_sN(N, i1, i2):
 
 
 def spec_ige_uN(N, i1, i2):
-    if verbose >= 1:
-        print("spec_ige_uN(", N, i1, i2, ")")
+    logger.debug("spec_ige_uN(%s, %s, %s)", N, i1, i2)
+
     if i1 >= i2:
         return 1
     else:
@@ -1321,8 +1307,8 @@ def spec_ige_uN(N, i1, i2):
 
 
 def spec_ige_sN(N, i1, i2):
-    if verbose >= 1:
-        print("spec_ige_sN(", N, i1, i2, ")")
+    logger.debug("spec_ige_sN(%s, %s, %s)", N, i1, i2)
+
     j1 = spec_signediN(N, i1)
     j2 = spec_signediN(N, i2)
     if j1 >= j2:
@@ -1335,11 +1321,9 @@ def spec_ige_sN(N, i1, i2):
 
 
 def spec_fabsN(N, z):
-    if verbose >= 1:
-        print("spec_fabsN(", N, z, ")")
-    # print("spec_fabsN(",N,z,")")
+    logger.debug("spec_fabsN(%s, %s)", N, z)
+
     sign = spec_fsign(z)
-    # print(sign)
     if sign == 0:
         return z
     else:
@@ -1347,8 +1331,8 @@ def spec_fabsN(N, z):
 
 
 def spec_fnegN(N, z):
-    if verbose >= 1:
-        print("spec_fnegN(", N, z, ")")
+    logger.debug("spec_fnegN(%s, %s)", N, z)
+
     # get bytes and sign
     bytes_ = spec_bytest(constants.FLOAT64, z)  # 64 since errors if z too bit for 32
     sign = spec_fsign(z)
@@ -1361,8 +1345,8 @@ def spec_fnegN(N, z):
 
 
 def spec_fceilN(N, z):
-    if verbose >= 1:
-        print("spec_fceilN(", N, z, ")")
+    logger.debug("spec_fceilN(%s, %s)", N, z)
+
     if math.isnan(z):
         return z
     elif math.isinf(z):
@@ -1376,8 +1360,8 @@ def spec_fceilN(N, z):
 
 
 def spec_ffloorN(N, z):
-    if verbose >= 1:
-        print("spec_ffloorN(", N, z, ")")
+    logger.debug("spec_ffloorN(%s, %s)", N, z)
+
     if math.isnan(z):
         return z
     elif math.isinf(z):
@@ -1391,8 +1375,8 @@ def spec_ffloorN(N, z):
 
 
 def spec_ftruncN(N, z):
-    if verbose >= 1:
-        print("spec_ftruncN(", N, z, ")")
+    logger.debug("spec_ftruncN(%s, %s)", N, z)
+
     if math.isnan(z):
         return z
     elif math.isinf(z):
@@ -1412,8 +1396,8 @@ def spec_ftruncN(N, z):
 
 
 def spec_fnearestN(N, z):
-    if verbose >= 1:
-        print("spec_fnearestN(", N, z, ")")
+    logger.debug("spec_fnearestN(%s, %s)", N, z)
+
     if math.isnan(z):
         return z
     elif math.isinf(z):
@@ -1429,17 +1413,17 @@ def spec_fnearestN(N, z):
 
 
 def spec_fsqrtN(N, z):
-    if verbose >= 1:
-        print("spec_fsqrtN(", N, z, ")")
-    if math.isnan(z) or (spec_fsign(z) == 1 and z != 0):
-        return float("nan")
+    logger.debug("spec_fsqrtN(%s, %s)", N, z)
+
+    if math.isnan(z) or (z != 0 and spec_fsign(z) == 1):
+        return math.nan
     else:
         return math.sqrt(z)
 
 
 def spec_faddN(N, z1, z2):
-    if verbose >= 1:
-        print("spec_faddN(", N, z1, z2, ")")
+    logger.debug("spec_faddN(%s, %s, %s)", N, z1, z2)
+
     res = z1 + z2
     if N == 32:
         res = spec_demoteMN(64, 32, res)
@@ -1447,19 +1431,17 @@ def spec_faddN(N, z1, z2):
 
 
 def spec_fsubN(N, z1, z2):
-    if verbose >= 1:
-        print("spec_fsubN(", N, z1, z2, ")")
+    logger.debug("spec_fsubN(%s, %s, %s)", N, z1, z2)
+
     res = z1 - z2
-    # print("z1-z2:",z1-z2)
     if N == 32:
         res = spec_demoteMN(64, 32, res)
-        # print("demoted z1-z2:",res)
     return res
 
 
 def spec_fmulN(N, z1, z2):
-    if verbose >= 1:
-        print("spec_fmulN(", N, z1, z2, ")")
+    logger.debug("spec_fmulN(%s, %s, %s)", N, z1, z2)
+
     res = z1 * z2
     if N == 32:
         res = spec_demoteMN(64, 32, res)
@@ -1467,23 +1449,23 @@ def spec_fmulN(N, z1, z2):
 
 
 def spec_fdivN(N, z1, z2):
-    if verbose >= 1:
-        print("spec_fdivN(", N, z1, z2, ")")
+    logger.debug("spec_fdivN(%s, %s, %s)", N, z1, z2)
+
     if math.isnan(z1):
         return z1
     elif math.isnan(z2):
         return z2
     elif math.isinf(z1) and math.isinf(z2):
-        return float("nan")
+        return math.nan
     elif z1 == 0.0 and z2 == 0.0:
-        return float("nan")
+        return math.nan
     elif z1 == 0.0 and z2 == 0.0:
-        return float("nan")
+        return math.nan
     elif math.isinf(z1):
         if spec_fsign(z1) == spec_fsign(z2):
-            return float("inf")
+            return math.inf
         else:
-            return -float("inf")
+            return -math.inf
     elif math.isinf(z2):
         if spec_fsign(z1) == spec_fsign(z2):
             return 0.0
@@ -1496,9 +1478,9 @@ def spec_fdivN(N, z1, z2):
             return -0.0
     elif z2 == 0:
         if spec_fsign(z1) == spec_fsign(z2):
-            return float("inf")
+            return math.inf
         else:
-            return -float("inf")
+            return -math.inf
     else:
         res = z1 / z2
         if N == 32:
@@ -1507,17 +1489,17 @@ def spec_fdivN(N, z1, z2):
 
 
 def spec_fminN(N, z1, z2):
-    if verbose >= 1:
-        print("spec_fminN(", N, z1, z2, ")")
+    logger.debug("spec_fminN(%s, %s, %s)", N, z1, z2)
+
     if math.isnan(z1):
         return z1
     elif math.isnan(z2):
         return z2
-    elif z1 == -float("inf") or z2 == -float("inf"):
-        return -float("inf")
-    elif z1 == float("inf"):
+    elif z1 == -math.inf or z2 == -math.inf:
+        return -math.inf
+    elif z1 == math.inf:
         return z2
-    elif z2 == float("inf"):
+    elif z2 == math.inf:
         return z1
     elif z1 == z2 == 0.0:
         if spec_fsign(z1) != spec_fsign(z2):
@@ -1531,17 +1513,17 @@ def spec_fminN(N, z1, z2):
 
 
 def spec_fmaxN(N, z1, z2):
-    if verbose >= 1:
-        print("spec_fmaxN(", N, z1, z2, ")")
+    logger.debug("spec_fmaxN(%s, %s, %s)", N, z1, z2)
+
     if math.isnan(z1):
         return z1
     elif math.isnan(z2):
         return z2
-    elif z1 == float("inf") or z2 == float("inf"):
-        return float("inf")
-    elif z1 == -float("inf"):
+    elif z1 == math.inf or z2 == math.inf:
+        return math.inf
+    elif z1 == -math.inf:
         return z2
-    elif z2 == -float("inf"):
+    elif z2 == -math.inf:
         return z1
     elif z1 == z2 == 0.0:
         if spec_fsign(z1) != spec_fsign(z2):
@@ -1555,8 +1537,8 @@ def spec_fmaxN(N, z1, z2):
 
 
 def spec_fcopysignN(N, z1, z2):
-    if verbose >= 1:
-        print("spec_fcopysignN(", N, z1, z2, ")")
+    logger.debug("spec_fcopysignN(%s, %s, %s)", N, z1, z2)
+
     z1sign = spec_fsign(z1)
     z2sign = spec_fsign(z2)
     if z1sign == z2sign:
@@ -1572,8 +1554,8 @@ def spec_fcopysignN(N, z1, z2):
 
 
 def spec_feqN(N, z1, z2):
-    if verbose >= 1:
-        print("spec_feqN(", N, z1, z2, ")")
+    logger.debug("spec_feqN(%s, %s, %s)", N, z1, z2)
+
     if z1 == z2:
         return 1
     else:
@@ -1581,8 +1563,8 @@ def spec_feqN(N, z1, z2):
 
 
 def spec_fneN(N, z1, z2):
-    if verbose >= 1:
-        print("spec_fneN(", N, z1, z2, ")")
+    logger.debug("spec_fneN(%s, %s, %s)", N, z1, z2)
+
     if z1 != z2:
         return 1
     else:
@@ -1590,21 +1572,21 @@ def spec_fneN(N, z1, z2):
 
 
 def spec_fltN(N, z1, z2):
-    if verbose >= 1:
-        print("spec_fltN(", N, z1, z2, ")")
+    logger.debug("spec_fltN(%s, %s, %s)", N, z1, z2)
+
     if math.isnan(z1):
         return 0
     elif math.isnan(z2):
         return 0
     elif spec_bitsfN(N, z1) == spec_bitsfN(N, z2):
         return 0
-    elif z1 == float("inf"):
+    elif z1 == math.inf:
         return 0
-    elif z1 == -float("inf"):
+    elif z1 == -math.inf:
         return 1
-    elif z2 == float("inf"):
+    elif z2 == math.inf:
         return 1
-    elif z2 == -float("inf"):
+    elif z2 == -math.inf:
         return 0
     elif z1 == z2 == 0:
         return 0
@@ -1615,21 +1597,21 @@ def spec_fltN(N, z1, z2):
 
 
 def spec_fgtN(N, z1, z2):
-    if verbose >= 1:
-        print("spec_fgtN(", N, z1, z2, ")")
+    logger.debug("spec_fgtN(%s, %s, %s)", N, z1, z2)
+
     if math.isnan(z1):
         return 0
     elif math.isnan(z2):
         return 0
     elif spec_bitsfN(N, z1) == spec_bitsfN(N, z2):
         return 0
-    elif z1 == float("inf"):
+    elif z1 == math.inf:
         return 1
-    elif z1 == -float("inf"):
+    elif z1 == -math.inf:
         return 0
-    elif z2 == float("inf"):
+    elif z2 == math.inf:
         return 0
-    elif z2 == -float("inf"):
+    elif z2 == -math.inf:
         return 1
     elif z1 == z2 == 0:
         return 0
@@ -1640,21 +1622,21 @@ def spec_fgtN(N, z1, z2):
 
 
 def spec_fleN(N, z1, z2):
-    if verbose >= 1:
-        print("spec_fleN(", N, z1, z2, ")")
+    logger.debug("spec_fleN(%s, %s, %s)", N, z1, z2)
+
     if math.isnan(z1):
         return 0
     elif math.isnan(z2):
         return 0
     elif spec_bitsfN(N, z1) == spec_bitsfN(N, z2):
         return 1
-    elif z1 == float("inf"):
+    elif z1 == math.inf:
         return 0
-    elif z1 == -float("inf"):
+    elif z1 == -math.inf:
         return 1
-    elif z2 == float("inf"):
+    elif z2 == math.inf:
         return 1
-    elif z2 == -float("inf"):
+    elif z2 == -math.inf:
         return 0
     elif z1 == z2 == 0:
         return 1
@@ -1665,21 +1647,21 @@ def spec_fleN(N, z1, z2):
 
 
 def spec_fgeN(N, z1, z2):
-    if verbose >= 1:
-        print("spec_fgeN(", N, z1, z2, ")")
+    logger.debug("spec_fgeN(%s, %s, %s)", N, z1, z2)
+
     if math.isnan(z1):
         return 0
     elif math.isnan(z2):
         return 0
     elif spec_bitsfN(N, z1) == spec_bitsfN(N, z2):
         return 1
-    elif z1 == float("inf"):
+    elif z1 == math.inf:
         return 1
-    elif z1 == -float("inf"):
+    elif z1 == -math.inf:
         return 0
-    elif z2 == float("inf"):
+    elif z2 == math.inf:
         return 0
-    elif z2 == -float("inf"):
+    elif z2 == -math.inf:
         return 1
     elif z1 == z2 == 0:
         return 1
@@ -1693,32 +1675,33 @@ def spec_fgeN(N, z1, z2):
 
 
 def spec_extend_uMN(M, N, i):
-    if verbose >= 1:
-        print("spec_extend_uMN(", i, ")")
+    logger.debug("spec_extend_uMN(%s, %s, %s)", M, N, i)
+
+    # TODO: confirm this implementation is correct.
     return i
 
 
 def spec_extend_sMN(M, N, i):
-    if verbose >= 1:
-        print("spec_extend_sMN(", M, N, i, ")")
-    # print("spec_extend_sMN(",M,N,i,")")
+    logger.debug("spec_extend_sMN(%s, %s, %s)", M, N, i)
+
     j = spec_signediN(M, i)
     return spec_signediN_inv(N, j)
 
 
 def spec_wrapMN(M, N, i):
-    if verbose >= 1:
-        print("spec_wrapMN(", M, N, i, ")")
-    # print("spec_wrapMN(",M,N,i,")")
+    logger.debug("spec_wrapMN(%s, %s, %s)", M, N, i)
+
     return i % (2 ** N)
 
 
 def spec_trunc_uMN(M, N, z):
-    if verbose >= 1:
-        print("spec_trunc_uMN(", M, N, z, ")")
+    logger.debug("spec_trunc_uMN(%s, %s, %s)", M, N, z)
+
     if math.isnan(z) or math.isinf(z):
         raise Exception("trap")
+
     ztrunc = spec_ftruncN(M, z)
+
     if -1 < ztrunc < 2 ** N:
         return int(ztrunc)
     else:
@@ -1726,11 +1709,13 @@ def spec_trunc_uMN(M, N, z):
 
 
 def spec_trunc_sMN(M, N, z):
-    if verbose >= 1:
-        print("spec_trunc_sMN(", M, N, z, ")")
+    logger.debug("spec_trunc_sMN(%s, %s, %s)", M, N, z)
+
     if math.isnan(z) or math.isinf(z):
         raise Exception("trap")
+
     ztrunc = spec_ftruncN(M, z)
+
     if -(2 ** (N - 1)) - 1 < ztrunc < 2 ** (N - 1):
         iztrunc = int(ztrunc)
         if iztrunc < 0:
@@ -1742,58 +1727,59 @@ def spec_trunc_sMN(M, N, z):
 
 
 def spec_promoteMN(M, N, z):
-    if verbose >= 1:
-        print("spec_promoteMN(", M, N, z, ")")
+    logger.debug("spec_promoteMN(%s, %s, %s)", M, N, z)
+
+    # TODO: confirm this implementation is correct.
     return z
 
 
 def spec_demoteMN(M, N, z):
-    if verbose >= 1:
-        print("spec_demoteMN(", M, N, z, ")")
+    logger.debug("spec_demoteMN(%s, %s, %s)", M, N, z)
+
     absz = spec_fabsN(N, z)
     # limitN = 2**(2**(spec_expon(N)-1))
+    # TODO: confirm this implementation is correct.
     limitN = 2 ** 128 * (
         1 - 2 ** -25
     )  # this FLT_MAX is slightly different than the Wasm spec's 2**127
     if absz >= limitN:
         signz = spec_fsign(z)
         if signz:
-            return -float("inf")
+            return -math.inf
         else:
-            return float("inf")
+            return math.inf
     bytes_ = spec_bytest(constants.FLOAT32, z)
     z32 = spec_bytest_inv(constants.FLOAT32, bytes_)
     return z32
 
 
 def spec_convert_uMN(M, N, i):
-    if verbose >= 1:
-        print("spec_convert_uMN(", M, N, i, ")")
+    logger.debug("spec_convert_uMN(%s, %s, %s)", M, N, i)
+
     limitN = 2 ** (2 ** (spec_expon(N) - 1))
     if i >= limitN:
-        return float("inf")
+        return math.inf
     return float(i)
 
 
 def spec_convert_sMN(M, N, i):
-    if verbose >= 1:
-        print("spec_convert_sMN(", M, N, i, ")")
+    logger.debug("spec_convert_sMN(%s, %s, %s)", M, N, i)
+
     limitN = 2 ** (2 ** (spec_expon(N) - 1))
-    # print("limitN",limitN)
+
     if i >= limitN:
-        return float("inf")
-    if i <= -1 * limitN:
-        return -float("inf")
-    i = spec_signediN(M, i)
-    return float(i)
+        return math.inf
+    elif i <= -1 * limitN:
+        return -math.inf
+    else:
+        i = spec_signediN(M, i)
+        return float(i)
 
 
 def spec_reinterprett1t2(t1, t2, c):
-    if verbose >= 1:
-        print("spec_reinterprett1t2(", t1, t2, c, ")")
-    # print("spec_reinterprett1t2(",t1,t2,c,")")
+    logger.debug("spec_reinterprett1t2(%s, %s, %s)", t1, t2, c)
+
     bits = spec_bitst(t1, c)
-    # print(bits)
     return spec_bitst_inv(t2, bits)
 
 
@@ -1807,34 +1793,34 @@ def spec_reinterprett1t2(t1, t2, c):
 
 
 def spec_tconst(config):
-    if verbose >= 1:
-        print("spec_tconst(", ")")
+    logger.debug("spec_tconst()")
+
     S = config["S"]
     c = config["instrstar"][config["idx"]][1]
-    if verbose >= 1:
-        print("spec_tconst(", c, ")")
     config["operand_stack"] += [c]
     config["idx"] += 1
 
 
-def spec_tunop(config):  # t is in {'i32','i64','f32','f64'}
-    if verbose >= 1:
-        print("spec_tunop(", ")")
+def spec_tunop(config):
+    logger.debug("spec_tunop()")
+
     S = config["S"]
     instr = config["instrstar"][config["idx"]][0]
     t = instr[0:3]
     op = opcode2exec[instr][1]
     c1 = config["operand_stack"].pop()
     c = op(get_bit_size(t), c1)
+
     if c == "trap":
         return c
+
     config["operand_stack"].append(c)
     config["idx"] += 1
 
 
 def spec_tbinop(config):
-    if verbose >= 1:
-        print("spec_tbinop(", ")")
+    logger.debug("spec_tbinop()")
+
     S = config["S"]
     instr = config["instrstar"][config["idx"]][0]
     t = instr[0:3]
@@ -1842,30 +1828,34 @@ def spec_tbinop(config):
     c2 = config["operand_stack"].pop()
     c1 = config["operand_stack"].pop()
     c = op(get_bit_size(t), c1, c2)
+
     if c == "trap":
         return c
+
     config["operand_stack"].append(c)
     config["idx"] += 1
 
 
 def spec_ttestop(config):
-    if verbose >= 1:
-        print("spec_ttestop(", ")")
+    logger.debug("spec_ttestop()")
+
     S = config["S"]
     instr = config["instrstar"][config["idx"]][0]
     t = instr[0:3]
     op = opcode2exec[instr][1]
     c1 = config["operand_stack"].pop()
     c = op(get_bit_size(t), c1)
+
     if c == "trap":
         return c
+
     config["operand_stack"].append(c)
     config["idx"] += 1
 
 
 def spec_trelop(config):
-    if verbose >= 1:
-        print("spec_trelop(", ")")
+    logger.debug("spec_trelop()")
+
     S = config["S"]
     instr = config["instrstar"][config["idx"]][0]
     t = instr[0:3]
@@ -1873,15 +1863,17 @@ def spec_trelop(config):
     c2 = config["operand_stack"].pop()
     c1 = config["operand_stack"].pop()
     c = op(get_bit_size(t), c1, c2)
+
     if c == "trap":
         return c
+
     config["operand_stack"].append(c)
     config["idx"] += 1
 
 
 def spec_t2cvtopt1(config):
-    if verbose >= 1:
-        print("spec_t2crtopt1(", ")")
+    logger.debug("spec_t2cvtopt1()")
+
     S = config["S"]
     instr = config["instrstar"][config["idx"]][0]
     t2 = instr[0:3]
@@ -1892,8 +1884,10 @@ def spec_t2cvtopt1(config):
         c2 = op(t1, t2, c1)
     else:
         c2 = op(int(t1[1:]), int(t2[1:]), c1)
+
     if c2 == "trap":
         return c2
+
     config["operand_stack"].append(c2)
     config["idx"] += 1
 
@@ -1902,16 +1896,16 @@ def spec_t2cvtopt1(config):
 
 
 def spec_drop(config):
-    if verbose >= 1:
-        print("spec_drop(", ")")
+    logger.debug("spec_drop()")
+
     S = config["S"]
     config["operand_stack"].pop()
     config["idx"] += 1
 
 
 def spec_select(config):
-    if verbose >= 1:
-        print("spec_select(", ")")
+    logger.debug("spec_select()")
+
     S = config["S"]
     operand_stack = config["operand_stack"]
     c = operand_stack.pop()
@@ -1928,23 +1922,19 @@ def spec_select(config):
 
 
 def spec_get_local(config):
-    if verbose >= 1:
-        print("spec_get_local(", ")")
+    logger.debug("spec_get_local()")
+
     S = config["S"]
     F = config["F"]
     x = config["instrstar"][config["idx"]][1]
-    # print(F)
-    # print(F[-1])
-    # print(F[-1]["locals"])
-    # print(x)
     val = F[-1]["locals"][x]
     config["operand_stack"].append(val)
     config["idx"] += 1
 
 
 def spec_set_local(config):
-    if verbose >= 1:
-        print("spec_set_local(", ")")
+    logger.debug("spec_set_local()")
+
     S = config["S"]
     F = config["F"]
     x = config["instrstar"][config["idx"]][1]
@@ -1954,8 +1944,8 @@ def spec_set_local(config):
 
 
 def spec_tee_local(config):
-    if verbose >= 1:
-        print("spec_tee_local(", ")")
+    logger.debug("spec_tee_local()")
+
     S = config["S"]
     x = config["instrstar"][config["idx"]][1]
     operand_stack = config["operand_stack"]
@@ -1963,18 +1953,19 @@ def spec_tee_local(config):
     operand_stack.append(val)
     operand_stack.append(val)
     spec_set_local(config)
+    # TODO: confirm that this should be commented out.
     # config["idx"] += 1
 
 
 def spec_get_global(config):
-    if verbose >= 1:
-        print("spec_get_global(", ")")
+    logger.debug("spec_get_global()")
+
     S = config["S"]
     F = config["F"]
-    # print("F[-1]",F[-1])
     x = config["instrstar"][config["idx"]][1]
     a = F[-1]["module"]["globaladdrs"][x]
     glob = S["globals"][a]
+    # TODO: confirm this spec difference and remedy
     val = glob["value"][
         1
     ]  # *** omit the type eg 'i32.const', just get the value, see above for how this is different from the spec
@@ -1983,8 +1974,8 @@ def spec_get_global(config):
 
 
 def spec_set_global(config):
-    if verbose >= 1:
-        print("spec_set_global(", ")")
+    logger.debug("spec_set_global()")
+
     S = config["S"]
     F = config["F"]
     x = config["instrstar"][config["idx"]][1]
@@ -1999,8 +1990,8 @@ def spec_set_global(config):
 
 # this is for both t.load and t.loadN_sx
 def spec_tload(config):
-    if verbose >= 1:
-        print("spec_tload(", ")")
+    logger.debug("spec_tload()")
+
     S = config["S"]
     F = config["F"]
     instr = config["instrstar"][config["idx"]][0]
@@ -2035,14 +2026,13 @@ def spec_tload(config):
         c = spec_bytest_inv(t, bstar)
     # 13
     config["operand_stack"].append(c)
-    if verbose >= 2:
-        print("loaded", c, "from memory locations", ea, "to", ea + N // 8)
+    logger.debug("loaded %s from memory locations %s to %s", c, ea, ea + N // 8)
     config["idx"] += 1
 
 
 def spec_tstore(config):
-    if verbose >= 1:
-        print("spec_tstore(", ")")
+    logger.debug("spec_tstore()")
+
     S = config["S"]
     F = config["F"]
     instr = config["instrstar"][config["idx"]][0]
@@ -2077,13 +2067,13 @@ def spec_tstore(config):
         bstar = spec_bytest(t, c)
     # 15
     mem["data"][ea : ea + N // 8] = bstar[: N // 8]
-    # if verbose>=2: print("stored",[bin(byte).strip('0b').zfill(8) for byte in bstar[:N//8]],"to memory locations",ea,"to",ea+N//8)
+    logger.debug("stored %s to memory locations %s to %s", bstar[:N//8], ea, ea + N // 8)
     config["idx"] += 1
 
 
 def spec_memorysize(config):
-    if verbose >= 1:
-        print("spec_memorysize(", ")")
+    logger.debug("spec_memorysize()")
+
     S = config["S"]
     F = config["F"]
     a = F[-1]["module"]["memaddrs"][0]
@@ -2094,8 +2084,8 @@ def spec_memorysize(config):
 
 
 def spec_memorygrow(config):
-    if verbose >= 1:
-        print("spec_memorygrow(", ")")
+    logger.debug("spec_memorygrow()")
+
     S = config["S"]
     F = config["F"]
     a = F[-1]["module"]["memaddrs"][0]
@@ -2123,20 +2113,20 @@ def spec_memorygrow(config):
 
 
 def spec_nop(config):
-    if verbose >= 1:
-        print("spec_nop(", ")")
+    logger.debug("spec_nop()")
+
     config["idx"] += 1
 
 
 def spec_unreachable(config):
-    if verbose >= 1:
-        print("spec_unreachable(", ")")
+    logger.debug("spec_unreachable()")
+
     raise Exception("trap")
 
 
 def spec_block(config):
-    if verbose >= 1:
-        print("spec_block(", ")")
+    logger.debug("spec_block()")
+
     instrstar = config["instrstar"]
     idx = config["idx"]
     operand_stack = config["operand_stack"]
@@ -2163,8 +2153,8 @@ def spec_block(config):
 
 
 def spec_loop(config):
-    if verbose >= 1:
-        print("spec_loop(", ")")
+    logger.debug("spec_loop()")
+
     instrstar = config["instrstar"]
     idx = config["idx"]
     operand_stack = config["operand_stack"]
@@ -2187,8 +2177,8 @@ def spec_loop(config):
 
 
 def spec_if(config):
-    if verbose >= 1:
-        print("spec_if(", ")")
+    logger.debug("spec_if()")
+
     instrstar = config["instrstar"]
     idx = config["idx"]
     operand_stack = config["operand_stack"]
@@ -2218,8 +2208,8 @@ def spec_if(config):
 
 
 def spec_br(config, l=None):
-    if verbose >= 1:
-        print("spec_br(", ")")
+    logger.debug('spec_br()')
+
     operand_stack = config["operand_stack"]
     control_stack = config["control_stack"]
     if l == None:
@@ -2249,8 +2239,8 @@ def spec_br(config, l=None):
 
 
 def spec_br_if(config):
-    if verbose >= 1:
-        print("spec_br_if(", ")")
+    logger.debug('spec_br_if()')
+
     l = config["instrstar"][config["idx"]][1]
     # 2
     c = config["operand_stack"].pop()
@@ -2263,13 +2253,12 @@ def spec_br_if(config):
 
 
 def spec_br_table(config):
-    if verbose >= 1:
-        print("spec_br_table(", ")")
+    logger.debug('spec_br_table()')
+
     lstar = config["instrstar"][config["idx"]][1]
     lN = config["instrstar"][config["idx"]][2]
     # 2
     i = config["operand_stack"].pop()
-    # print(lstar,lN)
     # 3
     if i < len(lstar):
         li = lstar[i]
@@ -2280,8 +2269,8 @@ def spec_br_table(config):
 
 
 def spec_return(config):
-    if verbose >= 1:
-        print("spec_return(", ")")
+    logger.debug('spec_return()')
+
     operand_stack = config["operand_stack"]
     # 1
     F = config["F"][-1]
@@ -2301,8 +2290,8 @@ def spec_return(config):
 
 
 def spec_call(config):
-    if verbose >= 1:
-        print("spec_call(", ")")
+    logger.debug('spec_call()')
+
     operand_stack = config["operand_stack"]
     instr = config["instrstar"][config["idx"]]
     x = instr[1]
@@ -2317,8 +2306,8 @@ def spec_call(config):
 
 
 def spec_call_indirect(config):
-    if verbose >= 1:
-        print("spec_call_indirect(", ")")
+    logger.debug('spec_call_indirect()')
+
     S = config["S"]
     # 1
     F = config["F"][-1]
@@ -2356,6 +2345,8 @@ def spec_call_indirect(config):
 
 
 def spec_enter_block(config, instrstar, L):
+    logger.debug('spec_enter_block()')
+
     # 1
     config["control_stack"].append(L)
     # 2
@@ -2365,6 +2356,9 @@ def spec_enter_block(config, instrstar, L):
 
 # this is unused, just done in spec_expr() since need to check if label stack is empty
 def spec_exit_block(config):
+    # TODO: decide if this can be removed per the comment above
+    logger.debug('spec_exit_block()')
+
     # 4
     L = config["control_stack"].pop()
     # 6
@@ -2375,8 +2369,8 @@ def spec_exit_block(config):
 
 # this is called by spac_call() and spec_call_indirect()
 def spec_invoke_function_address(config, a=None):
-    if verbose >= 1:
-        print("spec_invoke_function_address(", a, ")")
+    logger.debug('spec_invoke_function_address(%s)', a)
+
     # a is address
     S = config["S"]
     F = config["F"]
@@ -2395,9 +2389,6 @@ def spec_invoke_function_address(config, a=None):
     # 3
     t1n, t2m = f["type"]
     if "code" in f:
-        # print("a",a)
-        # print("f[code]",f["code"])
-        # print("f[type]",f["type"])
         # 5
         tstar = f["code"]["locals"]
         # 6
@@ -2417,8 +2408,6 @@ def spec_invoke_function_address(config, a=None):
             else:
                 raise Exception(f"Invariant: unkown type '{t}'")
         # 10 & 11
-        # print("valn",valn)
-        # print("val0star",val0star)
         F += [
             {
                 "module": f["module"],
@@ -2434,31 +2423,25 @@ def spec_invoke_function_address(config, a=None):
         config["instrstar"] = blockinstrstarendend
         config["idx"] = 0
         config["control_stack"] = []
-        # config_new = {"S":S,"F":F,"instrstar":blockinstrstarendend,"idx":0,"operand_stack":[],"control_stack":[]}
-        # ret = spec_expr(config_new)
-        # if ret=="trap": return ret
-        # operand_stack += config_new["operand_stack"]
-        # print("operand_stack after:",operand_stack)
-        # config["instrstar"], config["idx"] = F[-1]["continuation"]
-        # F.pop()
     elif "hostcode" in f:
         valn = []
         if len(t1n) > 0:
             valn = operand_stack[-1 * len(t1n) :]
-            # print("operand_stack",operand_stack)
             del operand_stack[-1 * len(t1n) :]
         S, ret = f["hostcode"](S, valn)
         if ret == "trap":
             return ret
         operand_stack += ret
         config["idx"] += 1
+    else:
+        raise Exception("Invariant: unreachable code path")
 
 
 # this is unused for now
 # this is called when end of function reached without return or trap aborting it
 def spec_return_from_func(config):
-    if verbose >= 1:
-        print("spec_return_from_func() !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
+    logger.debug('spec_return_from_func()')
+
     # 1
     F = config["F"][-1]
     # 2,3,4,7 not needed since we have separate operand stack
@@ -2466,27 +2449,19 @@ def spec_return_from_func(config):
     config["F"].pop()
     # 8
     config["instrstar"], config["idx"], config["control_stack"] = F["continuation"]
-    # print("config stuff")
-    # print(config["instrstar"])
-    # print(config["idx"],config["control_stack"])
 
 
 def spec_end(config):
-    if verbose >= 1:
-        print("spec_end()")
+    logger.debug('spec_end()')
+
     if len(config["control_stack"]) >= 1:
-        # print("ending block")
         spec_exit_block(config)
     else:
-        # print("F:",config["F"][-1])
         if (
             len(config["F"]) >= 1 and "continuation" in config["F"][-1]
         ):  # continuation for case of init elem or data or global
-            # print("ending function")
             spec_return_from_func(config)
         else:
-            # print("config[F]",config["F"])
-            # print("ending done")
             return "done"
 
 
@@ -2673,59 +2648,40 @@ opcode2exec = {
 # this is the main loop over instr* end
 # this is not in the spec
 def instrstarend_loop(config):
-    if verbose >= 1:
-        print("instrstar_loop()")
-    while 1:
+    logger.debug('instrstarend_loop()')
+
+    # TODO: try to refactor to make this loop have a defined exit condition.
+    while True:
         instr = config["instrstar"][config["idx"]][
             0
         ]  # idx<len(instrs) since instrstar[-1]=="end" which changes instrstar
-        # print()
-        # print(" ",instr)
-        # immediate = None if len(config["instrstar"][config["idx"]])==1 else config["instrstar"][config["idx"]][1]
         ret = opcode2exec[instr][0](config)
-        # print("  len(F)",len(config["F"]))
-        # print("  config[control_stack]",config["control_stack"])
-        # print("  config[operand_stack]",config["operand_stack"])
-        # print("  config[instrstar]",config["instrstar"])
-        # print("  config[idx]",config["idx"])
         if ret:
             return ret, config["operand_stack"]  # eg "trap" or "done"
 
 
 # this executes instr* end. This deviates from the spec.
 def spec_expr(config):
-    if verbose >= 1:
-        print("spec_expr(", ")")
-    # S = config["S"]
-    # F = config["F"]
-    # operand_stack = config["operand_stack"]
-    # control_stack = config["control_stack"]
-    # iterate over list of instructions and nested lists of instructions
-    # idx = config["idx"]
-    # if len(config["instrstar"])==0: return operand_stack
-    # print(instrstar)
+    logger.debug('spec_expr()')
+
     config["idx"] = 0
     while 1:
         instr = config["instrstar"][config["idx"]][
             0
         ]  # idx<len(instrs) since instrstar[-1]=="end" which changes instrstar
-        # print(instr)
-        # immediate = None if len(config["instrstar"][config["idx"]])==1 else config["instrstar"][config["idx"]][1]
         ret = opcode2exec[instr][0](config)
+
         if ret == "trap":
             raise Exception("trap")
-        if ret == "exhaustion":
+        elif ret == "exhaustion":
             raise Exception("exhaustion")
-        if ret:
+        elif ret:
             return config["operand_stack"]
-        # print("locals",F[-1]["locals"])
-        if verbose >= 2:
-            print("operand_stack", config["operand_stack"])
-        # print("control_stack",len(config["control_stack"]),config["control_stack"])
-        # print()
-        if verbose >= 4:
-            print("control_stack", config["control_stack"])
-    # return "done",config["operand_stack"]
+        else:
+            # TODO: log at DEBUG2
+            logger.debug('operand_stack: %s', config["operand_stack"])
+            # TODO: log at DEBUG3
+            logger.debug('control_stack: %s', config["control_stack"])
 
 
 #############
@@ -2734,10 +2690,9 @@ def spec_expr(config):
 
 # 4.5.1 EXTERNAL TYPING
 
-
 def spec_external_typing(S, externval):
-    if verbose >= 1:
-        print("spec_external_typing(", externval, ")")
+    logger.debug('spec_external_typing(%s)', externval)
+
     if "func" == externval[0]:
         a = externval[1]
         if len(S["funcs"]) < a:
@@ -2776,26 +2731,29 @@ def spec_external_typing(S, externval):
 
 
 def spec_externtype_matching_limits(limits1, limits2):
-    if verbose >= 1:
-        print("spec_externtype_matching_limits(", limits1, limits2, ")")
+    logger.debug('spec_externtype_matching_limits(%s, %s)', limits1, limits2)
+
     n1 = limits1["min"]
     m1 = limits1["max"]
     n2 = limits2["min"]
     m2 = limits2["max"]
+
     if n1 < n2:
         raise Exception("unlinkable")
-    if m2 == None or (m1 != None and m2 != None and m1 <= m2):
+    elif m2 == None or (m1 != None and m2 != None and m1 <= m2):
         return "<="
     else:
         raise Exception("unlinkable")
 
 
 def spec_externtype_matching(externtype1, externtype2):
-    if verbose >= 1:
-        print("spec_externtype_matching(", externtype1, externtype2, ")")
+    logger.debug('spec_externtype_matching(%s, %s)', externtype1, externtype2)
+
     if "func" == externtype1[0] and "func" == externtype2[0]:
         if externtype1[1] == externtype2[1]:
             return "<="
+        else:
+            raise Exception("Invariant")
     elif "table" == externtype1[0] and "table" == externtype2[0]:
         limits1 = externtype1[1][0]
         limits2 = externtype2[1][0]
@@ -2804,23 +2762,30 @@ def spec_externtype_matching(externtype1, externtype2):
         elemtype2 = externtype2[1][1]
         if elemtype1 == elemtype2:
             return "<="
+        else:
+            raise Exception("Invariant")
     elif "mem" == externtype1[0] and "mem" == externtype2[0]:
         limits1 = externtype1[1]
         limits2 = externtype2[1]
         if spec_externtype_matching_limits(limits1, limits2) == "<=":
             return "<="
+        else:
+            raise Exception("Invariant")
     elif "global" == externtype1[0] and "global" == externtype2[0]:
         if externtype1[1] == externtype2[1]:
             return "<="
-    raise Exception("unlinkable")
+        else:
+            raise Exception("Invariant")
+    else:
+        raise Exception("unlinkable")
 
 
 # 4.5.3 ALLOCATION
 
 
 def spec_allocfunc(S, func, moduleinst):
-    if verbose >= 1:
-        print("spec_allocfunc(", ")")
+    logger.debug('spec_allocfunc()')
+
     funcaddr = len(S["funcs"])
     functype = moduleinst["types"][func["type"]]
     funcinst = {"type": functype, "module": moduleinst, "code": func}
@@ -2829,8 +2794,8 @@ def spec_allocfunc(S, func, moduleinst):
 
 
 def spec_allochostfunc(S, functype, hostfunc):
-    if verbose >= 1:
-        print("spec_allochostfunc(", ")")
+    logger.debug('spec_allochostfunc()')
+
     funcaddr = len(S["funcs"])
     funcinst = {"type": functype, "hostcode": hostfunc}
     S["funcs"].append(funcinst)
@@ -2838,8 +2803,8 @@ def spec_allochostfunc(S, functype, hostfunc):
 
 
 def spec_alloctable(S, tabletype):
-    if verbose >= 1:
-        print("spec_alloctable(", ")")
+    logger.debug('spec_alloctable()')
+
     min_ = tabletype[0]["min"]
     max_ = tabletype[0]["max"]
     tableaddr = len(S["tables"])
@@ -2849,8 +2814,8 @@ def spec_alloctable(S, tabletype):
 
 
 def spec_allocmem(S, memtype):
-    if verbose >= 1:
-        print("spec_allocmem(", ")")
+    logger.debug('spec_allocmem()')
+
     min_ = memtype["min"]
     max_ = memtype["max"]
     memaddr = len(S["mems"])
@@ -2863,10 +2828,8 @@ def spec_allocmem(S, memtype):
 
 
 def spec_allocglobal(S, globaltype, val):
-    if verbose >= 1:
-        print("spec_allocglobal(", ")")
-    # print("spec_allocglobal(",")")
-    # print(globaltype)
+    logger.debug('spec_allocglobal()')
+
     mut = globaltype[0]
     valtype = globaltype[1]
     globaladdr = len(S["globals"])
@@ -2876,40 +2839,41 @@ def spec_allocglobal(S, globaltype, val):
 
 
 def spec_growtable(tableinst, n):
-    if verbose >= 1:
-        print("spec_growtable(", ")")
+    logger.debug('spec_growtable()')
+
     len_ = n + len(tableinst["elem"])
+
     if len_ > 2 ** 32:
         return "fail"
-    if tablinst["max"] != None and tableinst["max"] < len_:
+    elif tablinst["max"] != None and tableinst["max"] < len_:
         return "fail"  # TODO: what does fail mean? raise Exception("trap")
-    tableinst["elem"] += [None for i in range(n)]
+    else:
+        tableinst["elem"] += [None for i in range(n)]
+
     return tableinst
 
 
 def spec_growmem(meminst, n):
-    if verbose >= 1:
-        print("spec_growmem(", ")")
-    # print("ok",len(meminst["data"]))
-    assert (
-        len(meminst["data"]) % 65536 == 0
-    )  # ie divisible by page size = 64 Ki = 65536
+    logger.debug('spec_growmem()')
+
+    if len(meminst["data"]) % 65536 != 0:
+        raise Exception("TODO: more appropriate exception type")
+
     len_ = n + len(meminst["data"]) // 65536
     if len_ > 2 ** 16:
         return "fail"
-    if meminst["max"] != None and meminst["max"] < len_:
+    elif meminst["max"] != None and meminst["max"] < len_:
         return "fail"
         # TODO: what does fail mean? raise Exception("trap")
-    # if len_+len(meminst["data"]) > 2**32: return "fail" # raise Exception("grow mem") #TODO: this is not part of the spec, maybe should be
-    # else:
+
     meminst["data"] += bytearray(
         n * 65536
     )  # each page created with bytearray(65536) which is 0s
 
 
 def spec_allocmodule(S, module, externvalimstar, valstar):
-    if verbose >= 1:
-        print("spec_allocmodule(", ")")
+    logger.debug('spec_allocmodule()')
+
     moduleinst = {
         "types": module["types"],
         "funcaddrs": None,
@@ -2943,6 +2907,9 @@ def spec_allocmodule(S, module, externvalimstar, valstar):
         elif exporti["desc"][0] == "global":
             x = exporti["desc"][1]
             externvali = ["global", globaladdrmodstar[x]]
+        else:
+            raise Exception("Invariant: TODO: bettermessage")
+
         exportinststar += [{"name": exporti["name"], "value": externvali}]
     moduleinst["funcaddrs"] = funcaddrmodstar
     moduleinst["tableaddrs"] = tableaddrmodstar
@@ -2953,8 +2920,8 @@ def spec_allocmodule(S, module, externvalimstar, valstar):
 
 
 def spec_instantiate(S, module, externvaln):
-    if verbose >= 1:
-        print("spec_instantiate(", ")")
+    logger.debug('spec_instantiate()')
+
     # 1
     # 2
     ret = spec_validate_module(module)
@@ -3013,7 +2980,6 @@ def spec_instantiate(S, module, externvaln):
         tableaddri = moduleinst["tableaddrs"][tableidxi]
         tableinsti = S["tables"][tableaddri]
         tableinst += [tableinsti]
-        # print("eoi",eoi)
         eendi = eoi + len(elemi["init"])
         if eendi > len(tableinsti["elem"]):
             raise Exception("unlinkable")
@@ -3052,10 +3018,12 @@ def spec_instantiate(S, module, externvaln):
         for j, bij in enumerate(datai["init"]):
             meminst[i]["data"][do[i] + j] = bij
     # 15
-    ret = None
     if module["start"]:
         funcaddr = moduleinst["funcaddrs"][module["start"]["func"]]
         ret = spec_invoke(S, funcaddr, [])
+    else:
+        ret = None
+
     return S, F, ret
 
 
@@ -3063,8 +3031,8 @@ def spec_instantiate(S, module, externvaln):
 
 # valn looks like [["i32.const",3],["i32.const",199], ...]
 def spec_invoke(S, funcaddr, valn):
-    if verbose >= 1:
-        print("spec_invoke(", ")")
+    logger.debug('spec_invoke()')
+
     # 1
     if len(S["funcs"]) < funcaddr or funcaddr < 0:
         raise Exception("bad address")
@@ -3311,7 +3279,8 @@ for opcode in opcodes_binary2text:
 
 
 def spec_binary_vec(raw, idx, B):
-    # print("spec_binary_vec(",idx,")")
+    logger.debug('spec_binary_vec(%s)', idx)
+
     idx, num = spec_binary_uN(raw, idx, 32)
     xn = []
     for i in range(num):
@@ -3349,7 +3318,8 @@ def spec_binary_byte_inv(node):
 
 # unsigned
 def spec_binary_uN(raw, idx, N):
-    # print("spec_binary_uN(",idx,N,")")
+    logger.debug('spec_binary_uN(%s, %s)', idx, N)
+
     idx, n = spec_binary_byte(raw, idx)
     if n < 2 ** 7 and n < 2 ** N:
         return idx, n
@@ -3361,7 +3331,8 @@ def spec_binary_uN(raw, idx, N):
 
 
 def spec_binary_uN_inv(k, N):
-    # print("spec_binary_uN_inv(",k,N,")")
+    logger.debug('spec_binary_uN_inv(%s, %s)', k, N)
+
     if k < 2 ** 7 and k < 2 ** N:
         return bytearray([k])
     elif k >= 2 ** 7 and N > 7:
@@ -3430,15 +3401,17 @@ def spec_binary_fN_inv(node, N):
 
 # name as UTF-8 codepoints
 def spec_binary_name(raw, idx):
-    # print("spec_binary_name()")
+    logger.debug('spec_binary_name()')
     idx, bstar = spec_binary_vec(raw, idx, spec_binary_byte)
-    # print("bstar",bstar)
-    nametxt = ""
+
     try:
         nametxt = bytearray(bstar).decode()
     except:
         raise Exception("malformed")
+
     return idx, nametxt
+
+    # TODO: decide fate of this code
     # rest is unused, for finding inverse of utf8(name)=b*, keep since want to correct spec doc
     bstaridx = 0
     lenbstar = len(bstar)
@@ -3487,16 +3460,11 @@ def spec_binary_name(raw, idx):
         if 0x10000 <= c < 0x110000:
             name += [c]
         else:
-            # print("malformed character")
             raise Exception("malformed")
     # convert each codepoint to utf8 character
-    # print("utf8 name",name, len(name), name=="")
     nametxt = ""
     for c in name:
-        # print(str(chr(c)))
-        # print(c)
         nametxt += chr(c)
-    # print("utf8 nametext",nametxt, len(nametxt), nametxt=="")
     return idx, nametxt
 
 
@@ -3522,6 +3490,7 @@ def spec_binary_name_inv(chars):
                 ]
             )
         else:
+            # TODO: return value checking cleanup
             return None  # error
     return bytearray([len(name_bytes)]) + name_bytes
 
@@ -3539,14 +3508,15 @@ bin2valtype = {val: key for key, val in valtype2bin.items()}
 def spec_binary_valtype(raw, idx):
     if idx >= len(raw):
         raise Exception("malformed")
-    if raw[idx] in bin2valtype:
+    elif raw[idx] in bin2valtype:
         return idx + 1, bin2valtype[raw[idx]]
     else:
         raise Exception("malformed")
 
 
 def spec_binary_valtype_inv(node):
-    # print("spec_binary_valtype_inv(",node,")")
+    logger.debug("spec_binary_valtype_inv(%s)", node)
+
     if node in valtype2bin:
         return bytearray([valtype2bin[node]])
     else:
@@ -3564,7 +3534,8 @@ def spec_binary_blocktype(raw, idx):
 
 
 def spec_binary_blocktype_inv(node):
-    # print("spec_binary_blocktype_inv(",node,")")
+    logger.debug("spec_binary_blocktype_inv(%s)", node)
+
     if node == []:
         return bytearray([0x40])
     else:
@@ -3713,11 +3684,13 @@ def spec_binary_instr(raw, idx):
         instar = []
         if instr_text == "if":
             instar2 = []
+            # TODO: open ended loop
             while raw[idx] not in {0x05, 0x0B}:
                 idx, ins = spec_binary_instr(raw, idx)
                 instar += [ins]
             if raw[idx] == 0x05:  # if with else
                 idx += 1
+                # TODO: open ended loop
                 while raw[idx] != 0x0B:
                     idx, ins = spec_binary_instr(raw, idx)
                     instar2 += [ins]
@@ -3728,6 +3701,7 @@ def spec_binary_instr(raw, idx):
             )  # +[["end"]]
             # return idx+1, ["if",rt,instar+[["end"]]] #+[["end"]]
         else:
+            # TODO: open ended loop
             while raw[idx] != 0x0B:
                 idx, ins = spec_binary_instr(raw, idx)
                 instar += [ins]
@@ -3785,12 +3759,12 @@ def spec_binary_instr(raw, idx):
 
 
 def spec_binary_instr_inv(node):
-    instr_bytes = bytearray()
-    # print("spec_binary_instr_inv(",node,")")
+    logger.debug("spec_binary_instr_inv(%s)", node)
+
     if type(node[0]) == str:
         instr_bytes += bytearray([opcodes_text2binary[node[0]]])
     # the rest is for immediates
-    if node[0] in {"block", "loop", "if"}:  # block, loop, if
+    elif node[0] in {"block", "loop", "if"}:  # block, loop, if
         instr_bytes += spec_binary_blocktype_inv(node[1])
         instar_bytes = bytearray()
         for n in node[2][:-1]:
@@ -3831,6 +3805,8 @@ def spec_binary_instr_inv(node):
         instr_bytes += spec_binary_fN_inv(node[1], 32)
     elif node[0] == "f64.const":  # i64.const
         instr_bytes += spec_binary_fN_inv(node[1], 64)
+    else:
+        raise Exception("Invariant: unreachable code path")
     return instr_bytes
 
 
@@ -3839,19 +3815,24 @@ def spec_binary_instr_inv(node):
 
 def spec_binary_expr(raw, idx):
     instar = []
+
+    # TODO: open ended loop
     while raw[idx] != 0x0B:
         idx, ins = spec_binary_instr(raw, idx)
         instar += [ins]
+
     if raw[idx] != 0x0B:
         return idx, None  # error
+
     return idx + 1, instar + [["end"]]
 
 
 def spec_binary_expr_inv(node):
     instar_bytes = bytearray()
+
     for n in node:
         instar_bytes += spec_binary_instr_inv(n)
-    # instar_bytes+=bytes([0x0b])
+
     return instar_bytes
 
 
@@ -3931,19 +3912,22 @@ def spec_binary_labelidx_inv(node):
 def spec_binary_sectionN(raw, idx, N, B, skip):
     if idx >= len(raw):
         return idx, []  # already at end
-    if raw[idx] != N:
+    elif raw[idx] != N:
         return idx, []  # this sec not included
+
     idx += 1
     idx, size = spec_binary_uN(raw, idx, 32)
     idx_plus_size = idx + size
+
     if skip:
         return idx + size, []
-    if N == 0:  # custom section
+    elif N == 0:  # custom section
         idx, ret = B(raw, idx, idx + size)
     elif N == 8:  # start section
         idx, ret = B(raw, idx)
     else:
         idx, ret = spec_binary_vec(raw, idx, B)
+
     if idx != idx_plus_size:
         raise Exception("malformed")
     return idx, ret
@@ -3998,7 +3982,6 @@ def spec_binary_typesec(raw, idx, skip=0):
 
 
 def spec_binary_typesec_inv(node):
-    # print("spec_binary_typesec_inv(",node,")")
     return spec_binary_sectionN_inv(node, spec_binary_functype_inv, 1)
 
 
@@ -4030,7 +4013,7 @@ def spec_binary_importdesc(raw, idx):
         idx, gt = spec_binary_globaltype(raw, idx + 1)
         return idx, ["global", gt]
     else:
-        return idx, None  # error
+        raise Exception("Invariant: unreachable code path")
 
 
 def spec_binary_importsec_inv(node):
@@ -4140,9 +4123,7 @@ def spec_binary_exportsec(raw, idx, skip=0):
 
 def spec_binary_export(raw, idx):
     idx, nm = spec_binary_name(raw, idx)
-    # print("nm",nm)
     idx, d = spec_binary_exportdesc(raw, idx)
-    # print("d",d)
     return idx, {"name": nm, "desc": d}
 
 
@@ -4160,7 +4141,7 @@ def spec_binary_exportdesc(raw, idx):
         idx, x = spec_binary_globalidx(raw, idx + 1)
         return idx, ["global", x]
     else:
-        return idx, None  # error
+        raise Exception("Unreachable code path")
 
 
 def spec_binary_exportsec_inv(node):
@@ -4249,11 +4230,13 @@ def spec_binary_code(raw, idx):
     idx, size = spec_binary_uN(raw, idx, 32)
     idx_end = idx + size
     idx, code = spec_binary_func(raw, idx)
+
     if idx_end != idx:
         raise Exception("malformed")
-    if len(code) >= 2 ** 32:
+    elif len(code) >= 2 ** 32:
         raise Exception("malformed")
-    return idx, code
+    else:
+        return idx, code
 
 
 def spec_binary_func(raw, idx):
@@ -4354,78 +4337,67 @@ def spec_binary_module(raw):
         idx, customsec = spec_binary_customsec(raw, idx, 0)
 
     idx, functypestar = spec_binary_typesec(raw, idx, 0)
-    if verbose == -1:
-        print("functypestar", functypestar)
+    logger.debug("functypestar: %s", functypestar)
 
     while idx < len(raw) and raw[idx] == 0:
         idx, customsec = spec_binary_customsec(raw, idx, 0)
 
     idx, importstar = spec_binary_importsec(raw, idx, 0)
-    if verbose == -1:
-        print("importstar", importstar)
+    logger.debug("importstar: %s", importstar)
 
     while idx < len(raw) and raw[idx] == 0:
         idx, customsec = spec_binary_customsec(raw, idx, 0)
 
     idx, typeidxn = spec_binary_funcsec(raw, idx, 0)
-    if verbose == -1:
-        print("typeidxn", typeidxn)
+    logger.debug("typeidxn: %s", typeidxn)
 
     while idx < len(raw) and raw[idx] == 0:
         idx, customsec = spec_binary_customsec(raw, idx, 0)
 
     idx, tablestar = spec_binary_tablesec(raw, idx, 0)
-    if verbose == -1:
-        print("tablestar", tablestar)
+    logger.debug("tablestar: %s", tablestar)
 
     while idx < len(raw) and raw[idx] == 0:
         idx, customsec = spec_binary_customsec(raw, idx, 0)
 
     idx, memstar = spec_binary_memsec(raw, idx, 0)
-    if verbose == -1:
-        print("memstar", memstar)
+    logger.debug("memstar: %s", memstar)
 
     while idx < len(raw) and raw[idx] == 0:
         idx, customsec = spec_binary_customsec(raw, idx, 0)
 
     idx, globalstar = spec_binary_globalsec(raw, idx, 0)
-    if verbose == -1:
-        print("globalstar", globalstar)
+    logger.debug("globalstar: %s", globalstar)
 
     while idx < len(raw) and raw[idx] == 0:
         idx, customsec = spec_binary_customsec(raw, idx, 0)
 
     idx, exportstar = spec_binary_exportsec(raw, idx, 0)
-    if verbose == -1:
-        print("exportstar", exportstar)
+    logger.debug("exportstar: %s", exportstar)
 
     while idx < len(raw) and raw[idx] == 0:
         idx, customsec = spec_binary_customsec(raw, idx, 0)
 
     idx, startq = spec_binary_startsec(raw, idx, 0)
-    if verbose == -1:
-        print("startq", startq)
+    logger.debug("startq: %s", startq)
 
     while idx < len(raw) and raw[idx] == 0:
         idx, customsec = spec_binary_customsec(raw, idx, 0)
 
     idx, elemstar = spec_binary_elemsec(raw, idx, 0)
-    if verbose == -1:
-        print("elemstar", elemstar)
+    logger.debug("elemstar: %s", elemstar)
 
     while idx < len(raw) and raw[idx] == 0:
         idx, customsec = spec_binary_customsec(raw, idx, 0)
 
     idx, coden = spec_binary_codesec(raw, idx, 0)
-    if verbose == -1:
-        print("coden", coden)
+    logger.debug("coden: %s", coden)
 
     while idx < len(raw) and raw[idx] == 0:
         idx, customsec = spec_binary_customsec(raw, idx, 0)
 
     idx, datastar = spec_binary_datasec(raw, idx, 0)
-    if verbose == -1:
-        print("datastar", datastar)
+    logger.debug("datastar: %s", datastar)
 
     while idx < len(raw) and raw[idx] == 0:
         idx, customsec = spec_binary_customsec(raw, idx, 0)
@@ -4453,7 +4425,6 @@ def spec_binary_module(raw):
 
 
 def spec_binary_module_inv_to_file(mod, filename):
-    # print_sections(mod)
     f = open(filename, "wb")
     magic = bytes([0x00, 0x61, 0x73, 0x6D])
     version = bytes([0x01, 0x00, 0x00, 0x00])
@@ -4508,8 +4479,7 @@ def decode_module(bytestar):
 
 
 def parse_module(codepointstar):
-    # text parser not implemented yet
-    return -1
+    raise NotImplementedError("Text parser not yet implemented")
 
 
 def validate_module(module):
@@ -4517,15 +4487,16 @@ def validate_module(module):
         spec_validate_module(module)
     except Exception as e:
         return "error: invalid"
-    return None
 
 
 def instantiate_module(store, module, externvalstar):
+    # TODO: handle spec deviation if necessary
     # we deviate from the spec by also returning the return value
     try:
         ret = spec_instantiate(store, module, externvalstar)
     except Exception as e:
         return store, "error", e.args[0]
+
     store, F, startret = ret
     modinst = F["module"]
     return store, modinst, startret
@@ -4556,7 +4527,10 @@ def module_exports(module):
         return "error: invalid"
     externtypestar, extertypeprimestar = ret
     exportstar = module["exports"]
-    assert len(exportstar) == len(externtypeprimestar)
+
+    if len(exportstar) != len(externtypeprimestar):
+        raise Exception("TODO: proper error message")
+
     result = []
     for i in range(len(importstar)):
         exporti = exportstar[i]
@@ -4574,7 +4548,8 @@ def get_export(moduleinst, name):
     for exportinsti in moduleinst["exports"]:
         if name == exportinsti["name"]:
             return exportinsti["value"]
-    return "error"
+    else:
+        return "error"
 
 
 # 7.1.4 FUNCTIONS
@@ -4650,13 +4625,14 @@ def size_table(store, tableaddr):
 def grow_table(store, tableaddr, n):
     if len(store["tables"]) <= tableaddr:
         return "error"
-    if type(n) != int or n < 0:
+    elif type(n) != int or n < 0:
         return "error"
+
     try:
         spec_growtable(store["tabless"][tableaddr], n)
     except:
         return "error"
-    # store["tables"][tableaddr]["elem"] += [{"elem":[], "max":None} for i in range(n)]  # see spec \S 4.2.7 Table Instances for discussion on uninitialized table elements.
+
     return store
 
 
@@ -4681,19 +4657,23 @@ def type_mem(store, memaddr):
 def read_mem(store, memaddr, i):
     if len(store["mems"]) <= memaddr:
         return "error"
-    if type(i) != int or i < 0:
+    elif type(i) != int or i < 0:
         return "error"
+
     mi = store["mems"][memaddr]
+
     if i >= len(mi["data"]):
         return "error"
-    return mi["data"][i]
+    else:
+        return mi["data"][i]
 
 
 def write_mem(store, memaddr, i, byte):
     if len(store["mems"]) <= memaddr:
         return "error"
-    if type(i) != int or i < 0:
+    elif type(i) != int or i < 0:
         return "error"
+
     mi = store["mems"][memaddr]
     if i >= len(mi["data"]):
         return "error"
@@ -4710,12 +4690,14 @@ def size_mem(store, memaddr):
 def grow_mem(store, memaddr, n):
     if len(store["mems"]) <= memaddr:
         return "error"
-    if type(n) != int or n < 0:
+    elif type(n) != int or n < 0:
         return "error"
+
     try:
         spec_growmem(store["mems"][memaddr], n)
     except:
         return "error"
+
     return store
 
 
@@ -4775,17 +4757,21 @@ def spec_push_opd(opds, type_):
 
 
 def spec_pop_opd(opds, ctrls):
-    # check if underflows current block, and returns one type
-    # but if underflows and unreachable, which can happen if unconditional branch, when stack is typed polymorphically, operands are still pushed and popped to check if code after unreachable is valid, polymorphic stack can't underflow
+    # check if underflows current block, and returns one type but if underflows
+    # and unreachable, which can happen if unconditional branch, when stack is
+    # typed polymorphically, operands are still pushed and popped to check if
+    # code after unreachable is valid, polymorphic stack can't underflow
     if len(opds) == ctrls[-1]["height"] and ctrls[-1]["unreachable"]:
+        # TODO: remove magic values.
         return "Unknown"
-    if len(opds) == ctrls[-1]["height"]:
+    elif len(opds) == ctrls[-1]["height"]:
         raise Exception("invalid")  # error
-    if len(opds) == 0:
+    elif len(opds) == 0:
         raise Exception("invalid")  # error, not in spec
-    to_return = opds[-1]
-    del opds[-1]
-    return to_return
+    else:
+        to_return = opds[-1]
+        del opds[-1]
+        return to_return
 
 
 def spec_pop_opd_expect(opds, ctrls, expect):
@@ -4793,13 +4779,14 @@ def spec_pop_opd_expect(opds, ctrls, expect):
     if actual == -1:
         raise Exception("invalid")  # error
     # in case one is unknown, the more specific one is returned
-    if actual == "Unknown":
+    elif actual == "Unknown":
         return expect
-    if expect == "Unknown":
+    elif expect == "Unknown":
         return actual
-    if actual != expect:
+    elif actual != expect:
         raise Exception("invalid")  # error
-    return actual
+    else:
+        return actual
 
 
 def spec_push_opds(opds, ctrls, types):
@@ -4846,7 +4833,6 @@ def spec_pop_ctrl(opds, ctrls):
         raise Exception("invalid")  # error
     frame = ctrls[-1]
     # verify opd stack has right types to exit block, and pops them
-    # print("frame[\"end_types\"]",frame["end_types"])
     r = spec_pop_opds_expect(opds, ctrls, frame["end_types"])
     if r == -1:
         raise Exception("invalid")  # error
@@ -4868,7 +4854,7 @@ def spec_unreachable_(opds, ctrls):
 
 # validate a single opcode based on current context C, operand stack opds, and control stack ctrls
 def spec_validate_opcode(C, opds, ctrls, opcode, immediates):
-    # print("spec_validate_opcode(",C,"   ",opds,"   ",ctrls,"   ",opcode,"   ",immediates,")")
+    logger.debug("spec_validate_opcode(%s, %s, %s, %s, %s)", C, opds, ctrls, opcode, immediates)
     # C is the context
     # opds is the operand stack
     # ctrls is the control stack
@@ -4901,7 +4887,7 @@ def spec_validate_opcode(C, opds, ctrls, opcode, immediates):
             n = immediates
             if n == None:
                 raise Exception("invalid")
-            if len(ctrls) <= n:
+            elif len(ctrls) <= n:
                 raise Exception("invalid")
             spec_pop_opds_expect(opds, ctrls, ctrls[-1 - n]["label_types"])
             spec_unreachable_(opds, ctrls)
@@ -4909,7 +4895,7 @@ def spec_validate_opcode(C, opds, ctrls, opcode, immediates):
             n = immediates
             if n == None:
                 raise Exception("invalid")
-            if len(ctrls) <= n:
+            elif len(ctrls) <= n:
                 raise Exception("invalid")
             spec_pop_opd_expect(opds, ctrls, constants.INT32)
             spec_pop_opds_expect(opds, ctrls, ctrls[-1 - n]["label_types"])
@@ -4944,9 +4930,9 @@ def spec_validate_opcode(C, opds, ctrls, opcode, immediates):
             x = immediates
             if ("tables" not in C) or len(C["tables"]) == 0:
                 raise Exception("invalid")
-            if C["tables"][0][1] != "anyfunc":
+            elif C["tables"][0][1] != "anyfunc":
                 raise Exception("invalid")
-            if len(C["types"]) <= x:
+            elif len(C["types"]) <= x:
                 raise Exception("invalid")
             spec_pop_opd_expect(opds, ctrls, constants.INT32)
             spec_pop_opds_expect(opds, ctrls, C["types"][x][0])
@@ -4964,7 +4950,7 @@ def spec_validate_opcode(C, opds, ctrls, opcode, immediates):
             x = immediates
             if len(C["locals"]) <= x:
                 raise Exception("invalid")
-            if C["locals"][x] == constants.INT32:
+            elif C["locals"][x] == constants.INT32:
                 spec_push_opd(opds, constants.INT32)
             elif C["locals"][x] == constants.INT64:
                 spec_push_opd(opds, constants.INT64)
@@ -4974,11 +4960,11 @@ def spec_validate_opcode(C, opds, ctrls, opcode, immediates):
                 spec_push_opd(opds, constants.FLOAT64)
             else:
                 raise Exception("invalid")
-        if opcode_binary == 0x21:  # set_local
+        elif opcode_binary == 0x21:  # set_local
             x = immediates
             if len(C["locals"]) <= x:
                 raise Exception("invalid")
-            if C["locals"][x] == constants.INT32:
+            elif C["locals"][x] == constants.INT32:
                 ret = spec_pop_opd_expect(opds, ctrls, constants.INT32)
             elif C["locals"][x] == constants.INT64:
                 ret = spec_pop_opd_expect(opds, ctrls, constants.INT64)
@@ -4988,11 +4974,11 @@ def spec_validate_opcode(C, opds, ctrls, opcode, immediates):
                 ret = spec_pop_opd_expect(opds, ctrls, constants.FLOAT64)
             else:
                 raise Exception("invalid")
-        if opcode_binary == 0x22:  # tee_local
+        elif opcode_binary == 0x22:  # tee_local
             x = immediates
             if len(C["locals"]) <= x:
                 raise Exception("invalid")
-            if C["locals"][x] == constants.INT32:
+            elif C["locals"][x] == constants.INT32:
                 spec_pop_opd_expect(opds, ctrls, constants.INT32)
                 spec_push_opd(opds, constants.INT32)
             elif C["locals"][x] == constants.INT64:
@@ -5006,11 +4992,11 @@ def spec_validate_opcode(C, opds, ctrls, opcode, immediates):
                 spec_push_opd(opds, constants.FLOAT64)
             else:
                 raise Exception("invalid")
-        if opcode_binary == 0x23:  # get_global
+        elif opcode_binary == 0x23:  # get_global
             x = immediates
             if len(C["globals"]) <= x:
                 raise Exception("invalid")
-            if C["globals"][x][1] == constants.INT32:
+            elif C["globals"][x][1] == constants.INT32:
                 spec_push_opd(opds, constants.INT32)
             elif C["globals"][x][1] == constants.INT64:
                 spec_push_opd(opds, constants.INT64)
@@ -5020,13 +5006,13 @@ def spec_validate_opcode(C, opds, ctrls, opcode, immediates):
                 spec_push_opd(opds, constants.FLOAT64)
             else:
                 raise Exception("invalid")
-        if opcode_binary == 0x24:  # set_global
+        elif opcode_binary == 0x24:  # set_global
             x = immediates
             if len(C["globals"]) <= x:
                 raise Exception("invalid")
-            if C["globals"][x][0] != "var":
+            elif C["globals"][x][0] != "var":
                 raise Exception("invalid")
-            if C["globals"][x][1] == constants.INT32:
+            elif C["globals"][x][1] == constants.INT32:
                 ret = spec_pop_opd_expect(opds, ctrls, constants.INT32)
             elif C["globals"][x][1] == constants.INT64:
                 ret = spec_pop_opd_expect(opds, ctrls, constants.INT64)
@@ -5036,10 +5022,12 @@ def spec_validate_opcode(C, opds, ctrls, opcode, immediates):
                 ret = spec_pop_opd_expect(opds, ctrls, constants.FLOAT64)
             else:
                 raise Exception("invalid")
+        else:
+            raise Exception(f"Unexpected opcode value: {opcode_binary}")
     elif 0x28 <= opcode_binary <= 0x40:  # MEMORY INSTRUCTIONS
         if "mems" not in C or len(C["mems"]) == 0:
             raise Exception("invalid")
-        if opcode_binary <= 0x35:
+        elif opcode_binary <= 0x35:
             memarg = immediates
             if opcode_binary == 0x28:  # i32.load
                 N = 32
@@ -5068,6 +5056,9 @@ def spec_validate_opcode(C, opds, ctrls, opcode, immediates):
             elif opcode_binary <= 0x35:  # i64.load32_s, i64.load32_u
                 N = 32
                 t = constants.INT64
+            else:
+                raise Exception(f"Unexpected opcode value: {opcode_binary}")
+
             if 2 ** memarg["align"] > N // 8:
                 raise Exception("invalid")
             spec_pop_opd_expect(opds, ctrls, constants.INT32)
@@ -5101,8 +5092,10 @@ def spec_validate_opcode(C, opds, ctrls, opcode, immediates):
             elif opcode_binary == 0x3E:  # i64.store32
                 N = 32
                 t = constants.INT64
+
             if 2 ** memarg["align"] > N // 8:
                 raise Exception("invalid")
+
             spec_pop_opd_expect(opds, ctrls, t)
             spec_pop_opd_expect(opds, ctrls, constants.INT32)
         elif opcode_binary == 0x3F:  # memory.size
@@ -5110,6 +5103,8 @@ def spec_validate_opcode(C, opds, ctrls, opcode, immediates):
         elif opcode_binary == 0x40:  # memory.grow
             spec_pop_opd_expect(opds, ctrls, constants.INT32)
             spec_push_opd(opds, constants.INT32)
+        else:
+            raise Exception(f"Unexpected opcode value: {opcode_binary}")
     elif 0x41 <= opcode_binary <= 0xBF:  # NUMERIC INSTRUCTIONS
         if opcode_binary <= 0x44:
             if opcode_binary == 0x41:  # i32.const
@@ -5226,11 +5221,13 @@ def spec_validate_opcode(C, opds, ctrls, opcode, immediates):
             elif opcode_binary == 0xBE:  # f32.reinterpret/i32
                 spec_pop_opd_expect(opds, ctrls, constants.INT32)
                 spec_push_opd(opds, constants.FLOAT32)
-            else:  # f64.reinterpret/i64
+            elif opcode_binary == 0xBF:  # f64.reinterpret/i64
                 spec_pop_opd_expect(opds, ctrls, constants.INT64)
                 spec_push_opd(opds, constants.FLOAT64)
+            else:
+                raise Exception(f"Unexpected opcode value: {opcode_binary}")
         else:
-            raise Exception("invalid")  # error, opcode not in the correct ranges
+            raise Exception(f"Unexpected opcode value: {opcode_binary}")
     return 0  # success, valid so far
 
 
@@ -5265,7 +5262,7 @@ def iterate_through_expression_and_validate_each_opcode(
             immediate = node[1]
         elif node[0] == "br_table":
             immediate = [node[1], node[2]]
-        # print(opcode,immediate)
+
         # validate
         spec_validate_opcode(Context, opds, ctrls, opcode, immediate)
         # recurse for block, loop, if
@@ -5278,80 +5275,6 @@ def iterate_through_expression_and_validate_each_opcode(
                     node[3], Context, opds, ctrls
                 )
     return 0
-
-
-##########################
-# TOOLS FOR PRINTING STUFF
-##########################
-
-
-def print_tree(node, indent=0):
-    if type(node) == tuple:
-        print(" " * indent + str(node))
-    elif type(node) in {list}:
-        for e in node:
-            print_tree(e, indent + 1)
-    elif type(node) == dict:
-        for e in node:
-            print(" " * indent + e)
-            print_tree(node[e], indent + 1)
-    else:
-        print(" " * indent + str(node))
-
-
-def print_tree_expr(node, indent=0):
-    # print()
-    # print("print_tree_expr(",node,")")
-    if type(node) == list and len(node) > 0:
-        if type(node[0]) == str:  # an instruction
-            if node[0] in {"block", "if", "loop"}:
-                print(" " * indent + str([node[0], node[1]]))
-                print_tree_expr(node[2], indent + 1)
-                # print(" "*indent+"[end]")
-                if node[0] == "if" and len(node) > 3:
-                    print_tree_expr(node[3], indent + 1)
-            else:
-                print(" " * indent + str(node))
-        else:  # list of instructions
-            for e in node:
-                print_tree_expr(e, indent + 1)
-    else:
-        print(" " * indent + str(node))
-
-
-def print_raw_as_hex(raw):
-    print("printing whole module:")
-    for i in range(len(raw)):
-        print(hex(raw[i]), end=" ")
-        if (i + 1) % 10 == 0:
-            print()
-    print()
-
-
-def print_sections(mod):
-    print("types:", mod["types"])
-    print()
-    print("funcs:", mod["funcs"])
-    print()
-    for f in mod["funcs"]:
-        print()
-        print(f)
-        print_tree_expr(f["body"])
-    print("tables", mod["tables"])
-    print()
-    print("mems", mod["mems"])
-    print()
-    print("globals", mod["globals"])
-    print()
-    print("elem", mod["elem"])
-    print()
-    print("data", mod["data"])
-    print()
-    print("start", mod["start"])
-    print()
-    print("imports", mod["imports"])
-    print()
-    print("exports", mod["exports"])
 
 
 ##########################################################
@@ -5367,7 +5290,6 @@ def instantiate_wasm_invoke_start(filename):
     if not bytestar:
         return "error, could not read " + filename
     module = decode_module(bytestar)  # get module as abstract syntax
-    # print("module",module)
     if not module:
         return "error, could not decode " + filename
     store = init_store()  # do this once for each VM instance
@@ -5386,7 +5308,6 @@ def instantiate_wasm_invoke_func(filename, funcname, args):
     if not bytestar:
         return "error, could not read " + filename
     module = decode_module(bytestar)  # get module as abstract syntax
-    # print("module",module)
     if not module:
         return "error, could not decode " + filename
     store = init_store()  # do this once for each VM instance
@@ -5394,40 +5315,14 @@ def instantiate_wasm_invoke_func(filename, funcname, args):
     store, moduleinst, ret = instantiate_module(store, module, externvalstar)
     if moduleinst == "error":
         return "error, module could not be instantiated"
-    # print("moduleinst",moduleinst)
     externval = get_export(moduleinst, funcname)
     if not externval or externval[0] != "func":
         return "error, " + funcname + " is not a function export of the module"
-    # print("externval",externval)
     funcaddr = externval[1]
     valstar = [["i32.const", int(arg)] for arg in args]
-    # print("valstar",valstar)
     store, ret = invoke_func(store, funcaddr, valstar)
     if ret == "trap":
         return "error, invokation resulted in a trap"
-    # print("ret",ret)
     if type(ret) == list and len(ret) > 0:
         ret = ret[0]
     return ret
-
-
-if __name__ == "__main__":
-    import sys
-
-    if len(sys.argv) < 2 or sys.argv[1][-5:] != ".wasm":
-        print("Help:")
-        print("python3 pywebassembly.py <filename>.wasm funcname arg1 arg2 etc")
-        print(
-            "where funcname is an exported function of the module, followed by its arguments"
-        )
-        print("if funcname and args aren't present, we invoke the start function")
-        exit(-1)
-    filename = sys.argv[1]
-    ret = None
-    if len(sys.argv) == 2:
-        ret = instantiate_wasm_invoke_start(filename)
-    elif len(sys.argv) > 2:
-        funcname = sys.argv[2]
-        args = sys.argv[3:]
-        ret = instantiate_wasm_invoke_func(filename, funcname, args)
-    print(ret)
