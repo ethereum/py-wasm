@@ -46,6 +46,10 @@ from .normalizers import (
 logger = logging.getLogger("wasm.tools.fixtures.runner")
 
 
+class FloatingPointNotImplemented(NotImplementedError):
+    pass
+
+
 def instantiate_module_from_wasm_file(
     file_path: Path, store: Store, registered_modules
 ):
@@ -53,17 +57,15 @@ def instantiate_module_from_wasm_file(
 
     if file_path.suffix != ".wasm":
         logger.debug("Unsupported file type for wasm module: %s", file_path.suffix)
-        # TODO: remove return value checking pattern
-        return None
+        raise Exception("Unsupported file type: {file_path.suffix}")
 
-    moduleinst = None
     with file_path.open("rb") as wasm_module_file:
         # memoryview doesn't make copy, bytearray may require copy
         wasmbytes = memoryview(wasm_module_file.read())
         module = wasm.decode_module(wasmbytes)
 
         # validate
-        ret = wasm.validate_module(module)
+        wasm.validate_module(module)
 
         # imports preparation
         externvalstar = []
@@ -72,19 +74,16 @@ def instantiate_module_from_wasm_file(
                 raise Unlinkable(f"Unlinkable module: {import_['module']}")
 
             sub_module = registered_modules[import_["module"]]
-            externval = None
+
             for export in sub_module["exports"]:
                 if export["name"] == import_["name"]:
                     externval = export["value"]
-            if externval is None:
+                    break
+            else:
                 raise Unlinkable("Unlinkable module: export name not found")
-            if externval[0] != import_["desc"][0]:
-                raise Unlinkable("Unlinkable module: TODO figure out what this means")
 
             externvalstar += [externval]
-        store, moduleinst, ret = wasm.instantiate_module(store, module, externvalstar)
-        if moduleinst == "error":
-            raise Unlinkable("Unlinkable: TODO: better message")
+        _, moduleinst, _ = wasm.instantiate_module(store, module, externvalstar)
     return moduleinst
 
 
@@ -124,29 +123,24 @@ def run_opcode_action_invoke(action, store, module, all_modules, registered_modu
     # get function name, which could include unicode bytes like \u001b which
     # must be converted to unicode string
     funcname = action.field
-    # print("funcname",funcname)
     idx = 0
     utf8_bytes = bytearray()
     for c in funcname:
         utf8_bytes += bytearray([ord(c)])
     utf8_bytes = wasm.spec_binary_uN_inv(len(funcname), 32) + utf8_bytes
     _, funcname = wasm.spec_binary_name(utf8_bytes, 0)
-    # print("funcname",funcname)
+
     # get function address
     funcaddr = None
-    # print(module["exports"])
-    # print("module",module)
-    # print("ok module",module)
-    # print("test ok",test)
     for export in module["exports"]:
         # print("export[\"name\"]",export["name"])
         if export["name"] == funcname:
             funcaddr = export["value"][1]
-    logger.debug("funcaddr: %s", funcaddr)
+            logger.debug("funcaddr: %s", funcaddr)
+            break
+    else:
+        raise Exception(f"No function found by name: {funcname}")
 
-    # print("funcaddr",funcaddr)
-    # funcbody = store["funcs"][funcaddr]["code"]["body"]
-    # print(wasm.print_tree_expr(funcbody))
     # get args
     args = []
 
@@ -156,7 +150,7 @@ def run_opcode_action_invoke(action, store, module, all_modules, registered_modu
 
         if type_ in {"f32", "f64"}:
             logger.info("Floating point not yet supported: %s", action)
-            raise NotImplementedError("Floating point not yet implemented")
+            raise FloatingPointNotImplemented("Floating point not yet implemented")
         args += [[type_ + ".const", value]]
 
     # invoke func
@@ -172,29 +166,24 @@ def run_opcode_action_get(action, store, module, all_modules, registered_modules
     for export in exports:
         if export["name"] == action.field:
             globaladdr = export["value"][1]
-            # print("store",store)
-            # print("store[\"gloabls\"]",store["globals"])
             value = store["globals"][globaladdr]["value"][1]
-            # print("test_opcode_action_get",value)
             return [value]
-            # num_tests_tried+=1
-            # if value != test["expected"][0]["value"]:
-            #  if verbose>1: print("SUCCESS")
-            # num_tests_passed+=1
-            # else:
-            #  if verbose>1: print("FAILURE")
-    raise Exception("Error?")
+    else:
+        raise Exception(f"No export found for name: '{action.field}")
 
 
 def do_assert_return(command, store, module, all_modules, registered_modules):
     try:
         ret = run_opcode_action(command, store, module, all_modules, registered_modules)
-    except NotImplementedError:
+    except FloatingPointNotImplemented:
         return
 
     if len(ret) != len(command.expected):
         logger.debug("ret: %s | expected: %s", ret, command.expected)
-        raise Exception("Mismatched number of expected and returned values")
+        raise AssertionError(
+            f"Mismatched number of expected and returned values.  expected: "
+            f"{len(command.expected)} | got: {len(ret)}"
+        )
     elif len(ret) == 0 and len(command.expected) == 0:
         return
 
@@ -207,7 +196,7 @@ def do_assert_return(command, store, module, all_modules, registered_modules):
 
             assert actual == expected_val
         elif expected_type in constants.FLOAT_TYPES:
-            logger.info("Floating point operations not yet implemented")
+            logger.info("Floating point operations not yet implemented, skipping...")
             return
 
             assert isinstance(actual, float)
@@ -218,7 +207,8 @@ def do_assert_return(command, store, module, all_modules, registered_modules):
                 assert math.isinf(actual)
             else:
                 assert expected_val == actual
-    return  # success
+        else:
+            raise AssertionError(f"Unknown expected return type: {expected_type}")
 
 
 def do_assert_invalid(command, store, module, all_modules, registered_modules):
@@ -240,7 +230,7 @@ def do_assert_trap(command, store, module, all_modules, registered_modules):
         try:
             with pytest.raises(Trap):
                 run_opcode_action(command, store, module, all_modules, registered_modules)
-        except NotImplementedError:
+        except FloatingPointNotImplemented:
             pass
     else:
         raise Exception("Unhandled")
@@ -364,16 +354,16 @@ SKIP_COMMANDS = {
         506: AssertionError,
         510: AssertionError,
         511: AssertionError,
-        784: NotImplementedError,
-        785: NotImplementedError,
-        786: NotImplementedError,
-        787: NotImplementedError,
-        792: NotImplementedError,
-        819: NotImplementedError,
-        820: NotImplementedError,
-        821: NotImplementedError,
-        822: NotImplementedError,
-        827: NotImplementedError,
+        784: FloatingPointNotImplemented,
+        785: FloatingPointNotImplemented,
+        786: FloatingPointNotImplemented,
+        787: FloatingPointNotImplemented,
+        792: FloatingPointNotImplemented,
+        819: FloatingPointNotImplemented,
+        820: FloatingPointNotImplemented,
+        821: FloatingPointNotImplemented,
+        822: FloatingPointNotImplemented,
+        827: FloatingPointNotImplemented,
         2337: AssertionError,
         2338: AssertionError,
         2339: AssertionError,
