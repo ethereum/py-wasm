@@ -18,7 +18,7 @@ from wasm.exceptions import (
     Exhaustion,
     InvalidModule,
     MalformedModule,
-    TrapError,
+    Trap,
     Unlinkable,
 )
 from wasm.typing import (
@@ -169,9 +169,6 @@ def run_opcode_action_invoke(action, store, module, all_modules, registered_modu
     # invoke func
     _, ret = wasm.invoke_func(store, funcaddr, args)
 
-    if ret == 'trap':
-        raise TrapError("TRAP")
-
     return ret
 
 
@@ -201,9 +198,6 @@ def do_assert_return(command, store, module, all_modules, registered_modules):
         ret = run_opcode_action(command, store, module, all_modules, registered_modules)
     except NotImplementedError:
         return
-
-    if ret == "trap":
-        raise TrapError("Encountered TRAP while running command")
 
     if len(ret) != len(command.expected):
         logger.debug("ret: %s | expected: %s", ret, command.expected)
@@ -251,7 +245,7 @@ def do_assert_trap(command, store, module, all_modules, registered_modules):
 
     if command.action:
         try:
-            with pytest.raises(TrapError):
+            with pytest.raises(Trap):
                 run_opcode_action(command, store, module, all_modules, registered_modules)
         except NotImplementedError:
             pass
@@ -322,7 +316,7 @@ def do_action_command(command, store, module, all_modules, registered_modules):
 
 
 def do_assert_uninstantiable(command, store, module, all_modules, registered_modules):
-    with pytest.raises(Unlinkable):
+    with pytest.raises(Trap):
         instantiate_module_from_wasm_file(command.file_path, store, registered_modules)
 
 
