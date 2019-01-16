@@ -67,21 +67,14 @@ def instantiate_module_from_wasm_file(
         if type(ret) == str and ret[:14] == "error: invalid":
             raise InvalidModule(f"Invalid wasm module: {file_path.name}")
 
-        # if test["type"]=="assert_invalid" and ret!="error: invalid": #TODO remove this
-        #  print("INVALID MISSED !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!",test)
-        #  return None,"invalid"
         # imports preparation
         externvalstar = []
-        # print("module",filename,module)
         for import_ in module["imports"]:
             if import_["module"] not in registered_modules:
                 raise Unlinkable(f"Unlinkable module: {import_['module']}")
 
             sub_module = registered_modules[import_["module"]]
             externval = None
-            # print("sub_module",sub_module)
-            # for key in sub_module:
-            #  print(key,sub_module[key])
             for export in sub_module["exports"]:
                 if export["name"] == import_["name"]:
                     externval = export["value"]
@@ -91,12 +84,7 @@ def instantiate_module_from_wasm_file(
                 raise Unlinkable("Unlinkable module: TODO figure out what this means")
 
             externvalstar += [externval]
-        # print("store",store)
-        # print("module",module)
-        # print("externvalstar",externvalstar)
         store, moduleinst, ret = wasm.instantiate_module(store, module, externvalstar)
-        # print("moduleinst",moduleinst)
-        # print(store["mems"][0]["data"])
         if moduleinst == "error":
             raise Unlinkable("Unlinkable: TODO: better message")
     return moduleinst
@@ -364,6 +352,10 @@ def get_command_fn(command):
         raise AssertionError(f"Unsupported module type: {type(command)}")
 
 
+# This data structure holds all of the tests from the WASM spec tests that are
+# currently not passing.  This list should be empty once the library has been
+# properly refactored but for now they are skipped to allow for incremental
+# improvement to the library.
 SKIP_COMMANDS = {
     'custom.wast': {
         # It appears that the logic for parsing a binary module is broken,
@@ -420,7 +412,7 @@ def run_fixture_test(fixture_path, store, all_modules, registered_modules):
     fixture = normalize_fixture(fixture_path.parent, raw_fixture)
 
     module = None
-    skip_lines = SKIP_COMMANDS.get(fixture.file_path.name, set())
+    skip_info = SKIP_COMMANDS.get(fixture.file_path.name, {})
 
     logger.info("Finished test fixture: %s", fixture.file_path.name)
 
@@ -429,8 +421,8 @@ def run_fixture_test(fixture_path, store, all_modules, registered_modules):
 
         command_fn = get_command_fn(command)
 
-        if command.line in skip_lines:
-            expected_err = skip_lines[command.line]
+        if command.line in skip_info:
+            expected_err = skip_info[command.line]
             with pytest.raises(expected_err):
                 command_fn(command, store, module, all_modules, registered_modules)
         else:

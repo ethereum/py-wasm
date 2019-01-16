@@ -21,5 +21,5 @@ def recursive_find_files(base_dir: Path, pattern: str) -> Iterable[Path]:
 
 
 def find_json_fixture_files(fixtures_base_dir: Path) -> Iterable[Path]:
-    all_fixture_paths = recursive_find_files(fixtures_base_dir, "*.json")
+    all_fixture_paths = tuple(fixtures_base_dir.glob('**/*.json'))
     return all_fixture_paths
