@@ -20,3 +20,7 @@ UINT32_MAX = 2 ** 32 - 1
 INT32_NEGATIVE_ONE = UINT32_MAX
 
 UINT128_CEIL = 2 ** 128
+
+
+# https://webassembly.github.io/spec/core/bikeshed/index.html#memory-instances%E2%91%A0
+PAGE_SIZE_64K = 65536
