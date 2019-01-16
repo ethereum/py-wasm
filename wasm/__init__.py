@@ -198,6 +198,10 @@ def spec_validate_functype(ft):
 
 def spec_validate_tabletype(tt):
     limits, elemtype = tt
+    # TODO: use of UINT32_CEIL may be incorrect here as `validate_limit` checks
+    # against the value using `>`.  Check looks like it **should** be using
+    # `>=` to ensure that the limit bounds fit withint a UINT32 but updating
+    # this to use `UINT32_MAX` is currently causing spec test failures.
     spec_validate_limit(limits, constants.UINT32_CEIL)
     return tt
 
@@ -206,6 +210,10 @@ def spec_validate_tabletype(tt):
 
 
 def spec_validate_memtype(limits):
+    # TODO: use of UINT32_CEIL may be incorrect here as `validate_limit` checks
+    # against the value using `>`.  Check looks like it **should** be using
+    # `>=` to ensure that the limit bounds fit withint a UINT32 but updating
+    # this to use `UINT32_MAX` is currently causing spec test failures.
     spec_validate_limit(limits, constants.UINT16_CEIL)
     return limits
 
@@ -2099,7 +2107,8 @@ def spec_memorygrow(config):
     if sz + n == len(mem["data"]) // 65536:  # success
         config["operand_stack"].append(sz)
     else:
-        config["operand_stack"].append(constants.UINT32_MAX)  # put -1 on top of stack
+        # TODO: this potentially ends up leaving the memory in an invalid state
+        config["operand_stack"].append(constants.INT32_NEGATIVE_ONE)  # put -1 on top of stack
     config["idx"] += 1
 
 
@@ -2850,7 +2859,7 @@ def spec_growtable(tableinst, n):
 
     len_ = n + len(tableinst["elem"])
 
-    if len_ > constants.UINT32_CEIL:
+    if len_ >= constants.UINT32_CEIL:
         return "fail"
     elif tablinst["max"] != None and tableinst["max"] < len_:
         return "fail"  # TODO: what does fail mean? raise Exception("trap")
@@ -2867,7 +2876,7 @@ def spec_growmem(meminst, n):
         raise Exception("TODO: more appropriate exception type")
 
     len_ = n + len(meminst["data"]) // 65536
-    if len_ > constants.UINT16_CEIL:
+    if len_ >= constants.UINT16_CEIL:
         return "fail"
     elif meminst["max"] != None and meminst["max"] < len_:
         return "fail"
