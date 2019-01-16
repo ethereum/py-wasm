@@ -198,7 +198,7 @@ def spec_validate_functype(ft):
 
 def spec_validate_tabletype(tt):
     limits, elemtype = tt
-    spec_validate_limit(limits, 2 ** 32)
+    spec_validate_limit(limits, constants.UINT32_CEIL)
     return tt
 
 
@@ -206,7 +206,7 @@ def spec_validate_tabletype(tt):
 
 
 def spec_validate_memtype(limits):
-    spec_validate_limit(limits, 2 ** 16)
+    spec_validate_limit(limits, constants.UINT16_CEIL)
     return limits
 
 
@@ -1741,7 +1741,7 @@ def spec_demoteMN(M, N, z):
     absz = spec_fabsN(N, z)
     # limitN = 2**(2**(spec_expon(N)-1))
     # TODO: confirm this implementation is correct.
-    limitN = 2 ** 128 * (
+    limitN = constants.UINT128_CEIL * (
         1 - 2 ** -25
     )  # this FLT_MAX is slightly different than the Wasm spec's 2**127
     if absz >= limitN:
@@ -2099,7 +2099,7 @@ def spec_memorygrow(config):
     if sz + n == len(mem["data"]) // 65536:  # success
         config["operand_stack"].append(sz)
     else:
-        config["operand_stack"].append(2 ** 32 - 1)  # put -1 on top of stack
+        config["operand_stack"].append(constants.UINT32_MAX)  # put -1 on top of stack
     config["idx"] += 1
 
 
@@ -2850,7 +2850,7 @@ def spec_growtable(tableinst, n):
 
     len_ = n + len(tableinst["elem"])
 
-    if len_ > 2 ** 32:
+    if len_ > constants.UINT32_CEIL:
         return "fail"
     elif tablinst["max"] != None and tableinst["max"] < len_:
         return "fail"  # TODO: what does fail mean? raise Exception("trap")
@@ -2867,7 +2867,7 @@ def spec_growmem(meminst, n):
         raise Exception("TODO: more appropriate exception type")
 
     len_ = n + len(meminst["data"]) // 65536
-    if len_ > 2 ** 16:
+    if len_ > constants.UINT16_CEIL:
         return "fail"
     elif meminst["max"] != None and meminst["max"] < len_:
         return "fail"
@@ -3448,7 +3448,7 @@ def spec_binary_name(raw, idx):
         if b2 >> 5 != 0b011:
             raise Exception("malformed")
         bstaridx += 1
-        c = (2 ** 12) * (b1 - 0xE0) + (2 ** 6) * (b2 - 0x80) + (b3 - 0x80)
+        c = (constants.UINT12_CEIL) * (b1 - 0xE0) + (2 ** 6) * (b2 - 0x80) + (b3 - 0x80)
         if 0x800 <= c < 0x10000 and (b2 >> 6 == 0b01):
             name += [c]
             continue
@@ -3459,9 +3459,9 @@ def spec_binary_name(raw, idx):
             raise Exception("malformed")
         bstaridx += 1
         c = (
-            2 ** 18 * (b1 - 0xF0)
-            + 2 ** 12 * (b2 - 0x80)
-            + 2 ** 6 * (b3 - 0x80)
+            constants.UINT18_CEIL * (b1 - 0xF0)
+            + constants.UINT12_CEIL * (b2 - 0x80)
+            + constants.UINT6_CEIL * (b3 - 0x80)
             + (b4 - 0x80)
         )
         if 0x10000 <= c < 0x110000:
@@ -4240,7 +4240,7 @@ def spec_binary_code(raw, idx):
 
     if idx_end != idx:
         raise Exception("malformed")
-    elif len(code) >= 2 ** 32:
+    elif len(code) >= constants.UINT32_CEIL:
         raise Exception("malformed")
     else:
         return idx, code
@@ -4249,7 +4249,7 @@ def spec_binary_code(raw, idx):
 def spec_binary_func(raw, idx):
     idx, tstarstar = spec_binary_vec(raw, idx, spec_binary_locals)
     num_locals = sum(locals_info.num for locals_info in tstarstar)
-    if num_locals >= 2 ** 32:
+    if num_locals >= constants.UINT32_CEIL:
         raise Exception("malformed")
     idx, e = spec_binary_expr(raw, idx)
     concattstarstar = [
