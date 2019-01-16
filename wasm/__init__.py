@@ -36,6 +36,7 @@ from wasm import (
     constants,
 )
 from wasm.exceptions import (
+    Exhaustion,
     Trap,
 )
 from wasm._utils.types import (
@@ -2299,8 +2300,6 @@ def spec_call(config):
     a = F["module"]["funcaddrs"][x]
     # 4
     ret = spec_invoke_function_address(config, a)
-    if ret == "exhaustion":
-        return ret
 
 
 def spec_call_indirect(config):
@@ -2335,8 +2334,6 @@ def spec_call_indirect(config):
         raise Trap("trap")
     # 17
     ret = spec_invoke_function_address(config, a)
-    if ret == "exhaustion":
-        return ret
 
 
 # 4.4.6 BLOCKS
@@ -2372,10 +2369,10 @@ def spec_invoke_function_address(config, a=None):
     # a is address
     S = config["S"]
     F = config["F"]
-    if (
-        len(F) > 1024
-    ):  # TODO: this is not part of spec, but this is required to pass tests. Tests pass with limit 10000, maybe more
-        return "exhaustion"
+    if (len(F) > 1024):
+        # TODO: this is not part of spec, but this is required to pass tests.
+        # Tests pass with limit 10000, maybe more
+        raise Exhaustion("Function length greater than 1024")
     instrstar = config["instrstar"]
     idx = config["idx"]
     operand_stack = config["operand_stack"]
@@ -2672,9 +2669,7 @@ def spec_expr(config):
         ]  # idx<len(instrs) since instrstar[-1]=="end" which changes instrstar
         ret = opcode2exec[instr][0](config)
 
-        if ret == "exhaustion":
-            raise Exception("exhaustion")
-        elif ret:
+        if ret:
             return config["operand_stack"]
         else:
             # TODO: log at DEBUG2
@@ -3399,6 +3394,9 @@ def spec_binary_fN_inv(node, N):
     return spec_bytest(get_float_type(N), node)
 
 
+EXCEPTIONS_TO_RERAISE = (Trap, Exhaustion)
+
+
 # 5.2.4 NAMES
 
 # name as UTF-8 codepoints
@@ -3408,7 +3406,7 @@ def spec_binary_name(raw, idx):
 
     try:
         nametxt = bytearray(bstar).decode()
-    except Trap:
+    except EXCEPTIONS_TO_RERAISE:
         raise
     except:
         raise Exception("malformed")
@@ -4477,7 +4475,7 @@ def decode_module(bytestar):
         mod = spec_binary_module(bytestar)
     except AssertionError:
         raise
-    except Trap:
+    except EXCEPTIONS_TO_RERAISE:
         raise
     except Exception as err:
         return "malformed"
@@ -4491,7 +4489,7 @@ def parse_module(codepointstar):
 def validate_module(module):
     try:
         spec_validate_module(module)
-    except Trap:
+    except EXCEPTIONS_TO_RERAISE:
         raise
     except Exception as e:
         return "error: invalid"
@@ -4502,7 +4500,7 @@ def instantiate_module(store, module, externvalstar):
     # we deviate from the spec by also returning the return value
     try:
         ret = spec_instantiate(store, module, externvalstar)
-    except Trap:
+    except EXCEPTIONS_TO_RERAISE:
         raise
     except Exception as e:
         return store, "error", e.args[0]
@@ -4515,7 +4513,7 @@ def instantiate_module(store, module, externvalstar):
 def module_imports(module):
     try:
         spec_validate_module(mod)
-    except Trap:
+    except EXCEPTIONS_TO_RERAISE:
         raise
     except:
         return "error: invalid"
@@ -4535,7 +4533,7 @@ def module_imports(module):
 def module_exports(module):
     try:
         ret = spec_validate_module(mod)
-    except Trap:
+    except EXCEPTIONS_TO_RERAISE:
         raise
     except:
         return "error: invalid"
@@ -4584,7 +4582,7 @@ def type_func(store, funcaddr):
 def invoke_func(store, funcaddr, valstar):
     try:
         ret = spec_invoke(store, funcaddr, valstar)
-    except Trap:
+    except EXCEPTIONS_TO_RERAISE:
         raise
     except Exception as e:
         return store, e.args[0]
@@ -4646,7 +4644,7 @@ def grow_table(store, tableaddr, n):
 
     try:
         spec_growtable(store["tabless"][tableaddr], n)
-    except Trap:
+    except EXCEPTIONS_TO_RERAISE:
         raise
     except:
         return "error"
@@ -4713,7 +4711,7 @@ def grow_mem(store, memaddr, n):
 
     try:
         spec_growmem(store["mems"][memaddr], n)
-    except Trap:
+    except EXCEPTIONS_TO_RERAISE:
         raise
     except:
         return "error"
@@ -4727,7 +4725,7 @@ def grow_mem(store, memaddr, n):
 def alloc_global(store, globaltype, val):
     try:
         store, globaladdr = spec_allocglobal(store, globaltype, val)
-    except Trap:
+    except EXCEPTIONS_TO_RERAISE:
         raise
     except:
         return store, "error"

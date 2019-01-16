@@ -122,8 +122,6 @@ def run_opcode_action(command, store, module, all_modules, registered_modules):
     else:
         raise Exception(f"Unsupported action type: {command.action.type}")
 
-    if ret == 'exhaustion':
-        raise Exhaustion("Exhaustion happened")
     return ret
 
 
