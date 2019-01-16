@@ -2375,7 +2375,7 @@ def spec_invoke_function_address(config, a=None):
     # a is address
     S = config["S"]
     F = config["F"]
-    if (len(F) > 1024):
+    if len(F) > 1024:
         # TODO: this is not part of spec, but this is required to pass tests.
         # Tests pass with limit 10000, maybe more
         raise Exhaustion("Function length greater than 1024")
@@ -4509,12 +4509,15 @@ def instantiate_module(store, module, externvalstar):
 
 
 def module_imports(module):
-    spec_validate_module(mod)
+    ret = spec_validate_module(mod)
 
     externtypestar, extertypeprimestar = ret
     importstar = module["imports"]
     if len(importstar) != len(externtypestar):
-        raise InvalidModule("invalid")
+        raise InvalidModule(
+            f"Wrong import length: expected {len(extertypeprimestar)} / got "
+            f"{len(externtypestar)}"
+        )
     result = []
     for i in range(len(importstar)):
         importi = importstar[i]
