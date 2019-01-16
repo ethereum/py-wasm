@@ -62,13 +62,8 @@ def instantiate_module_from_wasm_file(
         wasmbytes = memoryview(wasm_module_file.read())
         module = wasm.decode_module(wasmbytes)
 
-        if module == "malformed":
-            raise MalformedModule(f"Malformed wasm module: {file_path.name}")
-
         # validate
         ret = wasm.validate_module(module)
-        if type(ret) == str and ret[:14] == "error: invalid":
-            raise InvalidModule(f"Invalid wasm module: {file_path.name}")
 
         # imports preparation
         externvalstar = []
@@ -122,8 +117,6 @@ def run_opcode_action(command, store, module, all_modules, registered_modules):
     else:
         raise Exception(f"Unsupported action type: {command.action.type}")
 
-    if ret == 'exhaustion':
-        raise Exhaustion("Exhaustion happened")
     return ret
 
 
