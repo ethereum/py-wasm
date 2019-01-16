@@ -35,6 +35,9 @@ from typing import NamedTuple
 from wasm import (
     constants,
 )
+from wasm.exceptions import (
+    Trap,
+)
 from wasm._utils.types import (
     get_bit_size,
     get_float_type,
@@ -1089,7 +1092,7 @@ def spec_idiv_uN(N, i1, i2):
     logger.debug("spec_idiv_uN(%s, %s, %s)", N, i1, i2)
 
     if i2 == 0:
-        raise Exception("trap")
+        raise Trap("trap")
     return spec_trunc((i1, i2))
 
 
@@ -1099,10 +1102,10 @@ def spec_idiv_sN(N, i1, i2):
     j1 = spec_signediN(N, i1)
     j2 = spec_signediN(N, i2)
     if j2 == 0:
-        raise Exception("trap")
+        raise Trap("trap")
     # assuming j1 and j2 are N-bit
     if j1 // j2 == 2 ** (N - 1):
-        raise Exception("trap")
+        raise Trap("trap")
     return spec_signediN_inv(N, spec_trunc((j1, j2)))
 
 
@@ -1110,7 +1113,7 @@ def spec_irem_uN(N, i1, i2):
     logger.debug("spec_irem_uN(%s, %s, %s)", N, i1, i2)
 
     if i2 == 0:
-        raise Exception("trap")
+        raise Trap("trap")
     return i1 - i2 * spec_trunc((i1, i2))
 
 
@@ -1120,7 +1123,7 @@ def spec_irem_sN(N, i1, i2):
     j1 = spec_signediN(N, i1)
     j2 = spec_signediN(N, i2)
     if i2 == 0:
-        raise Exception("trap")
+        raise Trap("trap")
     return spec_signediN_inv(N, j1 - j2 * spec_trunc((j1, j2)))
 
 
@@ -1708,21 +1711,21 @@ def spec_trunc_uMN(M, N, z):
     logger.debug("spec_trunc_uMN(%s, %s, %s)", M, N, z)
 
     if math.isnan(z) or math.isinf(z):
-        raise Exception("trap")
+        raise Trap("trap")
 
     ztrunc = spec_ftruncN(M, z)
 
     if -1 < ztrunc < 2 ** N:
         return int(ztrunc)
     else:
-        raise Exception("trap")
+        raise Trap("trap")
 
 
 def spec_trunc_sMN(M, N, z):
     logger.debug("spec_trunc_sMN(%s, %s, %s)", M, N, z)
 
     if math.isnan(z) or math.isinf(z):
-        raise Exception("trap")
+        raise Trap("trap")
 
     ztrunc = spec_ftruncN(M, z)
 
@@ -1733,7 +1736,7 @@ def spec_trunc_sMN(M, N, z):
         else:
             return iztrunc
     else:
-        raise Exception("trap")
+        raise Trap("trap")
 
 
 def spec_promoteMN(M, N, z):
@@ -1822,9 +1825,6 @@ def spec_tunop(config):
     c1 = config["operand_stack"].pop()
     c = op(get_bit_size(t), c1)
 
-    if c == "trap":
-        return c
-
     config["operand_stack"].append(c)
     config["idx"] += 1
 
@@ -1840,9 +1840,6 @@ def spec_tbinop(config):
     c1 = config["operand_stack"].pop()
     c = op(get_bit_size(t), c1, c2)
 
-    if c == "trap":
-        return c
-
     config["operand_stack"].append(c)
     config["idx"] += 1
 
@@ -1856,9 +1853,6 @@ def spec_ttestop(config):
     op = opcode2exec[instr][1]
     c1 = config["operand_stack"].pop()
     c = op(get_bit_size(t), c1)
-
-    if c == "trap":
-        return c
 
     config["operand_stack"].append(c)
     config["idx"] += 1
@@ -1874,9 +1868,6 @@ def spec_trelop(config):
     c2 = config["operand_stack"].pop()
     c1 = config["operand_stack"].pop()
     c = op(get_bit_size(t), c1, c2)
-
-    if c == "trap":
-        return c
 
     config["operand_stack"].append(c)
     config["idx"] += 1
@@ -1895,9 +1886,6 @@ def spec_t2cvtopt1(config):
         c2 = op(t1, t2, c1)
     else:
         c2 = op(int(t1[1:]), int(t2[1:]), c1)
-
-    if c2 == "trap":
-        return c2
 
     config["operand_stack"].append(c2)
     config["idx"] += 1
@@ -2026,7 +2014,7 @@ def spec_tload(config):
         N = get_bit_size(t)
     # 10
     if ea + N // 8 > len(mem["data"]):
-        raise Exception("trap")
+        raise Trap("trap")
     # 11
     bstar = mem["data"][ea : ea + N // 8]
     # 12
@@ -2068,7 +2056,7 @@ def spec_tstore(config):
         N = get_bit_size(t)
     # 12
     if ea + N // 8 > len(mem["data"]):
-        raise Exception("trap")
+        raise Trap("trap")
     # 13
     if Nflag:
         M = get_bit_size(t)
@@ -2133,7 +2121,7 @@ def spec_nop(config):
 def spec_unreachable(config):
     logger.debug("spec_unreachable()")
 
-    raise Exception("trap")
+    raise Trap("trap")
 
 
 def spec_block(config):
@@ -2334,10 +2322,10 @@ def spec_call_indirect(config):
     i = config["operand_stack"].pop()
     # 10
     if len(tab["elem"]) <= i:
-        raise Exception("trap")
+        raise Trap("trap")
     # 11
     if tab["elem"][i] == None:
-        raise Exception("trap")
+        raise Trap("trap")
     # 12
     a = tab["elem"][i]
     # 14
@@ -2346,7 +2334,7 @@ def spec_call_indirect(config):
     ftactual = f["type"]
     # 16
     if ftexpect != ftactual:
-        raise Exception("trap")
+        raise Trap("trap")
     # 17
     ret = spec_invoke_function_address(config, a)
     if ret == "exhaustion":
@@ -2445,8 +2433,7 @@ def spec_invoke_function_address(config, a=None):
             valn = operand_stack[-1 * len(t1n) :]
             del operand_stack[-1 * len(t1n) :]
         S, ret = f["hostcode"](S, valn)
-        if ret == "trap":
-            return ret
+
         operand_stack += ret
         config["idx"] += 1
     else:
@@ -2673,7 +2660,7 @@ def instrstarend_loop(config):
         ]  # idx<len(instrs) since instrstar[-1]=="end" which changes instrstar
         ret = opcode2exec[instr][0](config)
         if ret:
-            return ret, config["operand_stack"]  # eg "trap" or "done"
+            return ret, config["operand_stack"]  # eg "done"
 
 
 # this executes instr* end. This deviates from the spec.
@@ -2687,9 +2674,7 @@ def spec_expr(config):
         ]  # idx<len(instrs) since instrstar[-1]=="end" which changes instrstar
         ret = opcode2exec[instr][0](config)
 
-        if ret == "trap":
-            raise Exception("trap")
-        elif ret == "exhaustion":
+        if ret == "exhaustion":
             raise Exception("exhaustion")
         elif ret:
             return config["operand_stack"]
@@ -3422,6 +3407,8 @@ def spec_binary_name(raw, idx):
 
     try:
         nametxt = bytearray(bstar).decode()
+    except Trap:
+        raise
     except:
         raise Exception("malformed")
 
@@ -4489,6 +4476,8 @@ def decode_module(bytestar):
         mod = spec_binary_module(bytestar)
     except AssertionError:
         raise
+    except Trap:
+        raise
     except Exception as err:
         return "malformed"
     return mod
@@ -4501,6 +4490,8 @@ def parse_module(codepointstar):
 def validate_module(module):
     try:
         spec_validate_module(module)
+    except Trap:
+        raise
     except Exception as e:
         return "error: invalid"
 
@@ -4510,6 +4501,8 @@ def instantiate_module(store, module, externvalstar):
     # we deviate from the spec by also returning the return value
     try:
         ret = spec_instantiate(store, module, externvalstar)
+    except Trap:
+        raise
     except Exception as e:
         return store, "error", e.args[0]
 
@@ -4521,6 +4514,8 @@ def instantiate_module(store, module, externvalstar):
 def module_imports(module):
     try:
         spec_validate_module(mod)
+    except Trap:
+        raise
     except:
         return "error: invalid"
     externtypestar, extertypeprimestar = ret
@@ -4539,6 +4534,8 @@ def module_imports(module):
 def module_exports(module):
     try:
         ret = spec_validate_module(mod)
+    except Trap:
+        raise
     except:
         return "error: invalid"
     externtypestar, extertypeprimestar = ret
@@ -4586,6 +4583,8 @@ def type_func(store, funcaddr):
 def invoke_func(store, funcaddr, valstar):
     try:
         ret = spec_invoke(store, funcaddr, valstar)
+    except Trap:
+        raise
     except Exception as e:
         return store, e.args[0]
     return store, ret
@@ -4646,6 +4645,8 @@ def grow_table(store, tableaddr, n):
 
     try:
         spec_growtable(store["tabless"][tableaddr], n)
+    except Trap:
+        raise
     except:
         return "error"
 
@@ -4711,6 +4712,8 @@ def grow_mem(store, memaddr, n):
 
     try:
         spec_growmem(store["mems"][memaddr], n)
+    except Trap:
+        raise
     except:
         return "error"
 
@@ -4723,6 +4726,8 @@ def grow_mem(store, memaddr, n):
 def alloc_global(store, globaltype, val):
     try:
         store, globaladdr = spec_allocglobal(store, globaltype, val)
+    except Trap:
+        raise
     except:
         return store, "error"
     return store, globaladdr
@@ -5337,8 +5342,7 @@ def instantiate_wasm_invoke_func(filename, funcname, args):
     funcaddr = externval[1]
     valstar = [["i32.const", int(arg)] for arg in args]
     store, ret = invoke_func(store, funcaddr, valstar)
-    if ret == "trap":
-        return "error, invokation resulted in a trap"
+
     if type(ret) == list and len(ret) > 0:
         ret = ret[0]
     return ret

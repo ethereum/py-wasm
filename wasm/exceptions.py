@@ -10,7 +10,10 @@ class InvalidModule(BaseWasmException):
     pass
 
 
-class TrapError(BaseWasmException):
+class Trap(BaseWasmException):
+    """
+    https://webassembly.github.io/spec/core/bikeshed/index.html#trap
+    """
     pass
 
 
