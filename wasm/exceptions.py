@@ -2,15 +2,15 @@ class BaseWasmException(Exception):
     pass
 
 
-class MalformedModule(BaseWasmException):
+class Malformed(BaseWasmException):
     pass
 
 
-class InvalidModule(BaseWasmException):
+class Invalid(BaseWasmException):
     pass
 
 
-class TrapError(BaseWasmException):
+class Trap(BaseWasmException):
     pass
 
 

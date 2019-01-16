@@ -16,9 +16,9 @@ from wasm import (
 )
 from wasm.exceptions import (
     Exhaustion,
-    InvalidModule,
-    MalformedModule,
-    TrapError,
+    Invalid,
+    Malformed,
+    Trap,
     Unlinkable,
 )
 from wasm.typing import (
@@ -63,12 +63,12 @@ def instantiate_module_from_wasm_file(
         module = wasm.decode_module(wasmbytes)
 
         if module == "malformed":
-            raise MalformedModule(f"Malformed wasm module: {file_path.name}")
+            raise Malformed(f"Malformed wasm module: {file_path.name}")
 
         # validate
         ret = wasm.validate_module(module)
         if type(ret) == str and ret[:14] == "error: invalid":
-            raise InvalidModule(f"Invalid wasm module: {file_path.name}")
+            raise Invalid(f"Invalid wasm module: {file_path.name}")
 
         # imports preparation
         externvalstar = []
@@ -239,7 +239,7 @@ def do_assert_invalid(command, store, module, all_modules, registered_modules):
         raise Exception("Unhandled")
 
     if command.file_path:
-        with pytest.raises(InvalidModule):
+        with pytest.raises(Invalid):
             instantiate_module_from_wasm_file(command.file_path, store, registered_modules)
     else:
         raise Exception("Unhandled")
@@ -268,7 +268,7 @@ def do_assert_malformed(command, store, module, all_modules, registered_modules)
         raise Exception("Unhandled")
 
     if command.file_path:
-        with pytest.raises(MalformedModule):
+        with pytest.raises(Malformed):
             instantiate_module_from_wasm_file(command.file_path, store, registered_modules)
     else:
         raise Exception("Unhandled")
