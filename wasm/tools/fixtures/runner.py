@@ -67,8 +67,6 @@ def instantiate_module_from_wasm_file(
 
         # validate
         ret = wasm.validate_module(module)
-        if type(ret) == str and ret[:14] == "error: invalid":
-            raise InvalidModule(f"Invalid wasm module: {file_path.name}")
 
         # imports preparation
         externvalstar = []

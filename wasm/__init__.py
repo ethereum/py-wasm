@@ -37,6 +37,7 @@ from wasm import (
 )
 from wasm.exceptions import (
     Exhaustion,
+    InvalidModule,
     Trap,
 )
 from wasm._utils.types import (
@@ -182,9 +183,9 @@ def spec_validate_limit(limits, k):
     n = limits["min"]
     m = limits["max"]
     if n > k:
-        raise Exception("invalid")
+        raise InvalidModule("invalid")
     if m != None and (m > k or m < n):
-        raise Exception("invalid")
+        raise InvalidModule("invalid")
     return k
 
 
@@ -193,7 +194,7 @@ def spec_validate_limit(limits, k):
 
 def spec_validate_functype(ft):
     if len(ft[1]) > 1:
-        raise Exception("invalid")
+        raise InvalidModule("invalid")
     return ft
 
 
@@ -278,38 +279,38 @@ def spec_validate_select():
 
 def spec_validate_get_local(C, x):
     if len(C["locals"]) <= x:
-        raise Exception("invalid")
+        raise InvalidModule("invalid")
     t = C["locals"][x]
     return [], [t]
 
 
 def spec_validate_set_local(C, x):
     if len(C["locals"]) <= x:
-        raise Exception("invalid")
+        raise InvalidModule("invalid")
     t = C["locals"][x]
     return [t], []
 
 
 def spec_validate_tee_local(C, x):
     if len(C["locals"]) <= x:
-        raise Exception("invalid")
+        raise InvalidModule("invalid")
     t = C["locals"][x]
     return [t], [t]
 
 
 def spec_validate_get_global(C, x):
     if len(C["globals"]) <= x:
-        raise Exception("invalid")
+        raise InvalidModule("invalid")
     mut, t = C.globals[x]
     return [], [t]
 
 
 def spec_validate_set_global(C, x):
     if len(C["globals"]) <= x:
-        raise Exception("invalid")
+        raise InvalidModule("invalid")
     mut, t = C.globals[x]
     if mut != "var":
-        raise Exception("invalid")
+        raise InvalidModule("invalid")
     return [t], []
 
 
@@ -318,47 +319,47 @@ def spec_validate_set_global(C, x):
 
 def spec_validate_t_load(C, t, memarg):
     if len(C["mems"]) < 1:
-        raise Exception("invalid")
+        raise InvalidModule("invalid")
     tval = get_bit_size(t)  # invariant: t has form: letter digit digit  eg i32
     if 2 ** memarg["align"] > tval // 8:
-        raise Exception("invalid")
+        raise InvalidModule("invalid")
     return [constants.INT32], [t]
 
 
 def spec_validate_tloadNsx(C, t, N, memarg):
     if len(C["mems"]) < 1:
-        raise Exception("invalid")
+        raise InvalidModule("invalid")
     if 2 ** memarg["align"] > N // 8:
-        raise Exception("invalid")
+        raise InvalidModule("invalid")
     return [constants.INT32], [t]
 
 
 def spec_validate_tstore(C, t, memarg):
     if len(C["mems"]) < 1:
-        raise Exception("invalid")
+        raise InvalidModule("invalid")
     tval = get_bit_size(t)  # invariant: t has form: letter digit digit  eg i32
     if 2 ** memarg["align"] > tval // 8:
-        raise Exception("invalid")
+        raise InvalidModule("invalid")
     return [constants.INT32, t], []
 
 
 def spec_validate_tstoreN(C, t, N, memarg):
     if len(C["mems"]) < 1:
-        raise Exception("invalid")
+        raise InvalidModule("invalid")
     if 2 ** memarg["align"] > N // 8:
-        raise Exception("invalid")
+        raise InvalidModule("invalid")
     return [constants.INT32, t], []
 
 
 def spec_validate_memorysize(C):
     if len(C["mems"]) < 1:
-        raise Exception("invalid")
+        raise InvalidModule("invalid")
     return [], [constants.INT32]
 
 
 def spec_validate_memorygrow(C):
     if len(C["mems"]) < 1:
-        raise Exception("invalid")
+        raise InvalidModule("invalid")
     return [constants.INT32], [constants.INT32]
 
 
@@ -378,7 +379,7 @@ def spec_validate_block(C, tq, instrstar):
     type_ = spec_validate_instrstar(C, instrstar)
     C["labels"].pop()
     if type_ != ([], [tq] if tq else []):
-        raise Exception("invalid")
+        raise InvalidModule("invalid")
     return type_
 
 
@@ -387,7 +388,7 @@ def spec_validate_loop(C, tq, instrstar):
     type_ = spec_validate_instrstar(C, instrstar)
     C["labels"].pop()
     if type_ != ([], [tq] if tq else []):
-        raise Exception("invalid")
+        raise InvalidModule("invalid")
     return type_
 
 
@@ -395,61 +396,61 @@ def spec_validate_if(C, tq, instrstar1, instrstar2):
     C["labels"].append([tq] if tq else [])
     type_ = spec_validate_instrstar(C, instrstar1)
     if type_ != ([], [tq] if tq else []):
-        raise Exception("invalid")
+        raise InvalidModule("invalid")
     type_ = spec_validate_instrstar(C, instrstar2)
     if type_ != ([], [tq] if tq else []):
-        raise Exception("invalid")
+        raise InvalidModule("invalid")
     C["labels"].pop()
     return [constants.INT32], [tq] if tq else []
 
 
 def spec_validate_br(C, l):
     if len(C["labels"]) <= l:
-        raise Exception("invalid")
+        raise InvalidModule("invalid")
     tq_in_brackets = C["labels"][l]
     return ["t1*"] + tq_in_brackets, ["t2*"]
 
 
 def spec_validate_br_if(C, l):
     if len(C["labels"]) <= l:
-        raise Exception("invalid")
+        raise InvalidModule("invalid")
     tq_in_brackets = C["labels"][l]
     return tq_in_brackets + [constants.INT32], tq_in_brackets
 
 
 def spec_validate_br_table(C, lstar, lN):
     if len(C["labels"]) <= lN:
-        raise Exception("invalid")
+        raise InvalidModule("invalid")
     tq_in_brackets = C["labels"][lN]
     for li in lstar:
         if len(C["labels"]) <= li:
-            raise Exception("invalid")
+            raise InvalidModule("invalid")
         if C["labels"][li] != tq_in_brackets:
-            raise Exception("invalid")
+            raise InvalidModule("invalid")
     return ["t1*"] + tq_in_brackes + [constants.INT32], ["t2*"]
 
 
 def spec_validate_return(C):
     if C["return"] == None:
-        raise Exception("invalid")
+        raise InvalidModule("invalid")
     tq_in_brackets = C["return"]
     return ["t1*"] + tq_in_brackes + [constants.INT32], ["t2*"]
 
 
 def spec_validate_call(C, x):
     if len(C["funcs"]) <= x:
-        raise Exception("invalid")
+        raise InvalidModule("invalid")
     return C["funcs"][x]
 
 
 def spec_validate_call_indirect(C, x):
     if C["tables"] == None or len(C["tables"]) < 1:
-        raise Exception("invalid")
+        raise InvalidModule("invalid")
     limits, elemtype = C["tables"][0]
     if elemtype != "anyfunc":
-        raise Exception("invalid")
+        raise InvalidModule("invalid")
     if C["types"] == None or len(C["types"]) <= x:
-        raise Exception("invalid")
+        raise InvalidModule("invalid")
     return C["types"][x][0] + [constants.INT32], C["types"][x][1]
 
 
@@ -467,7 +468,7 @@ def spec_validate_expr(C, expr):
         expr, C, opd_stack, ctrl_stack
     )  # call to the algorithm in the appendix
     if len(opd_stack) > 1:
-        raise Exception("invalid")
+        raise InvalidModule("invalid")
     else:
         return opd_stack
 
@@ -480,9 +481,9 @@ def spec_validate_const_instr(C, instr):
         "f64.const",
         "get_global",
     }:
-        raise Exception("invalid")
+        raise InvalidModule("invalid")
     if instr[0] == "get_global" and C["globals"][instr[1]][0] != "const":
-        raise Exception("invalid")
+        raise InvalidModule("invalid")
     return "const"
 
 
@@ -492,7 +493,7 @@ def spec_validate_const_expr(C, expr):
     for e in expr[:-1]:
         spec_validate_const_instr(C, e)
     if expr[-1][0] != "end":
-        raise Exception("invalid")
+        raise InvalidModule("invalid")
     return "const"
 
 
@@ -506,7 +507,7 @@ def spec_validate_const_expr(C, expr):
 def spec_validate_func(C, func, raw=None):
     x = func["type"]
     if len(C["types"]) <= x:
-        raise Exception("invalid")
+        raise InvalidModule("invalid")
     t1 = C["types"][x][0]
     t2 = C["types"][x][1]
     C["locals"] = t1 + func["locals"]
@@ -537,9 +538,9 @@ def spec_validate_table(table):
 def spec_validate_mem(mem):
     ret = spec_validate_memtype(mem["type"])
     if mem["type"]["min"] > constants.PAGE_SIZE_64K:
-        raise Exception("invalid")
+        raise InvalidModule("invalid")
     if mem["type"]["max"] and mem["type"]["max"] > constants.PAGE_SIZE_64K:
-        raise Exception("invalid")
+        raise InvalidModule("invalid")
     return ret
 
 
@@ -553,7 +554,7 @@ def spec_validate_global(C, global_):
     instrstar = [["block", global_["type"][1], global_["init"]]]
     ret = spec_validate_expr(C, instrstar)
     if ret != [global_["type"][1]]:
-        raise Exception("invalid")
+        raise InvalidModule("invalid")
     ret = spec_validate_const_expr(C, global_["init"])
     return global_["type"]
 
@@ -564,21 +565,21 @@ def spec_validate_global(C, global_):
 def spec_validate_elem(C, elem):
     x = elem["table"]
     if "tables" not in C or len(C["tables"]) <= x:
-        raise Exception("invalid")
+        raise InvalidModule("invalid")
     tabletype = C["tables"][x]
     limits = tabletype[0]
     elemtype = tabletype[1]
     if elemtype != "anyfunc":
-        raise Exception("invalid")
+        raise InvalidModule("invalid")
     # first wrap in block with appropriate return type
     instrstar = [["block", constants.INT32, elem["offset"]]]
     ret = spec_validate_expr(C, instrstar)
     if ret != [constants.INT32]:
-        raise Exception("invalid")
+        raise InvalidModule("invalid")
     spec_validate_const_expr(C, elem["offset"])
     for y in elem["init"]:
         if len(C["funcs"]) <= y:
-            raise Exception("invalid")
+            raise InvalidModule("invalid")
     return 0
 
 
@@ -588,11 +589,11 @@ def spec_validate_elem(C, elem):
 def spec_validate_data(C, data):
     x = data["data"]
     if len(C["mems"]) <= x:
-        raise Exception("invalid")
+        raise InvalidModule("invalid")
     instrstar = [["block", constants.INT32, data["offset"]]]
     ret = spec_validate_expr(C, instrstar)
     if ret != [constants.INT32]:
-        raise Exception("invalid")
+        raise InvalidModule("invalid")
     spec_validate_const_expr(C, data["offset"])
     return 0
 
@@ -603,9 +604,9 @@ def spec_validate_data(C, data):
 def spec_validate_start(C, start):
     x = start["func"]
     if len(C["funcs"]) <= x:
-        raise Exception("invalid")
+        raise InvalidModule("invalid")
     if C["funcs"][x] != [[], []]:
-        raise Exception("invalid")
+        raise InvalidModule("invalid")
     return 0
 
 
@@ -620,25 +621,25 @@ def spec_validate_exportdesc(C, exportdesc):
     x = exportdesc[1]
     if exportdesc[0] == "func":
         if len(C["funcs"]) <= x:
-            raise Exception("invalid")
+            raise InvalidModule("invalid")
         return ["func", C["funcs"][x]]
     elif exportdesc[0] == "table":
         if len(C["tables"]) <= x:
-            raise Exception("invalid")
+            raise InvalidModule("invalid")
         return ["table", C["tables"][x]]
     elif exportdesc[0] == "mem":
         if len(C["mems"]) <= x:
-            raise Exception("invalid")
+            raise InvalidModule("invalid")
         return ["mem", C["mems"][x]]
     elif exportdesc[0] == "global":
         if len(C["globals"]) <= x:
-            raise Exception("invalid")
+            raise InvalidModule("invalid")
         mut, t = C["globals"][x]
         # TODO: verify compliance with the spec for this commented out line.
-        # if mut != "const": raise Exception("invalid") #TODO: this was in the spec, but tests fail linking.wast: $Mg exports a mutable global, seems not to parse in wabt
+        # if mut != "const": raise InvalidModule("invalid") #TODO: this was in the spec, but tests fail linking.wast: $Mg exports a mutable global, seems not to parse in wabt
         return ["global", C["globals"][x]]
     else:
-        raise Exception("invalid")
+        raise InvalidModule("invalid")
 
 
 # 3.4.9 IMPORTS
@@ -652,7 +653,7 @@ def spec_validate_importdesc(C, importdesc):
     if importdesc[0] == "func":
         x = importdesc[1]
         if len(C["funcs"]) <= x:
-            raise Exception("invalid")
+            raise InvalidModule("invalid")
         return ["func", C["types"][x]]
     elif importdesc[0] == "table":
         tabletype = importdesc[1]
@@ -665,10 +666,10 @@ def spec_validate_importdesc(C, importdesc):
     elif importdesc[0] == "global":
         globaltype = importdesc[1]
         spec_validate_globaltype(globaltype)
-        # if globaltype[0] != "const": raise Exception("invalid") #TODO: this was in the spec, but tests fail linking.wast: $Mg exports a mutable global, seems not to parse in wabt
+        # if globaltype[0] != "const": raise InvalidModule("invalid") #TODO: this was in the spec, but tests fail linking.wast: $Mg exports a mutable global, seems not to parse in wabt
         return ["global", globaltype]
     else:
-        raise Exception("invalid")
+        raise InvalidModule("invalid")
 
 
 # 3.4.10 MODULE
@@ -679,9 +680,8 @@ def spec_validate_module(mod):
     ftstar = []
     for func in mod["funcs"]:
         if len(mod["types"]) <= func["type"]:
-            raise Exception(
-                "invalid"
-            )  # this was not explicit in spec, how about other *tstar
+            # this was not explicit in spec, how about other *tstar
+            raise InvalidModule("invalid")
         ftstar += [mod["types"][func["type"]]]
     ttstar = [table["type"] for table in mod["tables"]]
     mtstar = [mem["type"] for mem in mod["mems"]]
@@ -690,7 +690,8 @@ def spec_validate_module(mod):
     for import_ in mod["imports"]:
         if import_["desc"][0] == "func":
             if len(mod["types"]) <= import_["desc"][1]:
-                raise Exception("invalid")  # this was not explicit in spec
+                # this was not explicit in spec
+                raise InvalidModule("invalid")
             itstar.append(["func", mod["types"][import_["desc"][1]]])
         else:
             itstar.append(import_["desc"])
@@ -725,19 +726,23 @@ def spec_validate_module(mod):
     for export in mod["exports"]:
         if export["desc"][0] == "func":
             if len(C["funcs"]) <= export["desc"][1]:
-                raise Exception("invalid")  # this was not explicit in spec
+                # this was not explicit in spec
+                raise InvalidModule("invalid")
             etstar.append(["func", C["funcs"][export["desc"][1]]])
         elif export["desc"][0] == "table":
             if len(C["tables"]) <= export["desc"][1]:
-                raise Exception("invalid")  # this was not explicit in spec
+                # this was not explicit in spec
+                raise InvalidModule("invalid")
             etstar.append(["table", C["tables"][export["desc"][1]]])
         elif export["desc"][0] == "mem":
             if len(C["mems"]) <= export["desc"][1]:
-                raise Exception("invalid")  # this was not explicit in spec
+                # this was not explicit in spec
+                raise InvalidModule("invalid")
             etstar.append(["mem", C["mems"][export["desc"][1]]])
         elif export["desc"][0] == "global":
             if len(C["globals"]) <= export["desc"][1]:
-                raise Exception("invalid")  # this was not explicit in spec
+                # this was not explicit in spec
+                raise InvalidModule("invalid")
             etstar.append(["global", C["globals"][export["desc"][1]]])
     # under the context C
     for functypei in mod["types"]:
@@ -745,19 +750,19 @@ def spec_validate_module(mod):
     for i, func in enumerate(mod["funcs"]):
         ft = spec_validate_func(C, func)
         if ft != ftstar[i][1]:
-            raise Exception("invalid")
+            raise InvalidModule("invalid")
     for i, table in enumerate(mod["tables"]):
         tt = spec_validate_table(table)
         if tt != ttstar[i]:
-            raise Exception("invalid")
+            raise InvalidModule("invalid")
     for i, mem in enumerate(mod["mems"]):
         mt = spec_validate_mem(mem)
         if mt != mtstar[i]:
-            raise Exception("invalid")
+            raise InvalidModule("invalid")
     for i, global_ in enumerate(mod["globals"]):
         gt = spec_validate_global(Cprime, global_)
         if gt != gtstar[i]:
-            raise Exception("invalid")
+            raise InvalidModule("invalid")
     for elem in mod["elem"]:
         spec_validate_elem(C, elem)
     for data in mod["data"]:
@@ -767,20 +772,20 @@ def spec_validate_module(mod):
     for i, import_ in enumerate(mod["imports"]):
         it = spec_validate_import(C, import_)
         if it != itstar[i]:
-            raise Exception("invalid")
+            raise InvalidModule("invalid")
     for i, export in enumerate(mod["exports"]):
         et = spec_validate_export(C, export)
         if et != etstar[i]:
-            raise Exception("invalid")
+            raise InvalidModule("invalid")
     if len(C["tables"]) > 1:
-        raise Exception("invalid")
+        raise InvalidModule("invalid")
     if len(C["mems"]) > 1:
-        raise Exception("invalid")
+        raise InvalidModule("invalid")
     # export names must be unique
     exportnames = set()
     for export in mod["exports"]:
         if export["name"] in exportnames:
-            raise Exception("invalid")
+            raise InvalidModule("invalid")
         exportnames.add(export["name"])
     return [itstar, etstar]
 
@@ -3394,7 +3399,7 @@ def spec_binary_fN_inv(node, N):
     return spec_bytest(get_float_type(N), node)
 
 
-EXCEPTIONS_TO_RERAISE = (Trap, Exhaustion)
+EXCEPTIONS_TO_RERAISE = (Trap, Exhaustion, InvalidModule)
 
 
 # 5.2.4 NAMES
@@ -4487,12 +4492,7 @@ def parse_module(codepointstar):
 
 
 def validate_module(module):
-    try:
-        spec_validate_module(module)
-    except EXCEPTIONS_TO_RERAISE:
-        raise
-    except Exception as e:
-        return "error: invalid"
+    spec_validate_module(module)
 
 
 def instantiate_module(store, module, externvalstar):
@@ -4513,16 +4513,12 @@ def instantiate_module(store, module, externvalstar):
 
 
 def module_imports(module):
-    try:
-        spec_validate_module(mod)
-    except EXCEPTIONS_TO_RERAISE:
-        raise
-    except:
-        return "error: invalid"
+    spec_validate_module(mod)
+
     externtypestar, extertypeprimestar = ret
     importstar = module["imports"]
     if len(importstar) != len(externtypestar):
-        return "error: wrong import length"
+        raise InvalidModule("invalid")
     result = []
     for i in range(len(importstar)):
         importi = importstar[i]
@@ -4533,12 +4529,8 @@ def module_imports(module):
 
 
 def module_exports(module):
-    try:
-        ret = spec_validate_module(mod)
-    except EXCEPTIONS_TO_RERAISE:
-        raise
-    except:
-        return "error: invalid"
+    ret = spec_validate_module(mod)
+
     externtypestar, extertypeprimestar = ret
     exportstar = module["exports"]
 
@@ -4787,9 +4779,9 @@ def spec_pop_opd(opds, ctrls):
         # TODO: remove magic values.
         return "Unknown"
     elif len(opds) == ctrls[-1]["height"]:
-        raise Exception("invalid")  # error
+        raise InvalidModule("invalid")  # error
     elif len(opds) == 0:
-        raise Exception("invalid")  # error, not in spec
+        raise InvalidModule("invalid")  # error, not in spec
     else:
         to_return = opds[-1]
         del opds[-1]
@@ -4799,14 +4791,14 @@ def spec_pop_opd(opds, ctrls):
 def spec_pop_opd_expect(opds, ctrls, expect):
     actual = spec_pop_opd(opds, ctrls)
     if actual == -1:
-        raise Exception("invalid")  # error
+        raise InvalidModule("invalid")  # error
     # in case one is unknown, the more specific one is returned
     elif actual == "Unknown":
         return expect
     elif expect == "Unknown":
         return actual
     elif actual != expect:
-        raise Exception("invalid")  # error
+        raise InvalidModule("invalid")  # error
     else:
         return actual
 
@@ -4852,15 +4844,15 @@ def spec_push_ctrl(opds, ctrls, label, out):
 
 def spec_pop_ctrl(opds, ctrls):
     if len(ctrls) < 1:
-        raise Exception("invalid")  # error
+        raise InvalidModule("invalid")  # error
     frame = ctrls[-1]
     # verify opd stack has right types to exit block, and pops them
     r = spec_pop_opds_expect(opds, ctrls, frame["end_types"])
     if r == -1:
-        raise Exception("invalid")  # error
+        raise InvalidModule("invalid")  # error
     # make shure stack is back to original height
     if len(opds) != frame["height"]:
-        raise Exception("invalid")  # error
+        raise InvalidModule("invalid")  # error
     del ctrls[-1]
     return frame["end_types"]
 
@@ -4908,17 +4900,17 @@ def spec_validate_opcode(C, opds, ctrls, opcode, immediates):
         elif opcode_binary == 0x0C:  # br
             n = immediates
             if n == None:
-                raise Exception("invalid")
+                raise InvalidModule("invalid")
             elif len(ctrls) <= n:
-                raise Exception("invalid")
+                raise InvalidModule("invalid")
             spec_pop_opds_expect(opds, ctrls, ctrls[-1 - n]["label_types"])
             spec_unreachable_(opds, ctrls)
         elif opcode_binary == 0x0D:  # br_if
             n = immediates
             if n == None:
-                raise Exception("invalid")
+                raise InvalidModule("invalid")
             elif len(ctrls) <= n:
-                raise Exception("invalid")
+                raise InvalidModule("invalid")
             spec_pop_opd_expect(opds, ctrls, constants.INT32)
             spec_pop_opds_expect(opds, ctrls, ctrls[-1 - n]["label_types"])
             spec_push_opds(opds, ctrls, ctrls[-1 - n]["label_types"])
@@ -4926,36 +4918,36 @@ def spec_validate_opcode(C, opds, ctrls, opcode, immediates):
             nstar = immediates[0]
             m = immediates[1]
             if len(ctrls) <= m:
-                raise Exception("invalid")
+                raise InvalidModule("invalid")
             for n in nstar:
                 if (
                     len(ctrls) <= n
                     or ctrls[-1 - n]["label_types"] != ctrls[-1 - m]["label_types"]
                 ):
-                    raise Exception("invalid")
+                    raise InvalidModule("invalid")
             spec_pop_opd_expect(opds, ctrls, constants.INT32)
             spec_pop_opds_expect(opds, ctrls, ctrls[-1 - m]["label_types"])
             spec_unreachable_(opds, ctrls)
         elif opcode_binary == 0x0F:  # return
             if "return" not in C:
-                raise Exception("invalid")
+                raise InvalidModule("invalid")
             t = C["return"]
             spec_pop_opds_expect(opds, ctrls, t)
             spec_unreachable_(opds, ctrls)
         elif opcode_binary == 0x10:  # call
             x = immediates
             if ("funcs" not in C) or len(C["funcs"]) <= x:
-                raise Exception("invalid")
+                raise InvalidModule("invalid")
             spec_pop_opds_expect(opds, ctrls, C["funcs"][x][0])
             spec_push_opds(opds, ctrls, C["funcs"][x][1])
         elif opcode_binary == 0x11:  # call_indirect
             x = immediates
             if ("tables" not in C) or len(C["tables"]) == 0:
-                raise Exception("invalid")
+                raise InvalidModule("invalid")
             elif C["tables"][0][1] != "anyfunc":
-                raise Exception("invalid")
+                raise InvalidModule("invalid")
             elif len(C["types"]) <= x:
-                raise Exception("invalid")
+                raise InvalidModule("invalid")
             spec_pop_opd_expect(opds, ctrls, constants.INT32)
             spec_pop_opds_expect(opds, ctrls, C["types"][x][0])
             spec_push_opds(opds, ctrls, C["types"][x][1])
@@ -4971,7 +4963,7 @@ def spec_validate_opcode(C, opds, ctrls, opcode, immediates):
         if opcode_binary == 0x20:  # get_local
             x = immediates
             if len(C["locals"]) <= x:
-                raise Exception("invalid")
+                raise InvalidModule("invalid")
             elif C["locals"][x] == constants.INT32:
                 spec_push_opd(opds, constants.INT32)
             elif C["locals"][x] == constants.INT64:
@@ -4981,11 +4973,11 @@ def spec_validate_opcode(C, opds, ctrls, opcode, immediates):
             elif C["locals"][x] == constants.FLOAT64:
                 spec_push_opd(opds, constants.FLOAT64)
             else:
-                raise Exception("invalid")
+                raise InvalidModule("invalid")
         elif opcode_binary == 0x21:  # set_local
             x = immediates
             if len(C["locals"]) <= x:
-                raise Exception("invalid")
+                raise InvalidModule("invalid")
             elif C["locals"][x] == constants.INT32:
                 ret = spec_pop_opd_expect(opds, ctrls, constants.INT32)
             elif C["locals"][x] == constants.INT64:
@@ -4995,11 +4987,11 @@ def spec_validate_opcode(C, opds, ctrls, opcode, immediates):
             elif C["locals"][x] == constants.FLOAT64:
                 ret = spec_pop_opd_expect(opds, ctrls, constants.FLOAT64)
             else:
-                raise Exception("invalid")
+                raise InvalidModule("invalid")
         elif opcode_binary == 0x22:  # tee_local
             x = immediates
             if len(C["locals"]) <= x:
-                raise Exception("invalid")
+                raise InvalidModule("invalid")
             elif C["locals"][x] == constants.INT32:
                 spec_pop_opd_expect(opds, ctrls, constants.INT32)
                 spec_push_opd(opds, constants.INT32)
@@ -5013,11 +5005,11 @@ def spec_validate_opcode(C, opds, ctrls, opcode, immediates):
                 spec_pop_opd_expect(opds, ctrls, constants.FLOAT64)
                 spec_push_opd(opds, constants.FLOAT64)
             else:
-                raise Exception("invalid")
+                raise InvalidModule("invalid")
         elif opcode_binary == 0x23:  # get_global
             x = immediates
             if len(C["globals"]) <= x:
-                raise Exception("invalid")
+                raise InvalidModule("invalid")
             elif C["globals"][x][1] == constants.INT32:
                 spec_push_opd(opds, constants.INT32)
             elif C["globals"][x][1] == constants.INT64:
@@ -5027,13 +5019,13 @@ def spec_validate_opcode(C, opds, ctrls, opcode, immediates):
             elif C["globals"][x][1] == constants.FLOAT64:
                 spec_push_opd(opds, constants.FLOAT64)
             else:
-                raise Exception("invalid")
+                raise InvalidModule("invalid")
         elif opcode_binary == 0x24:  # set_global
             x = immediates
             if len(C["globals"]) <= x:
-                raise Exception("invalid")
+                raise InvalidModule("invalid")
             elif C["globals"][x][0] != "var":
-                raise Exception("invalid")
+                raise InvalidModule("invalid")
             elif C["globals"][x][1] == constants.INT32:
                 ret = spec_pop_opd_expect(opds, ctrls, constants.INT32)
             elif C["globals"][x][1] == constants.INT64:
@@ -5043,12 +5035,12 @@ def spec_validate_opcode(C, opds, ctrls, opcode, immediates):
             elif C["globals"][x][1] == constants.FLOAT64:
                 ret = spec_pop_opd_expect(opds, ctrls, constants.FLOAT64)
             else:
-                raise Exception("invalid")
+                raise InvalidModule("invalid")
         else:
             raise Exception(f"Unexpected opcode value: {opcode_binary}")
     elif 0x28 <= opcode_binary <= 0x40:  # MEMORY INSTRUCTIONS
         if "mems" not in C or len(C["mems"]) == 0:
-            raise Exception("invalid")
+            raise InvalidModule("invalid")
         elif opcode_binary <= 0x35:
             memarg = immediates
             if opcode_binary == 0x28:  # i32.load
@@ -5082,7 +5074,7 @@ def spec_validate_opcode(C, opds, ctrls, opcode, immediates):
                 raise Exception(f"Unexpected opcode value: {opcode_binary}")
 
             if 2 ** memarg["align"] > N // 8:
-                raise Exception("invalid")
+                raise InvalidModule("invalid")
             spec_pop_opd_expect(opds, ctrls, constants.INT32)
             spec_push_opd(opds, t)
         elif opcode_binary <= 0x3E:
@@ -5116,7 +5108,7 @@ def spec_validate_opcode(C, opds, ctrls, opcode, immediates):
                 t = constants.INT64
 
             if 2 ** memarg["align"] > N // 8:
-                raise Exception("invalid")
+                raise InvalidModule("invalid")
 
             spec_pop_opd_expect(opds, ctrls, t)
             spec_pop_opd_expect(opds, ctrls, constants.INT32)
@@ -5259,7 +5251,7 @@ def iterate_through_expression_and_validate_each_opcode(
 ):
     for node in expression:
         if type(node[0]) != str:
-            raise Exception("invalid")  # error
+            raise InvalidModule("invalid")  # error
         opcode = node[0]
         # get immediate
         immediate = None
