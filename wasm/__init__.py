@@ -622,6 +622,8 @@ def spec_validate_exportdesc(C, exportdesc):
         if len(C["globals"]) <= x:
             raise Exception("invalid")
         mut, t = C["globals"][x]
+        # TODO: verify compliance with the spec for this commented out line.
+        # if mut != "const": raise Exception("invalid") #TODO: this was in the spec, but tests fail linking.wast: $Mg exports a mutable global, seems not to parse in wabt
         return ["global", C["globals"][x]]
     else:
         raise Exception("invalid")
@@ -1793,10 +1795,11 @@ def spec_reinterprett1t2(t1, t2, c):
 
 
 def spec_tconst(config):
-    logger.debug("spec_tconst()")
-
     S = config["S"]
     c = config["instrstar"][config["idx"]][1]
+
+    logger.debug("spec_tconst(%s)", c)
+
     config["operand_stack"] += [c]
     config["idx"] += 1
 
@@ -2423,6 +2426,10 @@ def spec_invoke_function_address(config, a=None):
         config["instrstar"] = blockinstrstarendend
         config["idx"] = 0
         config["control_stack"] = []
+        # TODO: confirm that 1) this code path is actually used and two that it
+        # complies with the spec.  Multiple lines of commented code were
+        # removed from here indicating there may be in-implemented or
+        # incorrectly implemented logic
     elif "hostcode" in f:
         valn = []
         if len(t1n) > 0:
