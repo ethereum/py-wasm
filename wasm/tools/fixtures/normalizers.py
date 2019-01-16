@@ -6,6 +6,10 @@ from typing import (
     Union,
 )
 
+from wasm import (
+    constants,
+)
+
 from .datatypes import (
     Action,
     ActionCommand,
@@ -57,11 +61,11 @@ def normalize_argument(raw_argument: Dict[str, str]) -> Argument:
 
     _type = raw_argument['type']
 
-    if _type in {'i32', 'i64'}:
+    if _type in constants.INTEGER_TYPES:
         value = int(raw_argument['value'])
-    elif _type == 'f32':
+    elif _type == constants.FLOAT32:
         value = int_to_float(32, int(raw_argument['value']))
-    elif _type == 'f64':
+    elif _type == constants.FLOAT64:
         value = int_to_float(64, int(raw_argument['value']))
     else:
         raise Exception(f"Unhandled type: {_type} | value: {raw_argument['value']}")
@@ -118,11 +122,11 @@ def normalize_expected(raw_expected: Dict[str, str]) -> Expected:
     _type = raw_expected['type']
 
     if 'value' in raw_expected:
-        if _type in {'i32', 'i64'}:
+        if _type in constants.INTEGER_TYPES:
             value = int(raw_expected['value'])
-        elif _type == 'f32':
+        elif _type == constants.FLOAT32:
             value = int_to_float(32, int(raw_expected['value']))
-        elif _type == 'f64':
+        elif _type == constants.FLOAT64:
             value = int_to_float(64, int(raw_expected['value']))
         else:
             raise Exception(f"Unhandled type: {_type} | value: {raw_expected['value']}")

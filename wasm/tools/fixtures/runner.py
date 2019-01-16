@@ -11,6 +11,9 @@ from _pytest.outcomes import (
     Failed,
 )
 import wasm
+from wasm import (
+    constants,
+)
 from wasm.exceptions import (
     Exhaustion,
     InvalidModule,
@@ -212,11 +215,11 @@ def do_assert_return(command, store, module, all_modules, registered_modules):
         expected_val = expected.value
         expected_type = expected.type
 
-        if expected_type in {"i32", "i64"}:
+        if expected_type in constants.INTEGER_TYPES:
             logger.debug("expected: %s | actual: %s", expected_val, actual)
 
             assert actual == expected_val
-        elif expected_type in {"f32", "f64"}:
+        elif expected_type in constants.FLOAT_TYPES:
             logger.info("Floating point operations not yet implemented")
             return
 
