@@ -27,10 +27,9 @@ This code follows the WebAssembly spec closely. Differences from spec follow.
  - Exection in the spec uses rewrite/substitution rules on the instruction sequence, but this would be inefficient, so, like most implementations, we maintain stacks instead of modifying the instruction sequence. This is explained more in section 4.4.5 below.
  - In instantiate_module() we also return the return value, since there seems to be no other way to get the value returned by the start function. We will approach the spec writers about this.
 """
-
-
 import math  # for some floating-point methods
 import struct  # for encoding/decoding floats
+from typing import NamedTuple
 
 
 verbose = 0
@@ -3282,9 +3281,9 @@ for opcode in opcodes_binary2text:
 
 def spec_binary_vec(raw, idx, B):
     # print("spec_binary_vec(",idx,")")
-    idx, n = spec_binary_uN(raw, idx, 32)
+    idx, num = spec_binary_uN(raw, idx, 32)
     xn = []
-    for i in range(n):
+    for i in range(num):
         idx, x = B(raw, idx)
         xn += [x]
     return idx, xn
@@ -4228,18 +4227,28 @@ def spec_binary_code(raw, idx):
 
 def spec_binary_func(raw, idx):
     idx, tstarstar = spec_binary_vec(raw, idx, spec_binary_locals)
-    idx, e = spec_binary_expr(raw, idx)
-    concattstarstar = [t for tstar in tstarstar for t in tstar]
-    if len(concattstarstar) >= 2 ** 32:
+    num_locals = sum(locals_info.num for locals_info in tstarstar)
+    if num_locals >= 2 ** 32:
         raise Exception("malformed")
+    idx, e = spec_binary_expr(raw, idx)
+    concattstarstar = [
+        locals_info.type_
+        for locals_info
+        in tstarstar
+        for _ in range(locals_info.num)
+    ]
     return idx, [concattstarstar, e]
 
 
+class LocalsInfo(NamedTuple):
+    num: int
+    type_: str
+
+
 def spec_binary_locals(raw, idx):
-    idx, n = spec_binary_uN(raw, idx, 32)
-    idx, t = spec_binary_valtype(raw, idx)
-    tn = [t] * n
-    return idx, tn
+    idx, num = spec_binary_uN(raw, idx, 32)
+    idx, type_ = spec_binary_valtype(raw, idx)
+    return idx, LocalsInfo(num, type_)
 
 
 def spec_binary_codesec_inv(node):
@@ -4390,6 +4399,9 @@ def spec_binary_module(raw):
     while idx < len(raw) and raw[idx] == 0:
         idx, customsec = spec_binary_customsec(raw, idx, 0)
 
+    # TODO: It appears that this function incorrectly exits early once it
+    # encounters an invalid section id.  See `tests/custom.wast`.
+
     funcn = []
     if typeidxn and coden and len(typeidxn) == len(coden):
         for i in range(len(typeidxn)):
@@ -4457,7 +4469,9 @@ def init_store():
 def decode_module(bytestar):
     try:
         mod = spec_binary_module(bytestar)
-    except:
+    except AssertionError:
+        raise
+    except Exception as err:
         return "malformed"
     return mod
 
