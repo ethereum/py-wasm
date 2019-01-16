@@ -62,9 +62,6 @@ def instantiate_module_from_wasm_file(
         wasmbytes = memoryview(wasm_module_file.read())
         module = wasm.decode_module(wasmbytes)
 
-        if module == "malformed":
-            raise MalformedModule(f"Malformed wasm module: {file_path.name}")
-
         # validate
         ret = wasm.validate_module(module)
 

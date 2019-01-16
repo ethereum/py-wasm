@@ -38,6 +38,7 @@ from wasm import (
 from wasm.exceptions import (
     Exhaustion,
     InvalidModule,
+    MalformedModule,
     Trap,
 )
 from wasm._utils.types import (
@@ -3308,7 +3309,7 @@ def spec_binary_vec_inv(mynode, myfunc):
 
 def spec_binary_byte(raw, idx):
     if len(raw) <= idx:
-        raise Exception("malformed")
+        raise MalformedModule("malformed")
     return idx + 1, raw[idx]
 
 
@@ -3329,7 +3330,7 @@ def spec_binary_uN(raw, idx, N):
         idx, m = spec_binary_uN(raw, idx, N - 7)
         return idx, (2 ** 7) * m + (n - 2 ** 7)
     else:
-        raise Exception("malformed")
+        raise MalformedModule("malformed")
 
 
 def spec_binary_uN_inv(k, N):
@@ -3342,7 +3343,7 @@ def spec_binary_uN_inv(k, N):
             k // (2 ** 7), N - 7
         )
     else:
-        raise Exception("malformed")
+        raise MalformedModule("malformed")
 
 
 # signed
@@ -3357,7 +3358,7 @@ def spec_binary_sN(raw, idx, N):
         idx, m = spec_binary_sN(raw, idx, N - 7)
         return idx, 2 ** 7 * m + (n - 2 ** 7)
     else:
-        raise Exception("malformed")
+        raise MalformedModule("malformed")
 
 
 def spec_binary_sN_inv(k, N):
@@ -3370,7 +3371,7 @@ def spec_binary_sN_inv(k, N):
             (k // (2 ** 7)), N - 7
         )
     else:
-        raise Exception("malformed")
+        raise MalformedModule("malformed")
 
 
 # uninterpretted integers
@@ -3399,7 +3400,7 @@ def spec_binary_fN_inv(node, N):
     return spec_bytest(get_float_type(N), node)
 
 
-EXCEPTIONS_TO_RERAISE = (Trap, Exhaustion, InvalidModule)
+EXCEPTIONS_TO_RERAISE = (Trap, Exhaustion, InvalidModule, MalformedModule)
 
 
 # 5.2.4 NAMES
@@ -3409,12 +3410,7 @@ def spec_binary_name(raw, idx):
     logger.debug('spec_binary_name()')
     idx, bstar = spec_binary_vec(raw, idx, spec_binary_byte)
 
-    try:
-        nametxt = bytearray(bstar).decode()
-    except EXCEPTIONS_TO_RERAISE:
-        raise
-    except:
-        raise Exception("malformed")
+    nametxt = bytearray(bstar).decode()
 
     return idx, nametxt
 
@@ -3425,17 +3421,17 @@ def spec_binary_name(raw, idx):
     name = []
     while bstaridx < lenbstar:
         if bstaridx >= len(bstar):
-            raise Exception("malformed")
+            raise MalformedModule("malformed")
         b1 = bstar[bstaridx]
         bstaridx += 1
         if b1 < 0x80:
             name += [b1]
             continue
         if bstaridx >= len(bstar):
-            raise Exception("malformed")
+            raise MalformedModule("malformed")
         b2 = bstar[bstaridx]
         if b2 >> 6 != 0b01:
-            raise Exception("malformed")
+            raise MalformedModule("malformed")
         bstaridx += 1
         c = (2 ** 6) * (b1 - 0xC0) + (b2 - 0x80)
         # c_check = 2**6*(b1-192) + (b2-128)
@@ -3443,20 +3439,20 @@ def spec_binary_name(raw, idx):
             name += [c]
             continue
         if bstaridx >= len(bstar):
-            raise Exception("malformed")
+            raise MalformedModule("malformed")
         b3 = bstar[bstaridx]
         if b2 >> 5 != 0b011:
-            raise Exception("malformed")
+            raise MalformedModule("malformed")
         bstaridx += 1
         c = (constants.UINT12_CEIL) * (b1 - 0xE0) + (2 ** 6) * (b2 - 0x80) + (b3 - 0x80)
         if 0x800 <= c < 0x10000 and (b2 >> 6 == 0b01):
             name += [c]
             continue
         if bstaridx >= len(bstar):
-            raise Exception("malformed")
+            raise MalformedModule("malformed")
         b4 = bstar[bstaridx]
         if b2 >> 4 != 0b0111:
-            raise Exception("malformed")
+            raise MalformedModule("malformed")
         bstaridx += 1
         c = (
             constants.UINT18_CEIL * (b1 - 0xF0)
@@ -3467,7 +3463,7 @@ def spec_binary_name(raw, idx):
         if 0x10000 <= c < 0x110000:
             name += [c]
         else:
-            raise Exception("malformed")
+            raise MalformedModule("malformed")
     # convert each codepoint to utf8 character
     nametxt = ""
     for c in name:
@@ -3514,11 +3510,11 @@ bin2valtype = {val: key for key, val in valtype2bin.items()}
 
 def spec_binary_valtype(raw, idx):
     if idx >= len(raw):
-        raise Exception("malformed")
+        raise MalformedModule("malformed")
     elif raw[idx] in bin2valtype:
         return idx + 1, bin2valtype[raw[idx]]
     else:
-        raise Exception("malformed")
+        raise MalformedModule("malformed")
 
 
 def spec_binary_valtype_inv(node):
@@ -3554,7 +3550,7 @@ def spec_binary_blocktype_inv(node):
 
 def spec_binary_functype(raw, idx):
     if raw[idx] != 0x60:
-        raise Exception("malformed")
+        raise MalformedModule("malformed")
     idx += 1
     idx, t1star = spec_binary_vec(raw, idx, spec_binary_valtype)
     idx, t2star = spec_binary_vec(raw, idx, spec_binary_valtype)
@@ -3619,7 +3615,7 @@ def spec_binary_elemtype(raw, idx):
     if raw[idx] == 0x70:
         return idx + 1, "anyfunc"
     else:
-        raise Exception("malformed")
+        raise MalformedModule("malformed")
 
 
 def spec_binary_tabletype_inv(node):
@@ -3645,7 +3641,7 @@ def spec_binary_mut(raw, idx):
     elif raw[idx] == 0x01:
         return idx + 1, "var"
     else:
-        raise Exception("malformed")
+        raise MalformedModule("malformed")
 
 
 def spec_binary_globaltype_inv(node):
@@ -3726,7 +3722,7 @@ def spec_binary_instr(raw, idx):
         if instr_text == "call_indirect":
             idx, x = spec_binary_typeidx(raw, idx)
             if raw[idx] != 0x00:
-                raise Exception("malformed")
+                raise MalformedModule("malformed")
             idx += 1
         return idx, [instr_text, x]
     elif 0x20 <= instr_binary <= 0x22:  # get_local, etc
@@ -3740,7 +3736,7 @@ def spec_binary_instr(raw, idx):
         return idx, [instr_text, m]
     elif 0x3F <= instr_binary <= 0x40:  # current_memory, grow_memory
         if raw[idx] != 0x00:
-            raise Exception("malformed")
+            raise MalformedModule("malformed")
         return idx + 1, [instr_text]
     elif 0x41 <= instr_binary <= 0x42:  # i32.const, etc
         n = 0
@@ -3753,11 +3749,11 @@ def spec_binary_instr(raw, idx):
         z = 0
         if instr_text == "f32.const":
             if len(raw) <= idx + 4:
-                raise Exception("malformed")
+                raise MalformedModule("malformed")
             idx, z = spec_binary_fN(raw, idx, 32)
         if instr_text == "f64.const":
             if len(raw) <= idx + 8:
-                raise Exception("malformed")
+                raise MalformedModule("malformed")
             idx, z = spec_binary_fN(raw, idx, 64)
         return idx, [instr_text, z]
     else:
@@ -3936,7 +3932,7 @@ def spec_binary_sectionN(raw, idx, N, B, skip):
         idx, ret = spec_binary_vec(raw, idx, B)
 
     if idx != idx_plus_size:
-        raise Exception("malformed")
+        raise MalformedModule("malformed")
     return idx, ret
 
 
@@ -4239,9 +4235,9 @@ def spec_binary_code(raw, idx):
     idx, code = spec_binary_func(raw, idx)
 
     if idx_end != idx:
-        raise Exception("malformed")
+        raise MalformedModule("malformed")
     elif len(code) >= constants.UINT32_CEIL:
-        raise Exception("malformed")
+        raise MalformedModule("malformed")
     else:
         return idx, code
 
@@ -4250,7 +4246,7 @@ def spec_binary_func(raw, idx):
     idx, tstarstar = spec_binary_vec(raw, idx, spec_binary_locals)
     num_locals = sum(locals_info.num for locals_info in tstarstar)
     if num_locals >= constants.UINT32_CEIL:
-        raise Exception("malformed")
+        raise MalformedModule("malformed")
     idx, e = spec_binary_expr(raw, idx)
     concattstarstar = [
         locals_info.type_
@@ -4333,11 +4329,11 @@ def spec_binary_module(raw):
     idx = 0
     magic = [0x00, 0x61, 0x73, 0x6D]
     if magic != [x for x in raw[idx : idx + 4]]:
-        raise Exception("malformed")
+        raise MalformedModule("malformed")
     idx += 4
     version = [0x01, 0x00, 0x00, 0x00]
     if version != [x for x in raw[idx : idx + 4]]:
-        raise Exception("malformed")
+        raise MalformedModule("malformed")
     idx += 4
 
     while idx < len(raw) and raw[idx] == 0:
@@ -4503,7 +4499,7 @@ def instantiate_module(store, module, externvalstar):
     except EXCEPTIONS_TO_RERAISE:
         raise
     except Exception as err:
-        if err.args[0] in {"trap", "exhaustion"}:
+        if err.args[0] in {"trap", "exhaustion", "invalid", "malformed"}:
             raise Exception("Invariant: these exceptions should no longer be using the base exception class") from err
         return store, "error", err.args[0]
 
