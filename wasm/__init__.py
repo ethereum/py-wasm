@@ -1825,9 +1825,6 @@ def spec_tunop(config):
     c1 = config["operand_stack"].pop()
     c = op(get_bit_size(t), c1)
 
-    if c == "trap":
-        return c
-
     config["operand_stack"].append(c)
     config["idx"] += 1
 
@@ -1843,9 +1840,6 @@ def spec_tbinop(config):
     c1 = config["operand_stack"].pop()
     c = op(get_bit_size(t), c1, c2)
 
-    if c == "trap":
-        return c
-
     config["operand_stack"].append(c)
     config["idx"] += 1
 
@@ -1859,9 +1853,6 @@ def spec_ttestop(config):
     op = opcode2exec[instr][1]
     c1 = config["operand_stack"].pop()
     c = op(get_bit_size(t), c1)
-
-    if c == "trap":
-        return c
 
     config["operand_stack"].append(c)
     config["idx"] += 1
@@ -1877,9 +1868,6 @@ def spec_trelop(config):
     c2 = config["operand_stack"].pop()
     c1 = config["operand_stack"].pop()
     c = op(get_bit_size(t), c1, c2)
-
-    if c == "trap":
-        return c
 
     config["operand_stack"].append(c)
     config["idx"] += 1
@@ -1898,9 +1886,6 @@ def spec_t2cvtopt1(config):
         c2 = op(t1, t2, c1)
     else:
         c2 = op(int(t1[1:]), int(t2[1:]), c1)
-
-    if c2 == "trap":
-        return c2
 
     config["operand_stack"].append(c2)
     config["idx"] += 1
@@ -2448,8 +2433,7 @@ def spec_invoke_function_address(config, a=None):
             valn = operand_stack[-1 * len(t1n) :]
             del operand_stack[-1 * len(t1n) :]
         S, ret = f["hostcode"](S, valn)
-        if ret == "trap":
-            return ret
+
         operand_stack += ret
         config["idx"] += 1
     else:
@@ -2676,7 +2660,7 @@ def instrstarend_loop(config):
         ]  # idx<len(instrs) since instrstar[-1]=="end" which changes instrstar
         ret = opcode2exec[instr][0](config)
         if ret:
-            return ret, config["operand_stack"]  # eg "trap" or "done"
+            return ret, config["operand_stack"]  # eg "done"
 
 
 # this executes instr* end. This deviates from the spec.
@@ -2690,9 +2674,7 @@ def spec_expr(config):
         ]  # idx<len(instrs) since instrstar[-1]=="end" which changes instrstar
         ret = opcode2exec[instr][0](config)
 
-        if ret == "trap":
-            raise Trap("trap")
-        elif ret == "exhaustion":
+        if ret == "exhaustion":
             raise Exception("exhaustion")
         elif ret:
             return config["operand_stack"]
@@ -5360,8 +5342,7 @@ def instantiate_wasm_invoke_func(filename, funcname, args):
     funcaddr = externval[1]
     valstar = [["i32.const", int(arg)] for arg in args]
     store, ret = invoke_func(store, funcaddr, valstar)
-    if ret == "trap":
-        return "error, invokation resulted in a trap"
+
     if type(ret) == list and len(ret) > 0:
         ret = ret[0]
     return ret
