@@ -4502,8 +4502,10 @@ def instantiate_module(store, module, externvalstar):
         ret = spec_instantiate(store, module, externvalstar)
     except EXCEPTIONS_TO_RERAISE:
         raise
-    except Exception as e:
-        return store, "error", e.args[0]
+    except Exception as err:
+        if err.args[0] in {"trap", "exhaustion"}:
+            raise Exception("Invariant: these exceptions should no longer be using the base exception class") from err
+        return store, "error", err.args[0]
 
     store, F, startret = ret
     modinst = F["module"]
