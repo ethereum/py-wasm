@@ -535,9 +535,9 @@ def spec_validate_table(table):
 
 def spec_validate_mem(mem):
     ret = spec_validate_memtype(mem["type"])
-    if mem["type"]["min"] > 65536:
+    if mem["type"]["min"] > constants.PAGE_SIZE_64K:
         raise Exception("invalid")
-    if mem["type"]["max"] and mem["type"]["max"] > 65536:
+    if mem["type"]["max"] and mem["type"]["max"] > constants.PAGE_SIZE_64K:
         raise Exception("invalid")
     return ret
 
@@ -896,9 +896,7 @@ def spec_fbitsN(N, z):
     elif N == 64:
         z_bytes = struct.pack(">d", z)
     else:
-        raise Exception(
-            f"Invariant: bit size must be one of 32/64 - Got '{N}'"
-        )
+        raise Exception(f"Invariant: bit size must be one of 32/64 - Got '{N}'")
 
     # stryct.pack() gave us bytes, need bits
     bits = ""
@@ -2077,7 +2075,7 @@ def spec_memorysize(config):
     F = config["F"]
     a = F[-1]["module"]["memaddrs"][0]
     mem = S["mems"][a]
-    sz = len(mem["data"]) // 65536  # page size = 64 Ki = 65536
+    sz = len(mem["data"]) // constants.PAGE_SIZE_64K
     config["operand_stack"].append(sz)
     config["idx"] += 1
 
@@ -2089,10 +2087,10 @@ def spec_memorygrow(config):
     F = config["F"]
     a = F[-1]["module"]["memaddrs"][0]
     mem = S["mems"][a]
-    sz = len(mem["data"]) // 65536  # page size = 64 Ki = 65536
+    sz = len(mem["data"]) // constants.PAGE_SIZE_64K
     n = config["operand_stack"].pop()
     spec_growmem(mem, n)
-    if sz + n == len(mem["data"]) // 65536:  # success
+    if sz + n == len(mem["data"]) // constants.PAGE_SIZE_64K:  # success
         config["operand_stack"].append(sz)
     else:
         # TODO: this potentially ends up leaving the memory in an invalid state
@@ -2716,8 +2714,11 @@ def spec_external_typing(S, externval):
         meminst = S["mems"][a]
         return [
             "mem",
-            {"min": len(meminst["data"]) // 65536, "max": meminst["max"]},
-        ]  # page size = 64 Ki = 65536
+            {
+                "min": len(meminst["data"]) // constants.PAGE_SIZE_64K,
+                "max": meminst["max"],
+            },
+        ]
     elif "global" == externval[0]:
         a = externval[1]
         if len(S["globals"]) < a:
@@ -2821,9 +2822,9 @@ def spec_allocmem(S, memtype):
     max_ = memtype["max"]
     memaddr = len(S["mems"])
     meminst = {
-        "data": bytearray(min_ * 65536),
+        "data": bytearray(min_ * constants.PAGE_SIZE_64K),
         "max": max_,
-    }  # page size = 64 Ki = 65536
+    }
     S["mems"].append(meminst)
     return S, memaddr
 
@@ -2857,10 +2858,10 @@ def spec_growtable(tableinst, n):
 def spec_growmem(meminst, n):
     logger.debug('spec_growmem()')
 
-    if len(meminst["data"]) % 65536 != 0:
+    if len(meminst["data"]) % constants.PAGE_SIZE_64K != 0:
         raise Exception("TODO: more appropriate exception type")
 
-    len_ = n + len(meminst["data"]) // 65536
+    len_ = n + len(meminst["data"]) // constants.PAGE_SIZE_64K
     if len_ >= constants.UINT16_CEIL:
         return "fail"
     elif meminst["max"] != None and meminst["max"] < len_:
@@ -2868,7 +2869,7 @@ def spec_growmem(meminst, n):
         # TODO: what does fail mean? raise Exception("trap")
 
     meminst["data"] += bytearray(
-        n * 65536
+        n * constants.PAGE_SIZE_64K
     )  # each page created with bytearray(65536) which is 0s
 
 
@@ -4667,8 +4668,8 @@ def type_mem(store, memaddr):
     meminst = store["mems"][memaddr]
     max_ = meminst["max"]
     min_ = (
-        len(meminst["data"]) // 65536
-    )  # page size = 64 Ki = 65536 #TODO: is this min OK?
+        len(meminst["data"]) // constants.PAGE_SIZE_64K
+    )  #TODO: is this min OK?
 
 
 def read_mem(store, memaddr, i):
@@ -4701,7 +4702,7 @@ def write_mem(store, memaddr, i, byte):
 def size_mem(store, memaddr):
     if len(store["mems"]) <= memaddr:
         return "error"
-    return len(store["mems"][memaddr]) // 65536  # page size = 64 Ki = 65536
+    return len(store["mems"][memaddr]) // constants.PAGE_SIZE_64K
 
 
 def grow_mem(store, memaddr, n):
