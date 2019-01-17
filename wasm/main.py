@@ -3,6 +3,7 @@ import math
 import struct
 from typing import (
     NamedTuple,
+    Tuple,
 )
 
 from wasm import (
@@ -14,6 +15,9 @@ from wasm._utils.types import (
     is_float_type,
     is_integer_type,
 )
+from wasm.datatypes import (
+    Limits,
+)
 from wasm.exceptions import (
     Exhaustion,
     InvalidModule,
@@ -21,6 +25,10 @@ from wasm.exceptions import (
     Trap,
     Unlinkable,
     ValidationError,
+)
+from wasm.typing import (
+    Store,
+    UInt32,
 )
 
 logger = logging.getLogger('wasm.spec')
@@ -144,7 +152,9 @@ def spec_globals(star):
 ################
 ################
 
-# Chapter 3 defines validation rules over the abstract syntax. These rules constrain the syntax, but provide properties such as type-safety. An almost-complete implementation is available as a feature-branch.
+# Chapter 3 defines validation rules over the abstract syntax. These rules
+# constrain the syntax, but provide properties such as type-safety. An
+# almost-complete implementation is available as a feature-branch.
 
 
 ###########
@@ -154,14 +164,20 @@ def spec_globals(star):
 # 3.2.1 LIMITS
 
 
-def spec_validate_limit(limits, k):
-    n = limits["min"]
-    m = limits["max"]
-    if n > k:
-        raise InvalidModule("invalid")
-    if m != None and (m > k or m < n):
-        raise InvalidModule("invalid")
-    return k
+def spec_validate_limit(limits: Limits, upper_bound: UInt32) -> None:
+    """
+    https://webassembly.github.io/spec/core/bikeshed/index.html#limits%E2%91%A2
+    """
+    if limits.min > upper_bound:
+        raise InvalidModule(f"Limits.min exceeds upper bound: {limits.min} > {upper_bound}")
+    elif limits.max is not None:
+        if limits.max > upper_bound:
+            raise InvalidModule(f"Limits.max exceeds upper bound: {limits.max} > {upper_bound}")
+        elif limits.max < limits.min:
+            raise InvalidModule(
+                f"Limits.max cannot be greater than Limits.min: {limits.max} > "
+                f"{limits.min}"
+            )
 
 
 # 3.2.2 FUNCTION TYPES
@@ -189,7 +205,7 @@ def spec_validate_tabletype(tt):
 # 3.2.4 MEMORY TYPES
 
 
-def spec_validate_memtype(limits):
+def spec_validate_memtype(limits: Limits) -> Limits:
     # TODO: use of UINT32_CEIL may be incorrect here as `validate_limit` checks
     # against the value using `>`.  Check looks like it **should** be using
     # `>=` to ensure that the limit bounds fit withint a UINT32 but updating
@@ -511,10 +527,12 @@ def spec_validate_table(table):
 
 
 def spec_validate_mem(mem):
-    ret = spec_validate_memtype(mem["type"])
-    if mem["type"]["min"] > constants.PAGE_SIZE_64K:
+    limits = mem["type"]
+    ret = spec_validate_memtype(limits)
+
+    if limits.min > constants.PAGE_SIZE_64K:
         raise InvalidModule("invalid")
-    if mem["type"]["max"] and mem["type"]["max"] > constants.PAGE_SIZE_64K:
+    elif limits.max and limits.max > constants.PAGE_SIZE_64K:
         raise InvalidModule("invalid")
     return ret
 
@@ -2680,7 +2698,7 @@ def spec_external_typing(S, externval):
         tableinst = S["tables"][a]
         return [
             "table",
-            [{"min": len(tableinst["elem"]), "max": tableinst["max"]}, "anyfunc"],
+            [Limits(len(tableinst["elem"]), tableinst["max"]), "anyfunc"],
         ]
     elif "mem" == externval[0]:
         a = externval[1]
@@ -2689,10 +2707,10 @@ def spec_external_typing(S, externval):
         meminst = S["mems"][a]
         return [
             "mem",
-            {
-                "min": len(meminst["data"]) // constants.PAGE_SIZE_64K,
-                "max": meminst["max"],
-            },
+            Limits(
+                len(meminst["data"]) // constants.PAGE_SIZE_64K,
+                meminst["max"],
+            ),
         ]
     elif "global" == externval[0]:
         a = externval[1]
@@ -2707,17 +2725,14 @@ def spec_external_typing(S, externval):
 # 4.5.2 IMPORT MATCHING
 
 
-def spec_externtype_matching_limits(limits1, limits2):
-    logger.debug('spec_externtype_matching_limits(%s, %s)', limits1, limits2)
+def spec_externtype_matching_limits(limits_a: Limits, limits_b: Limits) -> str:
+    logger.debug('spec_externtype_matching_limits(%s, %s)', limits_a, limits_b)
 
-    n1 = limits1["min"]
-    m1 = limits1["max"]
-    n2 = limits2["min"]
-    m2 = limits2["max"]
-
-    if n1 < n2:
+    if limits_a.min < limits_b.min:
         raise Unlinkable("unlinkable")
-    elif m2 == None or (m1 != None and m2 != None and m1 <= m2):
+    elif limits_b.max is None:
+        return "<="
+    elif limits_a.max is not None and limits_a.max <= limits_b.max:
         return "<="
     else:
         raise Unlinkable("unlinkable")
@@ -2783,26 +2798,22 @@ def spec_allochostfunc(S, functype, hostfunc):
     return S, funcaddr
 
 
-def spec_alloctable(S, tabletype):
+def spec_alloctable(S: Store, tabletype: Tuple[Limits, str]) -> Tuple[Store, int]:
     logger.debug('spec_alloctable()')
 
-    min_ = tabletype[0]["min"]
-    max_ = tabletype[0]["max"]
     tableaddr = len(S["tables"])
-    tableinst = {"elem": [None for i in range(min_)], "max": max_}
+    tableinst = {"elem": [None for i in range(tabletype[0].min)], "max": tabletype[0].max}
     S["tables"].append(tableinst)
     return S, tableaddr
 
 
-def spec_allocmem(S, memtype):
+def spec_allocmem(S: Store, memtype: Limits) -> Tuple[Store, int]:
     logger.debug('spec_allocmem()')
 
-    min_ = memtype["min"]
-    max_ = memtype["max"]
     memaddr = len(S["mems"])
     meminst = {
-        "data": bytearray(min_ * constants.PAGE_SIZE_64K),
-        "max": max_,
+        "data": bytearray(memtype.min * constants.PAGE_SIZE_64K),
+        "max": memtype.max,
     }
     S["mems"].append(meminst)
     return S, memaddr
@@ -3549,23 +3560,24 @@ def spec_binary_functype_inv(node):
 def spec_binary_limits(raw, idx):
     if raw[idx] == 0x00:
         idx, n = spec_binary_uN(raw, idx + 1, 32)
-        return idx, {"min": n, "max": None}
+        return idx, Limits(n, None)
     elif raw[idx] == 0x01:
         idx, n = spec_binary_uN(raw, idx + 1, 32)
         idx, m = spec_binary_uN(raw, idx, 32)
-        return idx, {"min": n, "max": m}
+        return idx, Limits(n, m)
     else:
+        # TODO: remove return value checking pattern.
         return idx, None  # error
 
 
-def spec_binary_limits_inv(node):
-    if node["max"] == None:
-        return bytearray([0x00]) + spec_binary_uN_inv(node["min"], 32)
+def spec_binary_limits_inv(limits: Limits) -> bytearray:
+    if limits.max is None:
+        return bytearray([0x00]) + spec_binary_uN_inv(limits.min, 32)
     else:
         return (
             bytearray([0x01])
-            + spec_binary_uN_inv(node["min"], 32)
-            + spec_binary_uN_inv(node["max"], 32)
+            + spec_binary_uN_inv(limits.min, 32)
+            + spec_binary_uN_inv(limits.max, 32)
         )
 
 
@@ -4564,7 +4576,7 @@ def type_table(store, tableaddr):
     tableinst = store["tables"][tableaddr]
     max_ = tableinst["max"]
     min_ = len(tableinst["elem"])  # TODO: is this min OK?
-    tabletype = [{"min": min_, "max": max_}, "anyfunc"]
+    tabletype = [Limits(min_, max_), "anyfunc"]
     return tabletype
 
 

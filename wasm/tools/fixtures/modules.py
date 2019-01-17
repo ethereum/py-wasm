@@ -1,6 +1,9 @@
 import logging
 
 import wasm
+from wasm.datatypes import (
+    Limits,
+)
 
 
 def instantiate_spectest_module(store):
@@ -41,12 +44,12 @@ def instantiate_spectest_module(store):
     wasm.alloc_func(store, [["i32", "f32"], []], spectest__print_i32_f32)
     wasm.alloc_func(store, [["f64", "f64"], []], spectest__print_f64_f64)
     wasm.alloc_func(store, [[], []], spectest__print)
-    wasm.alloc_mem(store, {"min": 1, "max": 2})  # min:1,max:2 required by import.wast:
+    wasm.alloc_mem(store, Limits(1, 2))  # min:1,max:2 required by import.wast:
     wasm.alloc_global(store, ["const", "i32"], 666)  # 666 required by import.wast
     wasm.alloc_global(store, ["const", "f32"], 0.0)
     wasm.alloc_global(store, ["const", "f64"], 0.0)
     wasm.alloc_table(
-        store, [{"min": 10, "max": 20}, "anyfunc"]
+        store, [Limits(10, 20), "anyfunc"]
     )  # max was 30, changed to 20 for import.wast
     moduleinst = {
         "types": [
@@ -110,10 +113,10 @@ def instantiate_test_module(store):
     wasm.alloc_func(store, [[], ["f32"]], test__func__f32)
     wasm.alloc_func(store, [["i32"], ["i32"]], test__func_i32_i32)
     wasm.alloc_func(store, [["i64"], ["i64"]], test__func_i64_i64)
-    wasm.alloc_mem(store, {"min": 1, "max": None})
+    wasm.alloc_mem(store, Limits(1, None))
     wasm.alloc_global(store, ["const", "i32"], 666)
     wasm.alloc_global(store, ["const", "f32"], 0.0)
-    wasm.alloc_table(store, [{"min": 10, "max": None}, "anyfunc"])
+    wasm.alloc_table(store, [Limits(10, None), "anyfunc"])
     moduleinst = {
         "types": [
             [["i32"], []],
