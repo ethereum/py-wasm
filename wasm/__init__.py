@@ -2760,7 +2760,7 @@ def spec_externtype_matching(externtype1, externtype2):
         if externtype1[1] == externtype2[1]:
             return "<="
         else:
-            raise Unlinkable(f"Extern type mismatch: {externtype1[1]} != {externtype2[1]}")
+            raise Unlinkable(f"Function extern type mismatch: {externtype1[1]} != {externtype2[1]}")
     elif "table" == externtype1[0] and "table" == externtype2[0]:
         limits1 = externtype1[1][0]
         limits2 = externtype2[1][0]
@@ -2770,7 +2770,7 @@ def spec_externtype_matching(externtype1, externtype2):
         if elemtype1 == elemtype2:
             return "<="
         else:
-            raise Unlinkable(f"Element type mismatch: {elemtype1} != {elemtype2}")
+            raise Unlinkable(f"Table element type mismatch: {elemtype1} != {elemtype2}")
     elif "mem" == externtype1[0] and "mem" == externtype2[0]:
         limits1 = externtype1[1]
         limits2 = externtype2[1]
@@ -2784,7 +2784,7 @@ def spec_externtype_matching(externtype1, externtype2):
         if externtype1[1] == externtype2[1]:
             return "<="
         else:
-            raise Unlinkable(f"Extern type mismatch: {externtype1[1]} != {externtype2[1]}")
+            raise Unlinkable(f"Globals extern type mismatch: {externtype1[1]} != {externtype2[1]}")
     else:
         raise Unlinkable(f"Unknown extern type: {externtype1[0]}")
 
@@ -4478,8 +4478,7 @@ def init_store():
 
 
 def decode_module(bytestar):
-    mod = spec_binary_module(bytestar)
-    return mod
+    return spec_binary_module(bytestar)
 
 
 def parse_module(codepointstar):
@@ -4598,7 +4597,7 @@ def type_table(store, tableaddr):
 
 
 def read_table(store, tableaddr, i):
-    if len(store["tables"]) < tableaddr:
+    if len(store["tables"]) <= tableaddr:
         raise ValidationError(
             f"Table address outside of allowed range: {tableaddr} > "
             f"{len(store['tables'])}"
@@ -4750,8 +4749,7 @@ def grow_mem(store, memaddr, n):
 
 
 def alloc_global(store, globaltype, val):
-    store, globaladdr = spec_allocglobal(store, globaltype, val)
-    return store, globaladdr
+    return spec_allocglobal(store, globaltype, val)
 
 
 def type_global(store, globaladdr):
@@ -4786,7 +4784,7 @@ def write_global(store, globaladdr, val):
     # TODO: type check; handle val without type
     gi = store["globals"][globaladdr]
     if gi["mut"] != "var":
-        raise ValidationError("Attempt to write to an immutable global variable")
+        raise ValidationError("Attempt to write to an immutable global variable at address '{globaladdr}'")
     gi["value"] = val
     return store
 
@@ -5353,6 +5351,8 @@ def instantiate_wasm_invoke_start(filename):
 
 
 def instantiate_wasm_invoke_func(filename, funcname, args):
+    # TODO: DRY: this preamble is the same as the
+    # `instantiate_wasm_invoke_start` preamble.
     if not os.path.exists(filename):
         raise ValidationError(f"Unable to open file: {filename}")
 
