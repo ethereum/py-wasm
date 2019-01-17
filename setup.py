@@ -6,9 +6,6 @@ from setuptools import (
 )
 
 extras_require = {
-    'wasm': [
-        "mypy_extensions>=0.4.1,<1.0.0",
-    ],
     'test': [
         "pytest==4.1.0",
         "pytest-watch==4.2.0",
@@ -51,7 +48,9 @@ setup(
     author_email='ethcalibur+pip@gmail.com',
     url='https://github.com/ethereum/py-wasm',
     include_package_data=True,
-    install_requires=extras_require['wasm'],
+    install_requires=[
+        "mypy_extensions>=0.4.1,<1.0.0",
+    ],
     setup_requires=['setuptools-markdown'],
     python_requires='>=3.5, <4',
     extras_require=extras_require,
