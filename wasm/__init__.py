@@ -40,6 +40,8 @@ from wasm.exceptions import (
     InvalidModule,
     MalformedModule,
     Trap,
+    Unlinkable,
+    ValidationError,
 )
 from wasm._utils.types import (
     get_bit_size,
@@ -2696,13 +2698,13 @@ def spec_external_typing(S, externval):
     if "func" == externval[0]:
         a = externval[1]
         if len(S["funcs"]) < a:
-            raise Exception("unlinkable")
+            raise Unlinkable("unlinkable")
         funcinst = S["funcs"][a]
         return ["func", funcinst["type"]]
     elif "table" == externval[0]:
         a = externval[1]
         if len(S["tables"]) < a:
-            raise Exception("unlinkable")
+            raise Unlinkable("unlinkable")
         tableinst = S["tables"][a]
         return [
             "table",
@@ -2711,7 +2713,7 @@ def spec_external_typing(S, externval):
     elif "mem" == externval[0]:
         a = externval[1]
         if len(S["mems"]) < a:
-            raise Exception("unlinkable")
+            raise Unlinkable("unlinkable")
         meminst = S["mems"][a]
         return [
             "mem",
@@ -2723,11 +2725,11 @@ def spec_external_typing(S, externval):
     elif "global" == externval[0]:
         a = externval[1]
         if len(S["globals"]) < a:
-            raise Exception("unlinkable")
+            raise Unlinkable("unlinkable")
         globalinst = S["globals"][a]
         return ["global", [globalinst["mut"], globalinst["value"][0][:3]]]
     else:
-        raise Exception("unlinkable")
+        raise Unlinkable("unlinkable")
 
 
 # 4.5.2 IMPORT MATCHING
@@ -2742,21 +2744,23 @@ def spec_externtype_matching_limits(limits1, limits2):
     m2 = limits2["max"]
 
     if n1 < n2:
-        raise Exception("unlinkable")
+        raise Unlinkable("unlinkable")
     elif m2 == None or (m1 != None and m2 != None and m1 <= m2):
         return "<="
     else:
-        raise Exception("unlinkable")
+        raise Unlinkable("unlinkable")
 
 
 def spec_externtype_matching(externtype1, externtype2):
     logger.debug('spec_externtype_matching(%s, %s)', externtype1, externtype2)
 
-    if "func" == externtype1[0] and "func" == externtype2[0]:
+    if externtype1[0] != externtype2[0]:
+        raise Unlinkable(f"Mismatch in extern types: {externtype1[0]} != {externtype2[0]}")
+    elif "func" == externtype1[0] and "func" == externtype2[0]:
         if externtype1[1] == externtype2[1]:
             return "<="
         else:
-            raise Exception("Invariant")
+            raise Unlinkable(f"Function extern type mismatch: {externtype1[1]} != {externtype2[1]}")
     elif "table" == externtype1[0] and "table" == externtype2[0]:
         limits1 = externtype1[1][0]
         limits2 = externtype2[1][0]
@@ -2766,21 +2770,23 @@ def spec_externtype_matching(externtype1, externtype2):
         if elemtype1 == elemtype2:
             return "<="
         else:
-            raise Exception("Invariant")
+            raise Unlinkable(f"Table element type mismatch: {elemtype1} != {elemtype2}")
     elif "mem" == externtype1[0] and "mem" == externtype2[0]:
         limits1 = externtype1[1]
         limits2 = externtype2[1]
         if spec_externtype_matching_limits(limits1, limits2) == "<=":
             return "<="
         else:
+            # TODO: This code path doesn't appear to be excercised and it
+            # likely isn't an invariant.
             raise Exception("Invariant")
     elif "global" == externtype1[0] and "global" == externtype2[0]:
         if externtype1[1] == externtype2[1]:
             return "<="
         else:
-            raise Exception("Invariant")
+            raise Unlinkable(f"Globals extern type mismatch: {externtype1[1]} != {externtype2[1]}")
     else:
-        raise Exception("unlinkable")
+        raise Unlinkable(f"Unknown extern type: {externtype1[0]}")
 
 
 # 4.5.3 ALLOCATION
@@ -2931,7 +2937,7 @@ def spec_instantiate(S, module, externvaln):
     externtypeimn, externtypeexstar = ret
     # 3
     if len(module["imports"]) != len(externvaln):
-        raise Exception("unlinkable")
+        raise Unlinkable("unlinkable")
     # 4
     for i in range(len(externvaln)):
         externtypei = spec_external_typing(S, externvaln[i])
@@ -2985,7 +2991,7 @@ def spec_instantiate(S, module, externvaln):
         tableinst += [tableinsti]
         eendi = eoi + len(elemi["init"])
         if eendi > len(tableinsti["elem"]):
-            raise Exception("unlinkable")
+            raise Unlinkable("unlinkable")
     # 10
     meminst = []
     do = []
@@ -3007,7 +3013,7 @@ def spec_instantiate(S, module, externvaln):
         meminst += [meminsti]
         dendi = doi + len(datai["init"])
         if dendi > len(meminsti["data"]):
-            raise Exception("unlinkable")
+            raise Unlinkable("unlinkable")
     # 11
     # 12
     framestack.pop()
@@ -3400,9 +3406,6 @@ def spec_binary_fN_inv(node, N):
     return spec_bytest(get_float_type(N), node)
 
 
-EXCEPTIONS_TO_RERAISE = (Trap, Exhaustion, InvalidModule, MalformedModule)
-
-
 # 5.2.4 NAMES
 
 # name as UTF-8 codepoints
@@ -3410,7 +3413,10 @@ def spec_binary_name(raw, idx):
     logger.debug('spec_binary_name()')
     idx, bstar = spec_binary_vec(raw, idx, spec_binary_byte)
 
-    nametxt = bytearray(bstar).decode()
+    try:
+        nametxt = bytearray(bstar).decode()
+    except UnicodeDecodeError as err:
+        raise MalformedModule from err
 
     return idx, nametxt
 
@@ -4472,15 +4478,7 @@ def init_store():
 
 
 def decode_module(bytestar):
-    try:
-        mod = spec_binary_module(bytestar)
-    except AssertionError:
-        raise
-    except EXCEPTIONS_TO_RERAISE:
-        raise
-    except Exception as err:
-        return "malformed"
-    return mod
+    return spec_binary_module(bytestar)
 
 
 def parse_module(codepointstar):
@@ -4494,14 +4492,7 @@ def validate_module(module):
 def instantiate_module(store, module, externvalstar):
     # TODO: handle spec deviation if necessary
     # we deviate from the spec by also returning the return value
-    try:
-        ret = spec_instantiate(store, module, externvalstar)
-    except EXCEPTIONS_TO_RERAISE:
-        raise
-    except Exception as err:
-        if err.args[0] in {"trap", "exhaustion", "invalid", "malformed"}:
-            raise Exception("Invariant: these exceptions should no longer be using the base exception class") from err
-        return store, "error", err.args[0]
+    ret = spec_instantiate(store, module, externvalstar)
 
     store, F, startret = ret
     modinst = F["module"]
@@ -4554,7 +4545,11 @@ def get_export(moduleinst, name):
         if name == exportinsti["name"]:
             return exportinsti["value"]
     else:
-        return "error"
+        known_module_names = sorted(set(m['name'] for m in moduleinst["exports"]))
+        raise ValidationError(
+            f"No module found with name `{name}`.  Known module names: "
+            f"{'|'.join(known_module_names)}"
+        )
 
 
 # 7.1.4 FUNCTIONS
@@ -4567,18 +4562,16 @@ def alloc_func(store, functype, hostfunc):
 
 def type_func(store, funcaddr):
     if len(store["funcs"]) <= funcaddr:
-        return "error"
+        raise ValidationError(
+            f"Function address outside of allowed range: {funcaddr} > "
+            f"{len(store['funcs'])}"
+        )
     functype = store["funcs"][funcaddr]
     return functype
 
 
 def invoke_func(store, funcaddr, valstar):
-    try:
-        ret = spec_invoke(store, funcaddr, valstar)
-    except EXCEPTIONS_TO_RERAISE:
-        raise
-    except Exception as e:
-        return store, e.args[0]
+    ret = spec_invoke(store, funcaddr, valstar)
     return store, ret
 
 
@@ -4592,7 +4585,10 @@ def alloc_table(store, tabletype):
 
 def type_table(store, tableaddr):
     if len(store["tables"]) <= tableaddr:
-        return "error"
+        raise ValidationError(
+            f"Table address outside of allowed range: {tableaddr} > "
+            f"{len(store['tables'])}"
+        )
     tableinst = store["tables"][tableaddr]
     max_ = tableinst["max"]
     min_ = len(tableinst["elem"])  # TODO: is this min OK?
@@ -4601,46 +4597,63 @@ def type_table(store, tableaddr):
 
 
 def read_table(store, tableaddr, i):
-    if len(store["tables"]) < tableaddr:
-        return "error"
+    if len(store["tables"]) <= tableaddr:
+        raise ValidationError(
+            f"Table address outside of allowed range: {tableaddr} > "
+            f"{len(store['tables'])}"
+        )
     if type(i) != int or i < 0:
-        return "error"
+        raise ValidationError(
+            f"Invalid table index.  Must be positive integer.  Got {repr(i)}"
+        )
     ti = store["tables"][tableaddr]
     if i >= len(ti["elem"]):
-        return "error"
+        raise ValidationError(
+            f"Index out of range for table.  {i} >= {len(ti['elem'])}"
+        )
     return ti["elem"][i]
 
 
 def write_table(store, tableaddr, i, funcaddr):
     if len(store["tables"]) <= tableaddr:
-        return "error"
+        raise ValidationError(
+            f"Table address outside of allowed range: {tableaddr} > "
+            f"{len(store['tables'])}"
+        )
     if type(i) != int or i < 0:
-        return "error"
+        raise ValidationError(
+            f"Invalid table index.  Must be positive integer.  Got {repr(i)}"
+        )
     ti = store["tables"][tableaddr]
     if i >= len(ti["elem"]):
-        return "error"
+        raise ValidationError(
+            f"Index out of range for table.  {i} >= {len(ti['elem'])}"
+        )
     ti["elem"][i] = funcaddr
     return store
 
 
 def size_table(store, tableaddr):
     if len(store["tables"]) <= tableaddr:
-        return "error"
+        raise ValidationError(
+            f"Table address outside of allowed range: {tableaddr} > "
+            f"{len(store['tables'])}"
+        )
     return len(store["tables"][tableaddr]["elem"])
 
 
 def grow_table(store, tableaddr, n):
     if len(store["tables"]) <= tableaddr:
-        return "error"
+        raise ValidationError(
+            f"Table address outside of allowed range: {tableaddr} > "
+            f"{len(store['tables'])}"
+        )
     elif type(n) != int or n < 0:
-        return "error"
+        raise ValidationError(
+            f"Invalid table index.  Must be positive integer.  Got {repr(i)}"
+        )
 
-    try:
-        spec_growtable(store["tabless"][tableaddr], n)
-    except EXCEPTIONS_TO_RERAISE:
-        raise
-    except:
-        return "error"
+    spec_growtable(store["tabless"][tableaddr], n)
 
     return store
 
@@ -4655,7 +4668,10 @@ def alloc_mem(store, memtype):
 
 def type_mem(store, memaddr):
     if len(store["mems"]) <= memaddr:
-        return "error"
+        raise ValidationError(
+            f"Memory address outside of allowed range: {memaddr} > "
+            f"{len(store['mems'])}"
+        )
     meminst = store["mems"][memaddr]
     max_ = meminst["max"]
     min_ = (
@@ -4665,49 +4681,66 @@ def type_mem(store, memaddr):
 
 def read_mem(store, memaddr, i):
     if len(store["mems"]) <= memaddr:
-        return "error"
+        raise ValidationError(
+            f"Memory address outside of allowed range: {memaddr} > "
+            f"{len(store['mems'])}"
+        )
     elif type(i) != int or i < 0:
-        return "error"
+        raise ValidationError(
+            f"Invalid memory index.  Must be positive integer.  Got {repr(i)}"
+        )
 
     mi = store["mems"][memaddr]
 
     if i >= len(mi["data"]):
-        return "error"
+        raise ValidationError(
+            f"Memory index out of bounds.  {i} >= {len(mi['data'])}"
+        )
     else:
         return mi["data"][i]
 
 
 def write_mem(store, memaddr, i, byte):
     if len(store["mems"]) <= memaddr:
-        return "error"
+        raise ValidationError(
+            f"Memory address outside of allowed range: {memaddr} > "
+            f"{len(store['mems'])}"
+        )
     elif type(i) != int or i < 0:
-        return "error"
+        raise ValidationError(
+            f"Invalid memory index.  Must be positive integer.  Got {repr(i)}"
+        )
 
     mi = store["mems"][memaddr]
     if i >= len(mi["data"]):
-        return "error"
+        raise ValidationError(
+            f"Memory index out of bounds.  {i} >= {len(mi['data'])}"
+        )
     mi["data"][i] = byte
     return store
 
 
 def size_mem(store, memaddr):
     if len(store["mems"]) <= memaddr:
-        return "error"
+        raise ValidationError(
+            f"Memory address outside of allowed range: {memaddr} > "
+            f"{len(store['mems'])}"
+        )
     return len(store["mems"][memaddr]) // constants.PAGE_SIZE_64K
 
 
 def grow_mem(store, memaddr, n):
     if len(store["mems"]) <= memaddr:
-        return "error"
+        raise ValidationError(
+            f"Memory address outside of allowed range: {memaddr} > "
+            f"{len(store['mems'])}"
+        )
     elif type(n) != int or n < 0:
-        return "error"
+        raise ValidationError(
+            f"Invalid memory index.  Must be positive integer.  Got {repr(i)}"
+        )
 
-    try:
-        spec_growmem(store["mems"][memaddr], n)
-    except EXCEPTIONS_TO_RERAISE:
-        raise
-    except:
-        return "error"
+    spec_growmem(store["mems"][memaddr], n)
 
     return store
 
@@ -4716,18 +4749,15 @@ def grow_mem(store, memaddr, n):
 
 
 def alloc_global(store, globaltype, val):
-    try:
-        store, globaladdr = spec_allocglobal(store, globaltype, val)
-    except EXCEPTIONS_TO_RERAISE:
-        raise
-    except:
-        return store, "error"
-    return store, globaladdr
+    return spec_allocglobal(store, globaltype, val)
 
 
 def type_global(store, globaladdr):
     if len(store["globals"]) <= globaladdr:
-        return "error"
+        raise ValidationError(
+            f"Globals address outside of allowed range: {globaladdr} > "
+            f"{len(store['globals'])}"
+        )
     globalinst = store["globals"][globaladdr]
     mut = globalinst["mut"]
     valtype = globalinst["value"][0]
@@ -4736,7 +4766,10 @@ def type_global(store, globaladdr):
 
 def read_global(store, globaladdr):
     if len(store["globals"]) <= globaladdr:
-        return "error"
+        raise ValidationError(
+            f"Globals address outside of allowed range: {globaladdr} > "
+            f"{len(store['globals'])}"
+        )
     gi = store["globals"][globaladdr]
     return gi["value"]
 
@@ -4744,11 +4777,14 @@ def read_global(store, globaladdr):
 # arg must look like ["i32.const",5]
 def write_global(store, globaladdr, val):
     if len(store["globals"]) <= globaladdr:
-        return "error"
+        raise ValidationError(
+            f"Globals address outside of allowed range: {globaladdr} > "
+            f"{len(store['globals'])}"
+        )
     # TODO: type check; handle val without type
     gi = store["globals"][globaladdr]
     if gi["mut"] != "var":
-        return "error"
+        raise ValidationError("Attempt to write to an immutable global variable at address '{globaladdr}'")
     gi["value"] = val
     return store
 
@@ -5296,41 +5332,48 @@ def iterate_through_expression_and_validate_each_opcode(
 
 
 def instantiate_wasm_invoke_start(filename):
-    file_ = open(filename, "rb")
-    if not file_:
-        return "error, could not open " + filename
-    bytestar = memoryview(file_.read())
-    if not bytestar:
-        return "error, could not read " + filename
-    module = decode_module(bytestar)  # get module as abstract syntax
+    if not os.path.exists(filename):
+        raise ValidationError(f"Unable to open file: {filename}")
+
+    with open(filename, 'rb') as file_:
+        bytestar = memoryview(file_.read())
+        if not bytestar:
+            raise ValidationError(f"Error reading file: {filename}")
+        module = decode_module(bytestar)  # get module as abstract syntax
+
     if not module:
-        return "error, could not decode " + filename
+        raise ValidationError(f"Could not decode module: {filename}")
+
     store = init_store()  # do this once for each VM instance
     externvalstar = []  # imports, hopefully none
     store, moduleinst, ret = instantiate_module(store, module, externvalstar)
-    if moduleinst == "error":
-        return "error, module could not be instantiated"
     return ret
 
 
 def instantiate_wasm_invoke_func(filename, funcname, args):
-    file_ = open(filename, "rb")
-    if not file_:
-        return "error, could not open " + filename
-    bytestar = memoryview(file_.read())
-    if not bytestar:
-        return "error, could not read " + filename
-    module = decode_module(bytestar)  # get module as abstract syntax
+    # TODO: DRY: this preamble is the same as the
+    # `instantiate_wasm_invoke_start` preamble.
+    if not os.path.exists(filename):
+        raise ValidationError(f"Unable to open file: {filename}")
+
+    with open(filename, 'rb') as file_:
+        bytestar = memoryview(file_.read())
+        if not bytestar:
+            raise ValidationError(f"Error reading file: {filename}")
+        module = decode_module(bytestar)  # get module as abstract syntax
+
     if not module:
-        return "error, could not decode " + filename
+        raise ValidationError(f"Could not decode module: {filename}")
+
     store = init_store()  # do this once for each VM instance
     externvalstar = []  # imports, hopefully none
     store, moduleinst, ret = instantiate_module(store, module, externvalstar)
-    if moduleinst == "error":
-        return "error, module could not be instantiated"
     externval = get_export(moduleinst, funcname)
+
     if not externval or externval[0] != "func":
-        return "error, " + funcname + " is not a function export of the module"
+        raise ValidationError(
+            f"No function export found for function name: '{funcname}'"
+        )
     funcaddr = externval[1]
     valstar = [["i32.const", int(arg)] for arg in args]
     store, ret = invoke_func(store, funcaddr, valstar)

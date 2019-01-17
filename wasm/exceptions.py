@@ -23,3 +23,7 @@ class Exhaustion(BaseWasmException):
 
 class Unlinkable(BaseWasmException):
     pass
+
+
+class ValidationError(BaseWasmException):
+    pass
