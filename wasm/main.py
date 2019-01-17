@@ -19,6 +19,7 @@ from wasm._utils.types import (
 from wasm.datatypes import (
     FuncRef,
     Limits,
+    MemoryType,
     TableType,
 )
 from wasm.exceptions import (
@@ -167,14 +168,18 @@ def spec_globals(star):
 # 3.2.1 LIMITS
 
 
-def spec_validate_limit(limits: Limits, upper_bound: UInt32) -> None:
+def spec_validate_limit(limits: Limits, upper_bound: int) -> None:
     """
     https://webassembly.github.io/spec/core/bikeshed/index.html#limits%E2%91%A2
     """
-    if limits.min > upper_bound:
+    if limits.min > constants.UINT32_MAX:
+        raise InvalidModule("Limits.min is outside of u32 range: Got {limits.min}")
+    elif limits.min > upper_bound:
         raise InvalidModule(f"Limits.min exceeds upper bound: {limits.min} > {upper_bound}")
     elif limits.max is not None:
-        if limits.max > upper_bound:
+        if limits.max > constants.UINT32_MAX:
+            raise InvalidModule("Limits.max is outside of u32 range: Got {limits.max}")
+        elif limits.max > upper_bound:
             raise InvalidModule(f"Limits.max exceeds upper bound: {limits.max} > {upper_bound}")
         elif limits.max < limits.min:
             raise InvalidModule(
@@ -196,27 +201,17 @@ def spec_validate_functype(ft):
 
 
 def spec_validate_tabletype(table_type: TableType) -> TableType:
-    # TODO: use of UINT32_CEIL may be incorrect here as `validate_limit` checks
-    # against the value using `>`.  Check looks like it **should** be using
-    # `>=` to ensure that the limit bounds fit withint a UINT32 but updating
-    # this to use `UINT32_MAX` is currently causing spec test failures.
-    # TODO: The type casting to `UInt32` is technically incorrect here since
-    # `UINT32_CEIL` is outside the valid range for u32, but we first need to
-    # resolve the above TODO.
-    spec_validate_limit(table_type.limits, UInt32(constants.UINT32_CEIL))
+    spec_validate_limit(table_type.limits, constants.UINT32_CEIL)
     return table_type
 
 
 # 3.2.4 MEMORY TYPES
 
 
-def spec_validate_memtype(limits: Limits) -> Limits:
-    # TODO: use of UINT32_CEIL may be incorrect here as `validate_limit` checks
-    # against the value using `>`.  Check looks like it **should** be using
-    # `>=` to ensure that the limit bounds fit withint a UINT32 but updating
-    # this to use `UINT32_MAX` is currently causing spec test failures.
+def spec_validate_memtype(memory_type: MemoryType) -> MemoryType:
+    limits = Limits(memory_type.min, memory_type.max)
     spec_validate_limit(limits, constants.UINT16_CEIL)
-    return limits
+    return memory_type
 
 
 # 3.2.5 GLOBAL TYPES
@@ -531,14 +526,10 @@ def spec_validate_table(table):
 # 3.4.3 MEMORIES
 
 
-def spec_validate_mem(mem):
-    limits = mem["type"]
-    ret = spec_validate_memtype(limits)
+def spec_validate_mem(memory):
+    memory_type = memory["type"]
+    ret = spec_validate_memtype(memory_type)
 
-    if limits.min > constants.PAGE_SIZE_64K:
-        raise InvalidModule("invalid")
-    elif limits.max and limits.max > constants.PAGE_SIZE_64K:
-        raise InvalidModule("invalid")
     return ret
 
 
@@ -2715,7 +2706,7 @@ def spec_external_typing(S, externval):
         meminst = S["mems"][a]
         return [
             "mem",
-            Limits(
+            MemoryType(
                 len(meminst["data"]) // constants.PAGE_SIZE_64K,
                 meminst["max"],
             ),
@@ -2819,13 +2810,13 @@ def spec_alloctable(S: Store, table_type: TableType) -> Tuple[Store, int]:
     return S, tableaddr
 
 
-def spec_allocmem(S: Store, memtype: Limits) -> Tuple[Store, int]:
+def spec_allocmem(S: Store, memory_type: MemoryType) -> Tuple[Store, int]:
     logger.debug('spec_allocmem()')
 
     memaddr = len(S["mems"])
     meminst = {
-        "data": bytearray(memtype.min * constants.PAGE_SIZE_64K),
-        "max": memtype.max,
+        "data": bytearray(memory_type.min * constants.PAGE_SIZE_64K),
+        "max": memory_type.max,
     }
     S["mems"].append(meminst)
     return S, memaddr
@@ -3569,7 +3560,7 @@ def spec_binary_functype_inv(node):
 # 5.3.4 LIMITS
 
 
-def spec_binary_limits(raw, idx):
+def spec_binary_limits(raw: bytes, idx: int) -> Tuple[int, Limits]:
     if raw[idx] == 0x00:
         idx, n = spec_binary_uN(raw, idx + 1, 32)
         return idx, Limits(n, None)
@@ -3578,8 +3569,10 @@ def spec_binary_limits(raw, idx):
         idx, m = spec_binary_uN(raw, idx, 32)
         return idx, Limits(n, m)
     else:
-        # TODO: remove return value checking pattern.
-        return idx, None  # error
+        raise InvalidModule(
+            "Invalid starting byte for limits type.  Expected starting byte to "
+            f"be one of 0x00 or 0x01: Got {hex(raw[idx])}"
+        )
 
 
 def spec_binary_limits_inv(limits: Limits) -> bytearray:
@@ -3596,12 +3589,14 @@ def spec_binary_limits_inv(limits: Limits) -> bytearray:
 # 5.3.5 MEMORY TYPES
 
 
-def spec_binary_memtype(raw, idx):
-    return spec_binary_limits(raw, idx)
+def spec_binary_memtype(raw: bytes, idx: int) -> Tuple[int, MemoryType]:
+    idx, limits = spec_binary_limits(raw, idx)
+    return idx, MemoryType(limits.min, limits.max)
 
 
-def spec_binary_memtype_inv(node):
-    return spec_binary_limits_inv(node)
+def spec_binary_memtype_inv(memory_type: MemoryType) -> bytearray:
+    limits = Limits(memory_type.min, memory_type.max)
+    return spec_binary_limits_inv(limits)
 
 
 # 5.3.6 TABLE TYPES
