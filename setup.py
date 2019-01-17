@@ -6,6 +6,9 @@ from setuptools import (
 )
 
 extras_require = {
+    'wasm': [
+        "mypy_extensions>=0.4.1,<1.0.0",
+    ],
     'test': [
         "pytest==4.1.0",
         "pytest-watch==4.2.0",
@@ -16,6 +19,7 @@ extras_require = {
     'lint': [
         "flake8==3.4.1",
         "isort>=4.2.15,<5",
+        "mypy==0.660",
     ],
     'doc': [
         "Sphinx>=1.6.5,<2",
@@ -47,9 +51,7 @@ setup(
     author_email='ethcalibur+pip@gmail.com',
     url='https://github.com/ethereum/py-wasm',
     include_package_data=True,
-    install_requires=[
-        "eth-utils>=1,<2",
-    ],
+    install_requires=extras_require['wasm'],
     setup_requires=['setuptools-markdown'],
     python_requires='>=3.5, <4',
     extras_require=extras_require,

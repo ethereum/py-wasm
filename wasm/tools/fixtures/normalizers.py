@@ -1,9 +1,18 @@
 from pathlib import (
     Path,
 )
-from typing import (
+from typing import (  # noqa: F401
+    Any,
     Dict,
+    List,
+    Optional,
+    Type,
+    TypeVar,
     Union,
+)
+
+from mypy_extensions import (
+    TypedDict,
 )
 
 from wasm import (
@@ -27,6 +36,7 @@ from .datatypes import (
     Fixture,
     ModuleCommand,
     Register,
+    TCommand,
 )
 from .numeric import (
     int_to_float,
@@ -37,8 +47,11 @@ class empty:
     pass
 
 
-def normalize_module_command(raw_command: Dict[str, Union[int, str]],
-                             base_fixtures_dir) -> ModuleCommand:
+RawCommand = Dict[str, Any]
+
+
+def normalize_module_command(raw_command: RawCommand,
+                             base_fixtures_dir: Path) -> ModuleCommand:
     expected_keys = {'type', 'line', 'filename', 'name'}
     extra_keys = set(raw_command.keys()).difference(expected_keys)
     if extra_keys:
@@ -53,13 +66,15 @@ def normalize_module_command(raw_command: Dict[str, Union[int, str]],
     )
 
 
-def normalize_argument(raw_argument: Dict[str, str]) -> Argument:
+def normalize_argument(raw_argument: RawCommand) -> Argument:
     expected_keys = {'type', 'value'}
     extra_keys = set(raw_argument.keys()).difference(expected_keys)
     if extra_keys:
         raise Exception(f"Unexpected keys: {extra_keys}")
 
     _type = raw_argument['type']
+
+    value: Union[int, float]
 
     if _type in constants.INTEGER_TYPES:
         value = int(raw_argument['value'])
@@ -76,7 +91,7 @@ def normalize_argument(raw_argument: Dict[str, str]) -> Argument:
     )
 
 
-def normalize_action(raw_action: Dict[str, str]) -> Action:
+def normalize_action(raw_action: RawCommand) -> Action:
     expected_keys = {'type', 'field', 'args', 'module'}
     extra_keys = set(raw_action.keys()).difference(expected_keys)
     if extra_keys:
@@ -90,7 +105,7 @@ def normalize_action(raw_action: Dict[str, str]) -> Action:
         raise Exception(f"Unhandled action type: {raw_action['type']}")
 
 
-def _normalize_get_action(raw_action: Dict[str, str]) -> Action:
+def _normalize_get_action(raw_action: RawCommand) -> Action:
     if 'args' in raw_action:
         raise Exception("Unhandled")
     return Action(
@@ -101,7 +116,7 @@ def _normalize_get_action(raw_action: Dict[str, str]) -> Action:
     )
 
 
-def _normalize_invoke_action(raw_action: Dict[str, str]) -> Action:
+def _normalize_invoke_action(raw_action: RawCommand) -> Action:
     return Action(
         type=raw_action['type'],
         field=raw_action['field'],
@@ -113,13 +128,15 @@ def _normalize_invoke_action(raw_action: Dict[str, str]) -> Action:
     )
 
 
-def normalize_expected(raw_expected: Dict[str, str]) -> Expected:
+def normalize_expected(raw_expected: RawCommand) -> Expected:
     expected_keys = {'type', 'value'}
     extra_keys = set(raw_expected.keys()).difference(expected_keys)
     if extra_keys:
         raise Exception(f"Unexpected keys: {extra_keys}")
 
     _type = raw_expected['type']
+
+    value: Optional[Union[int, float]]
 
     if 'value' in raw_expected:
         if _type in constants.INTEGER_TYPES:
@@ -139,7 +156,9 @@ def normalize_expected(raw_expected: Dict[str, str]) -> Expected:
     )
 
 
-def normalize_assert_return_command(raw_command, base_fixtures_dir):
+def normalize_assert_return_command(raw_command: RawCommand,
+                                    base_fixtures_dir: Path
+                                    ) -> AssertReturnCommand:
     expected_keys = {'type', 'line', 'action', 'expected'}
     extra_keys = set(raw_command.keys()).difference(expected_keys)
     if extra_keys:
@@ -156,21 +175,27 @@ def normalize_assert_return_command(raw_command, base_fixtures_dir):
     )
 
 
-def normalize_assert_return_canonical_nan(raw_command):
+def normalize_assert_return_canonical_nan(raw_command: RawCommand
+                                          ) -> AssertReturnCanonicalNan:
     return _normalize_assert_return_common_nan(
         raw_command,
         AssertReturnCanonicalNan,
     )
 
 
-def normalize_assert_return_arithmetic_nan(raw_command):
+def normalize_assert_return_arithmetic_nan(raw_command: RawCommand
+                                           ) -> AssertReturnArithmeticNan:
     return _normalize_assert_return_common_nan(
         raw_command,
         AssertReturnArithmeticNan
     )
 
 
-def _normalize_assert_return_common_nan(raw_command, normalized_type):
+TReturn = TypeVar("TReturn", AssertReturnCanonicalNan, AssertReturnArithmeticNan)
+
+
+def _normalize_assert_return_common_nan(raw_command: RawCommand,
+                                        normalized_type: Type[TReturn]) -> TReturn:
     expected_keys = {'type', 'line', 'action', 'expected'}
     extra_keys = set(raw_command.keys()).difference(expected_keys)
     if extra_keys:
@@ -187,7 +212,8 @@ def _normalize_assert_return_common_nan(raw_command, normalized_type):
     )
 
 
-def normalize_assert_invalid(raw_command, base_fixtures_dir):
+def normalize_assert_invalid(raw_command: RawCommand,
+                             base_fixtures_dir: Path) -> AssertInvalidCommand:
     expected_keys = {'type', 'line', 'filename', 'text', 'module_type'}
     extra_keys = set(raw_command.keys()).difference(expected_keys)
     if extra_keys:
@@ -206,7 +232,7 @@ def normalize_assert_invalid(raw_command, base_fixtures_dir):
     )
 
 
-def normalize_assert_trap(raw_command):
+def normalize_assert_trap(raw_command: RawCommand) -> AssertTrap:
     expected_keys = {'type', 'line', 'action', 'text', 'expected'}
     extra_keys = set(raw_command.keys()).difference(expected_keys)
     if extra_keys:
@@ -223,7 +249,8 @@ def normalize_assert_trap(raw_command):
     )
 
 
-def normalize_assert_malformed(raw_command, base_fixtures_dir: Path):
+def normalize_assert_malformed(raw_command: RawCommand,
+                               base_fixtures_dir: Path) -> AssertMalformed:
     expected_keys = {'type', 'line', 'filename', 'text', 'module_type'}
     extra_keys = set(raw_command.keys()).difference(expected_keys)
     if extra_keys:
@@ -237,7 +264,7 @@ def normalize_assert_malformed(raw_command, base_fixtures_dir: Path):
     )
 
 
-def normalize_assert_exhaustion(raw_command):
+def normalize_assert_exhaustion(raw_command: RawCommand) -> AssertExhaustion:
     expected_keys = {'type', 'line', 'action', 'expected'}
     extra_keys = set(raw_command.keys()).difference(expected_keys)
     if extra_keys:
@@ -253,7 +280,8 @@ def normalize_assert_exhaustion(raw_command):
     )
 
 
-def normalize_assert_unlinkable(raw_command, base_fixtures_dir):
+def normalize_assert_unlinkable(raw_command: RawCommand,
+                                base_fixtures_dir: Path) -> AssertUnlinkable:
     expected_keys = {'type', 'line', 'filename', 'text', 'module_type'}
     extra_keys = set(raw_command.keys()).difference(expected_keys)
     if extra_keys:
@@ -270,7 +298,7 @@ def normalize_assert_unlinkable(raw_command, base_fixtures_dir):
     )
 
 
-def normalize_register(raw_command):
+def normalize_register(raw_command: RawCommand) -> Register:
     expected_keys = {'type', 'line', 'name', 'as'}
     extra_keys = set(raw_command.keys()).difference(expected_keys)
     if extra_keys:
@@ -283,7 +311,7 @@ def normalize_register(raw_command):
     )
 
 
-def normalize_action_command(raw_command):
+def normalize_action_command(raw_command: RawCommand) -> ActionCommand:
     expected_keys = {'type', 'line', 'action', 'expected'}
     extra_keys = set(raw_command.keys()).difference(expected_keys)
     if extra_keys:
@@ -299,7 +327,8 @@ def normalize_action_command(raw_command):
     )
 
 
-def normalize_assert_uninstantiable(raw_command, base_fixtures_dir):
+def normalize_assert_uninstantiable(raw_command: RawCommand,
+                                    base_fixtures_dir: Path) -> AssertUninstantiable:
     expected_keys = {'type', 'line', 'filename', 'text', 'module_type'}
     extra_keys = set(raw_command.keys()).difference(expected_keys)
     if extra_keys:
@@ -316,7 +345,8 @@ def normalize_assert_uninstantiable(raw_command, base_fixtures_dir):
     )
 
 
-def normalize_command(raw_command, base_fixtures_dir: Path):
+def normalize_command(raw_command: RawCommand,
+                      base_fixtures_dir: Path) -> TCommand:
     if raw_command['type'] == 'module':
         return normalize_module_command(raw_command, base_fixtures_dir)
     elif raw_command['type'] == 'assert_return':
@@ -345,7 +375,17 @@ def normalize_command(raw_command, base_fixtures_dir: Path):
         raise Exception(f"Unknown command type: {raw_command['type']}")
 
 
-def normalize_fixture(base_fixtures_dir, raw_fixture):
+TRawFixture = TypedDict(
+    'TRawFixture',
+    {
+        'commands': List[RawCommand],
+        'source_filename': str,
+    }
+)
+
+
+def normalize_fixture(base_fixtures_dir: Path,
+                      raw_fixture: TRawFixture) -> Fixture:
     file_path = base_fixtures_dir / raw_fixture["source_filename"]
     commands = tuple(
         normalize_command(raw_command, base_fixtures_dir)

@@ -36,7 +36,7 @@ class Action(NamedTuple):
 class AssertReturnCommand(NamedTuple):
     line: int
     action: Action
-    expected: Expected
+    expected: Tuple[Expected, ...]
 
 
 class AssertInvalidCommand(NamedTuple):
@@ -124,7 +124,7 @@ class AssertReturnCanonicalNan(NamedTuple):
     '''
     line: int
     action: Action
-    expected: Expected
+    expected: Tuple[Expected, ...]
 
 
 class AssertReturnArithmeticNan(NamedTuple):
@@ -146,7 +146,7 @@ class AssertReturnArithmeticNan(NamedTuple):
     '''
     line: int
     action: Action
-    expected: Expected
+    expected: Tuple[Expected, ...]
 
 
 class AssertUnlinkable(NamedTuple):
@@ -165,7 +165,6 @@ class AssertUnlinkable(NamedTuple):
     module_type: str
 
 
-# This uses the alternate syntax since `as` is a reserved word in python.
 class Register(NamedTuple):
     '''
     {
@@ -217,13 +216,24 @@ class AssertUninstantiable(NamedTuple):
     module_type: str
 
 
-ANY_COMMAND = Union[
+TCommand = Union[
     ModuleCommand,
-    AssertReturnCommand,
+    AssertReturnArithmeticNan,
+    ActionCommand,
+    AssertExhaustion,
     AssertInvalidCommand,
+    AssertMalformed,
+    AssertReturnArithmeticNan,
+    AssertReturnCanonicalNan,
+    AssertReturnCommand,
+    AssertTrap,
+    AssertUninstantiable,
+    AssertUnlinkable,
+    ModuleCommand,
+    Register,
 ]
 
 
 class Fixture(NamedTuple):
     file_path: Path
-    commands: Tuple[ANY_COMMAND, ...]
+    commands: Tuple[TCommand, ...]
