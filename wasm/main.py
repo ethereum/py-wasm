@@ -4,6 +4,7 @@ import struct
 from typing import (
     NamedTuple,
     Tuple,
+    Type,
 )
 
 from wasm import (
@@ -16,7 +17,9 @@ from wasm._utils.types import (
     is_integer_type,
 )
 from wasm.datatypes import (
+    FuncType,
     Limits,
+    TableType,
 )
 from wasm.exceptions import (
     Exhaustion,
@@ -192,14 +195,16 @@ def spec_validate_functype(ft):
 # 3.2.3 TABLE TYPES
 
 
-def spec_validate_tabletype(tt):
-    limits, elemtype = tt
+def spec_validate_tabletype(table_type: TableType) -> TableType:
     # TODO: use of UINT32_CEIL may be incorrect here as `validate_limit` checks
     # against the value using `>`.  Check looks like it **should** be using
     # `>=` to ensure that the limit bounds fit withint a UINT32 but updating
     # this to use `UINT32_MAX` is currently causing spec test failures.
-    spec_validate_limit(limits, constants.UINT32_CEIL)
-    return tt
+    # TODO: The type casting to `UInt32` is technically incorrect here since
+    # `UINT32_CEIL` is outside the valid range for u32, but we first need to
+    # resolve the above TODO.
+    spec_validate_limit(table_type.limits, UInt32(constants.UINT32_CEIL))
+    return table_type
 
 
 # 3.2.4 MEMORY TYPES
@@ -438,7 +443,7 @@ def spec_validate_call_indirect(C, x):
     if C["tables"] == None or len(C["tables"]) < 1:
         raise InvalidModule("invalid")
     limits, elemtype = C["tables"][0]
-    if elemtype != "anyfunc":
+    if elemtype != FuncType:
         raise InvalidModule("invalid")
     if C["types"] == None or len(C["types"]) <= x:
         raise InvalidModule("invalid")
@@ -559,10 +564,10 @@ def spec_validate_elem(C, elem):
     x = elem["table"]
     if "tables" not in C or len(C["tables"]) <= x:
         raise InvalidModule("invalid")
-    tabletype = C["tables"][x]
-    limits = tabletype[0]
-    elemtype = tabletype[1]
-    if elemtype != "anyfunc":
+    table_type = C["tables"][x]
+    limits = table_type.limits
+    elem_type = table_type.elem_type
+    if elem_type is not FuncType:
         raise InvalidModule("invalid")
     # first wrap in block with appropriate return type
     instrstar = [["block", constants.INT32, elem["offset"]]]
@@ -2698,7 +2703,10 @@ def spec_external_typing(S, externval):
         tableinst = S["tables"][a]
         return [
             "table",
-            [Limits(len(tableinst["elem"]), tableinst["max"]), "anyfunc"],
+            TableType(
+                limits=Limits(len(tableinst["elem"]), tableinst["max"]),
+                elem_type=FuncType,
+            ),
         ]
     elif "mem" == externval[0]:
         a = externval[1]
@@ -2749,15 +2757,16 @@ def spec_externtype_matching(externtype1, externtype2):
         else:
             raise Unlinkable(f"Function extern type mismatch: {externtype1[1]} != {externtype2[1]}")
     elif "table" == externtype1[0] and "table" == externtype2[0]:
-        limits1 = externtype1[1][0]
-        limits2 = externtype2[1][0]
-        spec_externtype_matching_limits(limits1, limits2)
-        elemtype1 = externtype1[1][1]
-        elemtype2 = externtype2[1][1]
-        if elemtype1 == elemtype2:
+        table_type_a, table_type_b = externtype1[1], externtype2[1]
+
+        limits_a, limits_b = table_type_a.limits, table_type_b.limits
+        spec_externtype_matching_limits(limits_a, limits_b)
+
+        elem_type_a, elem_type_b = table_type_a.elem_type, table_type_b.elem_type
+        if elem_type_a is elem_type_b:
             return "<="
         else:
-            raise Unlinkable(f"Table element type mismatch: {elemtype1} != {elemtype2}")
+            raise Unlinkable(f"Table element type mismatch: {elem_type_a} != {elem_type_b}")
     elif "mem" == externtype1[0] and "mem" == externtype2[0]:
         limits1 = externtype1[1]
         limits2 = externtype2[1]
@@ -2798,11 +2807,14 @@ def spec_allochostfunc(S, functype, hostfunc):
     return S, funcaddr
 
 
-def spec_alloctable(S: Store, tabletype: Tuple[Limits, str]) -> Tuple[Store, int]:
+def spec_alloctable(S: Store, table_type: TableType) -> Tuple[Store, int]:
     logger.debug('spec_alloctable()')
 
     tableaddr = len(S["tables"])
-    tableinst = {"elem": [None for i in range(tabletype[0].min)], "max": tabletype[0].max}
+    tableinst = {
+        "elem": [None for i in range(table_type.limits.min)],
+        "max": table_type.limits.max,
+    }
     S["tables"].append(tableinst)
     return S, tableaddr
 
@@ -3595,24 +3607,24 @@ def spec_binary_memtype_inv(node):
 # 5.3.6 TABLE TYPES
 
 
-def spec_binary_tabletype(raw, idx):
-    idx, et = spec_binary_elemtype(raw, idx)
-    idx, lim = spec_binary_limits(raw, idx)
-    return idx, [lim, et]
+def spec_binary_tabletype(raw: bytes, idx: int) -> Tuple[int, TableType]:
+    idx, elem_type = spec_binary_elemtype(raw, idx)
+    idx, limits = spec_binary_limits(raw, idx)
+    return idx, TableType(limits, elem_type)
 
 
-def spec_binary_elemtype(raw, idx):
+def spec_binary_elemtype(raw: bytes, idx: int) -> Tuple[int, Type[FuncType]]:
     if raw[idx] == 0x70:
-        return idx + 1, "anyfunc"
+        return idx + 1, FuncType
     else:
         raise MalformedModule("malformed")
 
 
-def spec_binary_tabletype_inv(node):
-    return spec_binary_elemtype_inv(node[1]) + spec_binary_limits_inv(node[0])
+def spec_binary_tabletype_inv(table_type: TableType) -> bytearray:
+    return spec_binary_elemtype_inv(table_type.elem_type) + spec_binary_limits_inv(table_type.limits)
 
 
-def spec_binary_elemtype_inv(node):
+def spec_binary_elemtype_inv(elem_type: Type[FuncType]) -> bytearray:
     return bytearray([0x70])
 
 
@@ -4576,7 +4588,7 @@ def type_table(store, tableaddr):
     tableinst = store["tables"][tableaddr]
     max_ = tableinst["max"]
     min_ = len(tableinst["elem"])  # TODO: is this min OK?
-    tabletype = [Limits(min_, max_), "anyfunc"]
+    tabletype = TableType(Limits(min_, max_), FuncType)
     return tabletype
 
 
@@ -4963,7 +4975,7 @@ def spec_validate_opcode(C, opds, ctrls, opcode, immediates):
             x = immediates
             if ("tables" not in C) or len(C["tables"]) == 0:
                 raise InvalidModule("invalid")
-            elif C["tables"][0][1] != "anyfunc":
+            elif C["tables"][0][1] != FuncType:
                 raise InvalidModule("invalid")
             elif len(C["types"]) <= x:
                 raise InvalidModule("invalid")
