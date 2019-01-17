@@ -1,3 +1,6 @@
+from pathlib import (
+    Path,
+)
 from typing import (
     Any,
 )
@@ -10,12 +13,12 @@ from .loading import (
 #
 # Pytest fixture generation
 #
-def idfn(fixture_path) -> str:
+def idfn(fixture_path: Path) -> str:
     return str(fixture_path.resolve())
 
 
 def generate_fixture_tests(metafunc: Any,
-                           fixtures_dir: str) -> None:
+                           fixtures_dir: Path) -> None:
     """
     Helper function for use with `pytest_generate_tests` to generate fixture tests.
 

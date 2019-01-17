@@ -4,6 +4,11 @@ import math
 from pathlib import (
     Path,
 )
+from typing import (
+    Any,
+    Dict,
+    List,
+)
 
 import pytest
 
@@ -51,8 +56,10 @@ class FloatingPointNotImplemented(NotImplementedError):
 
 
 def instantiate_module_from_wasm_file(
-    file_path: Path, store: Store, registered_modules
-):
+        file_path: Path,
+        store: Store,
+        registered_modules: List[Any, ]
+) -> Dict[Any, Any]:
     logger.debug("Loading wasm module from file: %s", file_path.name)
 
     if file_path.suffix != ".wasm":
@@ -68,7 +75,7 @@ def instantiate_module_from_wasm_file(
         wasm.validate_module(module)
 
         # imports preparation
-        externvalstar = []
+        externvalstar: List[Any] = []
         for import_ in module["imports"]:
             if import_["module"] not in registered_modules:
                 raise Unlinkable(f"Unlinkable module: {import_['module']}")
