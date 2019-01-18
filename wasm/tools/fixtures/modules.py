@@ -2,7 +2,9 @@ import logging
 
 import wasm
 from wasm.datatypes import (
+    FuncRef,
     Limits,
+    TableType,
 )
 
 
@@ -49,7 +51,7 @@ def instantiate_spectest_module(store):
     wasm.alloc_global(store, ["const", "f32"], 0.0)
     wasm.alloc_global(store, ["const", "f64"], 0.0)
     wasm.alloc_table(
-        store, [Limits(10, 20), "anyfunc"]
+        store, TableType(Limits(10, 20), FuncRef)
     )  # max was 30, changed to 20 for import.wast
     moduleinst = {
         "types": [
@@ -116,7 +118,7 @@ def instantiate_test_module(store):
     wasm.alloc_mem(store, Limits(1, None))
     wasm.alloc_global(store, ["const", "i32"], 666)
     wasm.alloc_global(store, ["const", "f32"], 0.0)
-    wasm.alloc_table(store, [Limits(10, None), "anyfunc"])
+    wasm.alloc_table(store, TableType(Limits(10, None), FuncRef))
     moduleinst = {
         "types": [
             [["i32"], []],
