@@ -3,8 +3,10 @@ import math
 import struct
 from typing import (
     Any,
+    Iterable,
     List,
     NamedTuple,
+    Sequence,
     Tuple,
     Type,
     Union,
@@ -13,13 +15,21 @@ from typing import (
 from wasm import (
     constants,
 )
+from wasm._utils.validation import (
+    get_duplicates,
+)
 from wasm.datatypes import (
+    Export,
+    FuncIdx,
     FuncRef,
     FuncType,
+    GlobalIdx,
     GlobalType,
     Limits,
+    MemoryIdx,
     MemoryType,
     Mutability,
+    TableIdx,
     TableType,
     ValType,
 )
@@ -33,6 +43,9 @@ from wasm.exceptions import (
 )
 from wasm.typing import (
     BitSize,
+    Context,
+    ExportDesc,
+    Module,
     Store,
     UInt8,
     UInt32,
@@ -118,8 +131,6 @@ def spec_expon_inv(expon):
 
 # 2.3.8 EXTERNAL TYPES
 
-# similar things are defined in 2.5.10 and 4.2.11, we will reuse these for those
-
 
 def spec_funcs(star):
     funcs = []
@@ -151,6 +162,25 @@ def spec_globals(star):
         if e[0] == "global":
             globals_ += [e[1]]
     return globals_
+
+
+# 2.5.10.1 EXTERNAL TYPES
+
+
+def spec_funcs_exports(exports: Iterable[ExportDesc]) -> List[FuncIdx]:
+    return [idx for idx in exports if isinstance(idx, FuncIdx)]
+
+
+def spec_tables_exports(exports: Iterable[ExportDesc]) -> List[TableIdx]:
+    return [idx for idx in exports if isinstance(idx, TableIdx)]
+
+
+def spec_memory_exports(exports: Iterable[ExportDesc]) -> List[MemoryIdx]:
+    return [idx for idx in exports if isinstance(idx, MemoryIdx)]
+
+
+def spec_globals_exports(exports: Iterable[ExportDesc]) -> List[GlobalIdx]:
+    return [idx for idx in exports if isinstance(idx, GlobalIdx)]
 
 
 ################
@@ -609,31 +639,34 @@ def spec_validate_start(C, start):
 # 3.4.8 EXPORTS
 
 
-def spec_validate_export(C, export):
-    return spec_validate_exportdesc(C, export["desc"])
+TExportValue = Union[FuncType, TableType, MemoryType, GlobalType]
 
 
-def spec_validate_exportdesc(C, exportdesc):
-    x = exportdesc[1]
-    if exportdesc[0] == "func":
-        if len(C["funcs"]) <= x:
+def spec_validate_export(C: Context, export: Export) -> TExportValue:
+    return spec_validate_exportdesc(C, export.desc)
+
+
+def spec_validate_exportdesc(C: Context,
+                             desc: ExportDesc) -> TExportValue:
+    if isinstance(desc, FuncIdx):
+        if len(C["funcs"]) <= desc:
             raise InvalidModule("invalid")
-        return ["func", C["funcs"][x]]
-    elif exportdesc[0] == "table":
-        if len(C["tables"]) <= x:
+        return C["funcs"][desc]
+    elif isinstance(desc, TableIdx):
+        if len(C["tables"]) <= desc:
             raise InvalidModule("invalid")
-        return ["table", C["tables"][x]]
-    elif exportdesc[0] == "mem":
-        if len(C["mems"]) <= x:
+        return C["tables"][desc]
+    elif isinstance(desc, MemoryIdx):
+        if len(C["mems"]) <= desc:
             raise InvalidModule("invalid")
-        return ["mem", C["mems"][x]]
-    elif exportdesc[0] == "global":
-        if len(C["globals"]) <= x:
+        return C["mems"][desc]
+    elif isinstance(desc, GlobalIdx):
+        if len(C["globals"]) <= desc:
             raise InvalidModule("invalid")
-        mut, t = C["globals"][x]
         # TODO: verify compliance with the spec for this commented out line.
+        #mut, t = C["globals"][desc]
         # if mut != "const": raise InvalidModule("invalid") #TODO: this was in the spec, but tests fail linking.wast: $Mg exports a mutable global, seems not to parse in wabt
-        return ["global", C["globals"][x]]
+        return C["globals"][desc]
     else:
         raise InvalidModule("invalid")
 
@@ -720,70 +753,86 @@ def spec_validate_module(mod):
     # et* is needed later, here is a good place to do it
     etstar = []
     for export in mod["exports"]:
-        if export["desc"][0] == "func":
-            if len(C["funcs"]) <= export["desc"][1]:
+        if export.is_function:
+            if len(C["funcs"]) <= export.desc:
                 # this was not explicit in spec
                 raise InvalidModule("invalid")
-            etstar.append(["func", C["funcs"][export["desc"][1]]])
-        elif export["desc"][0] == "table":
-            if len(C["tables"]) <= export["desc"][1]:
+            etstar.append(C["funcs"][export.desc])
+        elif export.is_table:
+            if len(C["tables"]) <= export.desc:
                 # this was not explicit in spec
                 raise InvalidModule("invalid")
-            etstar.append(["table", C["tables"][export["desc"][1]]])
-        elif export["desc"][0] == "mem":
-            if len(C["mems"]) <= export["desc"][1]:
+            etstar.append(C["tables"][export.desc])
+        elif export.is_memory:
+            if len(C["mems"]) <= export.desc:
                 # this was not explicit in spec
                 raise InvalidModule("invalid")
-            etstar.append(["mem", C["mems"][export["desc"][1]]])
-        elif export["desc"][0] == "global":
-            if len(C["globals"]) <= export["desc"][1]:
+            etstar.append(C["mems"][export.desc])
+        elif export.is_global:
+            if len(C["globals"]) <= export.desc:
                 # this was not explicit in spec
                 raise InvalidModule("invalid")
-            etstar.append(["global", C["globals"][export["desc"][1]]])
+            etstar.append(C["globals"][export.desc])
+        else:
+            raise Exception(f"Invariant: Unknown export type: {type(export.desc)}")
+
     # under the context C
     for functypei in mod["types"]:
         spec_validate_functype(functypei)
+
     for i, func in enumerate(mod["funcs"]):
         ft = spec_validate_func(C, func)
         # TODO: remove list cast once everything is a tuple
         if ft != list(ftstar[i].results):
             raise InvalidModule("invalid")
+
     for i, table in enumerate(mod["tables"]):
         tt = spec_validate_table(table)
         if tt != ttstar[i]:
             raise InvalidModule("invalid")
+
     for i, mem in enumerate(mod["mems"]):
         mt = spec_validate_mem(mem)
         if mt != mtstar[i]:
             raise InvalidModule("invalid")
+
     for i, global_ in enumerate(mod["globals"]):
         gt = spec_validate_global(Cprime, global_)
         if gt != gtstar[i]:
             raise InvalidModule("invalid")
+
     for elem in mod["elem"]:
         spec_validate_elem(C, elem)
+
     for data in mod["data"]:
         spec_validate_data(C, data)
+
     if mod["start"]:
         spec_validate_start(C, mod["start"])
+
     for i, import_ in enumerate(mod["imports"]):
         it = spec_validate_import(C, import_)
         if it != itstar[i]:
             raise InvalidModule("invalid")
+
     for i, export in enumerate(mod["exports"]):
         et = spec_validate_export(C, export)
         if et != etstar[i]:
             raise InvalidModule("invalid")
+
     if len(C["tables"]) > 1:
         raise InvalidModule("invalid")
-    if len(C["mems"]) > 1:
+    elif len(C["mems"]) > 1:
         raise InvalidModule("invalid")
+
     # export names must be unique
-    exportnames = set()
-    for export in mod["exports"]:
-        if export["name"] in exportnames:
-            raise InvalidModule("invalid")
-        exportnames.add(export["name"])
+    duplicate_exports = get_duplicates(export.name for export in mod["exports"])
+    if duplicate_exports:
+        raise InvalidModule(
+            "Duplicate module name(s) exported: "
+            f"{'|'.join(sorted(duplicate_exports))}"
+        )
+
     return [itstar, etstar]
 
 
@@ -2694,44 +2743,42 @@ def spec_expr(config):
 
 # 4.5.1 EXTERNAL TYPING
 
-def spec_external_typing(S, externval):
-    logger.debug('spec_external_typing(%s)', externval)
+def spec_external_typing(S: Store,
+                         extern_desc: ExportDesc,
+                         ) -> List[Union[str, TExportValue]]:
+    logger.debug('spec_external_typing(%s)', extern_desc)
 
-    if "func" == externval[0]:
-        a = externval[1]
-        if len(S["funcs"]) < a:
+    if isinstance(extern_desc, FuncIdx):
+        if len(S["funcs"]) < extern_desc:
             raise Unlinkable("unlinkable")
-        funcinst = S["funcs"][a]
+        funcinst = S["funcs"][extern_desc]
         return ["func", funcinst["type"]]
-    elif "table" == externval[0]:
-        a = externval[1]
-        if len(S["tables"]) < a:
+    elif isinstance(extern_desc, TableIdx):
+        if len(S["tables"]) < extern_desc:
             raise Unlinkable("unlinkable")
-        tableinst = S["tables"][a]
+        tableinst = S["tables"][extern_desc]
         return [
             "table",
             TableType(
-                limits=Limits(len(tableinst["elem"]), tableinst["max"]),
+                limits=Limits(UInt32(len(tableinst["elem"])), tableinst["max"]),
                 elem_type=FuncRef,
             ),
         ]
-    elif "mem" == externval[0]:
-        a = externval[1]
-        if len(S["mems"]) < a:
+    elif isinstance(extern_desc, MemoryIdx):
+        if len(S["mems"]) < extern_desc:
             raise Unlinkable("unlinkable")
-        meminst = S["mems"][a]
+        meminst = S["mems"][extern_desc]
         return [
             "mem",
             MemoryType(
-                len(meminst["data"]) // constants.PAGE_SIZE_64K,
+                UInt32(len(meminst["data"]) // constants.PAGE_SIZE_64K),
                 meminst["max"],
             ),
         ]
-    elif "global" == externval[0]:
-        a = externval[1]
-        if len(S["globals"]) < a:
+    elif isinstance(extern_desc, GlobalIdx):
+        if len(S["globals"]) < extern_desc:
             raise Unlinkable("unlinkable")
-        globalinst = S["globals"][a]
+        globalinst = S["globals"][extern_desc]
         return [
             "global",
             GlobalType(
@@ -2801,29 +2848,35 @@ def spec_externtype_matching(externtype1, externtype2):
 # 4.5.3 ALLOCATION
 
 
-def spec_allocfunc(S, func, moduleinst):
+# TODO: tighten up type hint for `func` once function instance types have been
+# implemented.
+def spec_allocfunc(S: Store, func: Any, moduleinst: Module) -> Tuple[Store, FuncIdx]:
     logger.debug('spec_allocfunc()')
 
-    funcaddr = len(S["funcs"])
+    funcaddr = FuncIdx(len(S["funcs"]))
     functype = moduleinst["types"][func["type"]]
     funcinst = {"type": functype, "module": moduleinst, "code": func}
     S["funcs"].append(funcinst)
     return S, funcaddr
 
 
-def spec_allochostfunc(S, functype, hostfunc):
+# TODO: tighten `Any` type for `hostfunc`
+def spec_allochostfunc(S: Store,
+                       functype: FuncType,
+                       hostfunc: Any,
+                       ) -> Tuple[Store, FuncIdx]:
     logger.debug('spec_allochostfunc()')
 
-    funcaddr = len(S["funcs"])
+    funcaddr = FuncIdx(len(S["funcs"]))
     funcinst = {"type": functype, "hostcode": hostfunc}
     S["funcs"].append(funcinst)
     return S, funcaddr
 
 
-def spec_alloctable(S: Store, table_type: TableType) -> Tuple[Store, int]:
+def spec_alloctable(S: Store, table_type: TableType) -> Tuple[Store, TableIdx]:
     logger.debug('spec_alloctable()')
 
-    tableaddr = len(S["tables"])
+    tableaddr = TableIdx(len(S["tables"]))
     tableinst = {
         "elem": [None for i in range(table_type.limits.min)],
         "max": table_type.limits.max,
@@ -2832,10 +2885,10 @@ def spec_alloctable(S: Store, table_type: TableType) -> Tuple[Store, int]:
     return S, tableaddr
 
 
-def spec_allocmem(S: Store, memory_type: MemoryType) -> Tuple[Store, int]:
+def spec_allocmem(S: Store, memory_type: MemoryType) -> Tuple[Store, MemoryIdx]:
     logger.debug('spec_allocmem()')
 
-    memaddr = len(S["mems"])
+    memaddr = MemoryIdx(len(S["mems"]))
     meminst = {
         "data": bytearray(memory_type.min * constants.PAGE_SIZE_64K),
         "max": memory_type.max,
@@ -2846,12 +2899,12 @@ def spec_allocmem(S: Store, memory_type: MemoryType) -> Tuple[Store, int]:
 
 def spec_allocglobal(S: Store,
                      global_type: GlobalType,
-                     val: Union[int, float]) -> Tuple[Store, int]:
+                     val: Union[int, float]) -> Tuple[Store, GlobalIdx]:
     logger.debug('spec_allocglobal()')
 
     mut = global_type.mut
     valtype = global_type.valtype
-    globaladdr = len(S["globals"])
+    globaladdr = GlobalIdx(len(S["globals"]))
     globalinst = {"value": [valtype.value + ".const", val], "mut": mut}
     S["globals"].append(globalinst)
     return S, globaladdr
@@ -2890,7 +2943,11 @@ def spec_growmem(meminst, n):
     )  # each page created with bytearray(65536) which is 0s
 
 
-def spec_allocmodule(S, module, externvalimstar, valstar):
+def spec_allocmodule(S: Store,
+                     module: Module,
+                     externvalimstar: Sequence[ExportDesc],
+                     valstar: Any,  # TODO: more precise type
+                     ) -> Tuple[Store, Module]:
     logger.debug('spec_allocmodule()')
 
     moduleinst = {
@@ -2901,6 +2958,7 @@ def spec_allocmodule(S, module, externvalimstar, valstar):
         "globaladdrs": None,
         "exports": None,
     }
+
     funcaddrstar = [spec_allocfunc(S, func, moduleinst)[1] for func in module["funcs"]]
     tableaddrstar = [spec_alloctable(S, table["type"])[1] for table in module["tables"]]
     memaddrstar = [spec_allocmem(S, mem["type"])[1] for mem in module["mems"]]
@@ -2908,28 +2966,27 @@ def spec_allocmodule(S, module, externvalimstar, valstar):
         spec_allocglobal(S, global_["type"], valstar[idx])[1]
         for idx, global_ in enumerate(module["globals"])
     ]
-    funcaddrmodstar = spec_funcs(externvalimstar) + funcaddrstar
-    tableaddrmodstar = spec_tables(externvalimstar) + tableaddrstar
-    memaddrmodstar = spec_mems(externvalimstar) + memaddrstar
-    globaladdrmodstar = spec_globals(externvalimstar) + globaladdrstar
-    exportinststar = []
-    for exporti in module["exports"]:
-        if exporti["desc"][0] == "func":
-            x = exporti["desc"][1]
-            externvali = ["func", funcaddrmodstar[x]]
-        elif exporti["desc"][0] == "table":
-            x = exporti["desc"][1]
-            externvali = ["table", tableaddrmodstar[x]]
-        elif exporti["desc"][0] == "mem":
-            x = exporti["desc"][1]
-            externvali = ["mem", memaddrmodstar[x]]
-        elif exporti["desc"][0] == "global":
-            x = exporti["desc"][1]
-            externvali = ["global", globaladdrmodstar[x]]
-        else:
-            raise Exception("Invariant: TODO: bettermessage")
 
-        exportinststar += [{"name": exporti["name"], "value": externvali}]
+    funcaddrmodstar = spec_funcs_exports(externvalimstar) + funcaddrstar
+    tableaddrmodstar = spec_tables_exports(externvalimstar) + tableaddrstar
+    memaddrmodstar = spec_memory_exports(externvalimstar) + memaddrstar
+    globaladdrmodstar = spec_globals_exports(externvalimstar) + globaladdrstar
+
+    exportinststar: List[Export] = []
+    for exporti in module["exports"]:
+        if exporti.is_function:
+            desc = funcaddrmodstar[exporti.desc]
+        elif exporti.is_table:
+            desc = tableaddrmodstar[exporti.desc]
+        elif exporti.is_memory:
+            desc = memaddrmodstar[exporti.desc]
+        elif exporti.is_global:
+            desc = globaladdrmodstar[exporti.desc]
+        else:
+            raise Exception("Invariant: Unknown export ")
+
+        exportinststar += [Export(exporti.name, desc)]
+
     moduleinst["funcaddrs"] = funcaddrmodstar
     moduleinst["tableaddrs"] = tableaddrmodstar
     moduleinst["memaddrs"] = memaddrmodstar
@@ -2956,7 +3013,9 @@ def spec_instantiate(S, module, externvaln):
     valstar = []
     moduleinstim = {
         "globaladdrs": [
-            externval[1] for externval in externvaln if "global" == externval[0]
+            externval
+            for externval in externvaln
+            if isinstance(externval, GlobalIdx)
         ]
     }
     Fim = {"module": moduleinstim, "locals": [], "arity": 1, "height": 0}
@@ -4139,25 +4198,25 @@ def spec_binary_exportsec(raw, idx, skip=0):
     return spec_binary_sectionN(raw, idx, 7, spec_binary_export, skip)
 
 
-def spec_binary_export(raw, idx):
-    idx, nm = spec_binary_name(raw, idx)
-    idx, d = spec_binary_exportdesc(raw, idx)
-    return idx, {"name": nm, "desc": d}
+def spec_binary_export(raw: bytes, idx: int) -> Tuple[int, Export]:
+    idx, name = spec_binary_name(raw, idx)
+    idx, desc = spec_binary_exportdesc(raw, idx)
+    return idx, Export(name, desc)
 
 
-def spec_binary_exportdesc(raw, idx):
+def spec_binary_exportdesc(raw: bytes, idx: int) -> Tuple[int, ExportDesc]:
     if raw[idx] == 0x00:
         idx, x = spec_binary_funcidx(raw, idx + 1)
-        return idx, ["func", x]
+        return idx, FuncIdx(x)
     elif raw[idx] == 0x01:
         idx, x = spec_binary_tableidx(raw, idx + 1)
-        return idx, ["table", x]
+        return idx, TableIdx(x)
     elif raw[idx] == 0x02:
         idx, x = spec_binary_memidx(raw, idx + 1)
-        return idx, ["mem", x]
+        return idx, MemoryIdx(x)
     elif raw[idx] == 0x03:
         idx, x = spec_binary_globalidx(raw, idx + 1)
-        return idx, ["global", x]
+        return idx, GlobalIdx(x)
     else:
         raise Exception("Unreachable code path")
 
@@ -4170,17 +4229,17 @@ def spec_binary_export_inv(node):
     return spec_binary_name_inv(node["name"]) + spec_binary_exportdesc_inv(node["desc"])
 
 
-def spec_binary_exportdesc_inv(node):
-    key = node[0]
-    if key == "func":
-        return bytearray([0x00]) + spec_binary_funcidx_inv(node[1])
-    elif key == "table":
-        return bytearray([0x01]) + spec_binary_tableidx_inv(node[1])
-    elif key == "mem":
-        return bytearray([0x02]) + spec_binary_memidx_inv(node[1])
-    elif key == "global":
-        return bytearray([0x03]) + spec_binary_globalidx_inv(node[1])
+def spec_binary_exportdesc_inv(desc: ExportDesc) -> bytearray:
+    if isinstance(desc, FuncIdx):
+        return bytearray([0x00]) + spec_binary_funcidx_inv(desc)
+    elif isinstance(desc, TableIdx):
+        return bytearray([0x01]) + spec_binary_tableidx_inv(desc)
+    elif isinstance(desc, MemoryIdx):
+        return bytearray([0x02]) + spec_binary_memidx_inv(desc)
+    elif isinstance(desc, GlobalIdx):
+        return bytearray([0x03]) + spec_binary_globalidx_inv(desc)
     else:
+        # TODO: check if this is a valid code path
         return bytearray()
 
 
