@@ -16,9 +16,6 @@ from _pytest.outcomes import (
     Failed,
 )
 import wasm
-from wasm import (
-    constants,
-)
 from wasm.exceptions import (
     Exhaustion,
     InvalidModule,
@@ -155,10 +152,10 @@ def run_opcode_action_invoke(action, store, module, all_modules, registered_modu
         type_ = arg.type
         value = arg.value
 
-        if type_ in {"f32", "f64"}:
+        if type_.is_float_type:
             logger.info("Floating point not yet supported: %s", action)
             raise FloatingPointNotImplemented("Floating point not yet implemented")
-        args += [[type_ + ".const", value]]
+        args += [[type_.value + ".const", value]]
 
     # invoke func
     _, ret = wasm.invoke_func(store, funcaddr, args)
@@ -198,12 +195,13 @@ def do_assert_return(command, store, module, all_modules, registered_modules):
         expected_val = expected.value
         expected_type = expected.type
 
-        if expected_type in constants.INTEGER_TYPES:
+        if expected_type.is_integer_type:
             logger.debug("expected: %s | actual: %s", expected_val, actual)
 
             assert actual == expected_val
-        elif expected_type in constants.FLOAT_TYPES:
+        elif expected_type.is_float_type:
             logger.info("Floating point operations not yet implemented, skipping...")
+            # TODO: convert to exception and enumerate failing test in SKIP_COMMANDS
             return
 
             assert isinstance(actual, float)

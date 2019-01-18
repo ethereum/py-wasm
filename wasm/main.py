@@ -2,25 +2,25 @@ import logging
 import math
 import struct
 from typing import (
+    Any,
+    List,
     NamedTuple,
     Tuple,
     Type,
+    Union,
 )
 
 from wasm import (
     constants,
 )
-from wasm._utils.types import (
-    get_bit_size,
-    get_float_type,
-    is_float_type,
-    is_integer_type,
-)
 from wasm.datatypes import (
     FuncRef,
+    GlobalType,
     Limits,
     MemoryType,
+    Mutability,
     TableType,
+    ValType,
 )
 from wasm.exceptions import (
     Exhaustion,
@@ -31,6 +31,7 @@ from wasm.exceptions import (
     ValidationError,
 )
 from wasm.typing import (
+    BitSize,
     Store,
     UInt32,
 )
@@ -217,10 +218,8 @@ def spec_validate_memtype(memory_type: MemoryType) -> MemoryType:
 # 3.2.5 GLOBAL TYPES
 
 
-def spec_validate_globaltype(globaltype):
-    return (
-        globaltype
-    )  # TODO: always valid, maybe should check whether mut and valtype are both ok
+def spec_validate_globaltype(global_type: GlobalType) -> GlobalType:
+    return global_type
 
 
 ##################
@@ -243,11 +242,11 @@ def spec_validate_t_binop(t):
 
 
 def spec_validate_t_testop(t):
-    return [t], [constants.INT32]
+    return [t], [ValType.i32]
 
 
 def spec_validate_t_relop(t):
-    return [t, t], [constants.INT32]
+    return [t, t], [ValType.i32]
 
 
 def spec_validate_t2_cvtop_t1(t1, t2):
@@ -262,7 +261,7 @@ def spec_validate_drop():
 
 
 def spec_validate_select():
-    return ["t", "t", constants.INT32], ["t"]
+    return ["t", "t", ValType.i32], ["t"]
 
 
 # 3.3.3 VARIABLE INSTRUCTIONS
@@ -308,13 +307,16 @@ def spec_validate_set_global(C, x):
 # 3.3.4 MEMORY INSTRUCTIONS
 
 
-def spec_validate_t_load(C, t, memarg):
+# TODO: accurate types for `C` and `memarg`
+def spec_validate_t_load(C: Any,
+                         valtype: ValType,
+                         memarg: Any
+                         ) -> Tuple[List[ValType], List[ValType]]:
     if len(C["mems"]) < 1:
         raise InvalidModule("invalid")
-    tval = get_bit_size(t)  # invariant: t has form: letter digit digit  eg i32
-    if 2 ** memarg["align"] > tval // 8:
+    if 2 ** memarg["align"] > valtype.bit_size // 8:
         raise InvalidModule("invalid")
-    return [constants.INT32], [t]
+    return [ValType.i32], [valtype]
 
 
 def spec_validate_tloadNsx(C, t, N, memarg):
@@ -322,16 +324,15 @@ def spec_validate_tloadNsx(C, t, N, memarg):
         raise InvalidModule("invalid")
     if 2 ** memarg["align"] > N // 8:
         raise InvalidModule("invalid")
-    return [constants.INT32], [t]
+    return [ValType.i32], [t]
 
 
 def spec_validate_tstore(C, t, memarg):
     if len(C["mems"]) < 1:
         raise InvalidModule("invalid")
-    tval = get_bit_size(t)  # invariant: t has form: letter digit digit  eg i32
-    if 2 ** memarg["align"] > tval // 8:
+    if 2 ** memarg["align"] > t.bit_size // 8:
         raise InvalidModule("invalid")
-    return [constants.INT32, t], []
+    return [ValType.i32, t], []
 
 
 def spec_validate_tstoreN(C, t, N, memarg):
@@ -339,19 +340,19 @@ def spec_validate_tstoreN(C, t, N, memarg):
         raise InvalidModule("invalid")
     if 2 ** memarg["align"] > N // 8:
         raise InvalidModule("invalid")
-    return [constants.INT32, t], []
+    return [ValType.i32, t], []
 
 
 def spec_validate_memorysize(C):
     if len(C["mems"]) < 1:
         raise InvalidModule("invalid")
-    return [], [constants.INT32]
+    return [], [ValType.i32]
 
 
 def spec_validate_memorygrow(C):
     if len(C["mems"]) < 1:
         raise InvalidModule("invalid")
-    return [constants.INT32], [constants.INT32]
+    return [ValType.i32], [ValType.i32]
 
 
 # 3.3.5 CONTROL INSTRUCTIONS
@@ -392,7 +393,7 @@ def spec_validate_if(C, tq, instrstar1, instrstar2):
     if type_ != ([], [tq] if tq else []):
         raise InvalidModule("invalid")
     C["labels"].pop()
-    return [constants.INT32], [tq] if tq else []
+    return [ValType.i32], [tq] if tq else []
 
 
 def spec_validate_br(C, l):
@@ -406,7 +407,7 @@ def spec_validate_br_if(C, l):
     if len(C["labels"]) <= l:
         raise InvalidModule("invalid")
     tq_in_brackets = C["labels"][l]
-    return tq_in_brackets + [constants.INT32], tq_in_brackets
+    return tq_in_brackets + [ValType.i32], tq_in_brackets
 
 
 def spec_validate_br_table(C, lstar, lN):
@@ -418,14 +419,14 @@ def spec_validate_br_table(C, lstar, lN):
             raise InvalidModule("invalid")
         if C["labels"][li] != tq_in_brackets:
             raise InvalidModule("invalid")
-    return ["t1*"] + tq_in_brackes + [constants.INT32], ["t2*"]
+    return ["t1*"] + tq_in_brackes + [ValType.i32], ["t2*"]
 
 
 def spec_validate_return(C):
     if C["return"] == None:
         raise InvalidModule("invalid")
     tq_in_brackets = C["return"]
-    return ["t1*"] + tq_in_brackes + [constants.INT32], ["t2*"]
+    return ["t1*"] + tq_in_brackes + [ValType.i32], ["t2*"]
 
 
 def spec_validate_call(C, x):
@@ -442,7 +443,7 @@ def spec_validate_call_indirect(C, x):
         raise InvalidModule("invalid")
     if C["types"] == None or len(C["types"]) <= x:
         raise InvalidModule("invalid")
-    return C["types"][x][0] + [constants.INT32], C["types"][x][1]
+    return C["types"][x][0] + [ValType.i32], C["types"][x][1]
 
 
 # 3.3.6 INSTRUCTION SEQUENCES
@@ -473,9 +474,9 @@ def spec_validate_const_instr(C, instr):
         "get_global",
     }:
         raise InvalidModule("invalid")
-    if instr[0] == "get_global" and C["globals"][instr[1]][0] != "const":
+    if instr[0] == "get_global" and C["globals"][instr[1]][0] is not Mutability.const:
         raise InvalidModule("invalid")
-    return "const"
+    return Mutability.const
 
 
 def spec_validate_const_expr(C, expr):
@@ -485,7 +486,7 @@ def spec_validate_const_expr(C, expr):
         spec_validate_const_instr(C, e)
     if expr[-1][0] != "end":
         raise InvalidModule("invalid")
-    return "const"
+    return Mutability.const
 
 
 #############
@@ -561,9 +562,9 @@ def spec_validate_elem(C, elem):
     if elem_type is not FuncRef:
         raise InvalidModule("invalid")
     # first wrap in block with appropriate return type
-    instrstar = [["block", constants.INT32, elem["offset"]]]
+    instrstar = [["block", ValType.i32, elem["offset"]]]
     ret = spec_validate_expr(C, instrstar)
-    if ret != [constants.INT32]:
+    if ret != [ValType.i32]:
         raise InvalidModule("invalid")
     spec_validate_const_expr(C, elem["offset"])
     for y in elem["init"]:
@@ -579,9 +580,9 @@ def spec_validate_data(C, data):
     x = data["data"]
     if len(C["mems"]) <= x:
         raise InvalidModule("invalid")
-    instrstar = [["block", constants.INT32, data["offset"]]]
+    instrstar = [["block", ValType.i32, data["offset"]]]
     ret = spec_validate_expr(C, instrstar)
-    if ret != [constants.INT32]:
+    if ret != [ValType.i32]:
         raise InvalidModule("invalid")
     spec_validate_const_expr(C, data["offset"])
     return 0
@@ -653,10 +654,10 @@ def spec_validate_importdesc(C, importdesc):
         spec_validate_memtype(memtype)
         return ["mem", memtype]
     elif importdesc[0] == "global":
-        globaltype = importdesc[1]
-        spec_validate_globaltype(globaltype)
-        # if globaltype[0] != "const": raise InvalidModule("invalid") #TODO: this was in the spec, but tests fail linking.wast: $Mg exports a mutable global, seems not to parse in wabt
-        return ["global", globaltype]
+        global_type = importdesc[1]
+        spec_validate_globaltype(global_type)
+        # if global_type[0] != "const": raise InvalidModule("invalid") #TODO: this was in the spec, but tests fail linking.wast: $Mg exports a mutable global, seems not to parse in wabt
+        return ["global", global_type]
     else:
         raise InvalidModule("invalid")
 
@@ -815,33 +816,34 @@ def spec_trunc(q):
 # bytes are bytearray (maybe can also read from memoryview)
 
 
-def spec_bitst(t, c):
-    logger.debug("spec_bitst(%s, %s)", t, c)
+# TODO: accurate type for `c`
+def spec_bitst(valtype: ValType, c: Any) -> str:
+    logger.debug("spec_bitst(%s, %s)", valtype, c)
 
-    N = get_bit_size(t)
+    N = valtype.bit_size
 
-    if is_integer_type(t):
+    if valtype.is_integer_type:
         return spec_bitsiN(N, c)
-    elif is_float_type(t):
+    elif valtype.is_float_type:
         return spec_bitsfN(N, c)
     else:
-        raise Exception(f"Invariant: unknown type '{t}'")
+        raise Exception(f"Invariant: unknown type '{valtype}'")
 
 
 def spec_bitst_inv(t, bits):
     logger.debug("spec_bitst_inv(%s, %s)", t, bits)
 
-    N = get_bit_size(t)
+    N = t.bit_size
 
-    if is_integer_type(t):
+    if t.is_integer_type:
         return spec_bitsiN_inv(N, bits)
-    elif is_float_type(t):
+    elif t.is_float_type:
         return spec_bitsfN_inv(N, bits)
     else:
         raise Exception(f"Invariant: unknown type '{t}'")
 
 
-def spec_bitsiN(N, i):
+def spec_bitsiN(N: BitSize, i: int) -> str:
     logger.debug("spec_bitsiN(%s, %s)", N, i)
 
     return spec_ibitsN(N, i)
@@ -868,7 +870,7 @@ def spec_bitsfN_inv(N, bits):
 # Integers
 
 
-def spec_ibitsN(N, i):
+def spec_ibitsN(N: BitSize, i: int) -> str:
     logger.debug("spec_ibitsN(%s, %s)", N, i)
 
     return bin(i)[2:].zfill(N)
@@ -917,7 +919,7 @@ def spec_fbitsN_inv(N, bits):
 def spec_fsign(z):
     logger.debug("spec_fsign(%s)", z)
 
-    bytes_ = spec_bytest(constants.FLOAT64, z)
+    bytes_ = spec_bytest(ValType.f64, z)
     sign = bytes_[-1] & 0b10000000  # -1 since littleendian
     if sign:
         return 1
@@ -935,30 +937,32 @@ def spec_fsign(z):
 # Storage
 
 
-def spec_bytest(t, i):
-    logger.debug("spec_bytest(%s, %s)", t, i)
+def spec_bytest(valtype: ValType, i: int) -> bytearray:
+    logger.debug("spec_bytest(%s, %s)", valtype, i)
 
-    if is_integer_type(t):
-        bits = spec_bitsiN(get_bit_size(t), i)
-    elif is_float_type(t):
-        bits = spec_bitsfN(get_bit_size(t), i)
+    N = valtype.bit_size
+
+    if valtype.is_integer_type:
+        bits = spec_bitsiN(N, i)
+    elif valtype.is_float_type:
+        bits = spec_bitsfN(N, i)
     else:
-        raise Exception(f"Invariant: unknown type '{t}'")
+        raise Exception(f"Invariant: unknown type '{valtype}'")
 
     return spec_littleendian(bits)
 
 
-def spec_bytest_inv(t, bytes_):
-    logger.debug("spec_bytest_inv(%s, %s)", t, bytes_)
+def spec_bytest_inv(valtype: ValType, bytes_: bytes) -> bytearray:
+    logger.debug("spec_bytest_inv(%s, %s)", valtype, bytes_)
 
     bits = spec_littleendian_inv(bytes_)
 
-    if is_integer_type(t):
-        return spec_bitsiN_inv(get_bit_size(t), bits)
-    elif is_float_type(t):
-        return spec_bitsfN_inv(get_bit_size(t), bits)
+    if valtype.is_integer_type:
+        return spec_bitsiN_inv(valtype.bit_size, bits)
+    elif valtype.is_float_type:
+        return spec_bitsfN_inv(valtype.bit_size, bits)
     else:
-        raise Exception(f"Invariant: unknown type '{t}'")
+        raise Exception(f"Invariant: unknown type '{valtype}'")
 
 
 def spec_bytesiN(N, i):
@@ -982,7 +986,7 @@ def spec_bytesiN_inv(N, bytes_):
 
 
 # TODO: these are unused, but might use when refactor floats to pass NaN significand tests
-def spec_bytesfN(N, z):
+def spec_bytesfN(N: BitSize, z: float) -> bytes:
     logger.debug("spec_bytesfN(%s, %s)", N, z)
 
     if N == 32:
@@ -1340,13 +1344,13 @@ def spec_fnegN(N, z):
     logger.debug("spec_fnegN(%s, %s)", N, z)
 
     # get bytes and sign
-    bytes_ = spec_bytest(constants.FLOAT64, z)  # 64 since errors if z too bit for 32
+    bytes_ = spec_bytest(ValType.f64, z)  # 64 since errors if z too bit for 32
     sign = spec_fsign(z)
     if sign == 0:
         bytes_[-1] |= 0b10000000  # -1 since littleendian
     else:
         bytes_[-1] &= 0b01111111  # -1 since littleendian
-    z = spec_bytest_inv(constants.FLOAT64, bytes_)  # 64 since errors if z too bit for 32
+    z = spec_bytest_inv(ValType.f64, bytes_)  # 64 since errors if z too bit for 32
     return z
 
 
@@ -1550,12 +1554,12 @@ def spec_fcopysignN(N, z1, z2):
     if z1sign == z2sign:
         return z1
     else:
-        z1bytes = spec_bytest(get_float_type(N), z1)
+        z1bytes = spec_bytest(ValType.get_float_type(N), z1)
         if z1sign == 0:
             z1bytes[-1] |= 0b10000000  # -1 since littleendian
         else:
             z1bytes[-1] &= 0b01111111  # -1 since littleendian
-        z1 = spec_bytest_inv(get_float_type(N), z1bytes)
+        z1 = spec_bytest_inv(ValType.get_float_type(N), z1bytes)
         return z1
 
 
@@ -1754,8 +1758,8 @@ def spec_demoteMN(M, N, z):
             return -math.inf
         else:
             return math.inf
-    bytes_ = spec_bytest(constants.FLOAT32, z)
-    z32 = spec_bytest_inv(constants.FLOAT32, bytes_)
+    bytes_ = spec_bytest(ValType.f32, z)
+    z32 = spec_bytest_inv(ValType.f32, bytes_)
     return z32
 
 
@@ -1813,10 +1817,10 @@ def spec_tunop(config):
 
     S = config["S"]
     instr = config["instrstar"][config["idx"]][0]
-    t = instr[0:3]
+    t = ValType.from_str(instr[0:3])
     op = opcode2exec[instr][1]
     c1 = config["operand_stack"].pop()
-    c = op(get_bit_size(t), c1)
+    c = op(t.bit_size, c1)
 
     config["operand_stack"].append(c)
     config["idx"] += 1
@@ -1827,11 +1831,11 @@ def spec_tbinop(config):
 
     S = config["S"]
     instr = config["instrstar"][config["idx"]][0]
-    t = instr[0:3]
+    t = ValType.from_str(instr[0:3])
     op = opcode2exec[instr][1]
     c2 = config["operand_stack"].pop()
     c1 = config["operand_stack"].pop()
-    c = op(get_bit_size(t), c1, c2)
+    c = op(t.bit_size, c1, c2)
 
     config["operand_stack"].append(c)
     config["idx"] += 1
@@ -1842,10 +1846,10 @@ def spec_ttestop(config):
 
     S = config["S"]
     instr = config["instrstar"][config["idx"]][0]
-    t = instr[0:3]
+    t = ValType.from_str(instr[0:3])
     op = opcode2exec[instr][1]
     c1 = config["operand_stack"].pop()
-    c = op(get_bit_size(t), c1)
+    c = op(t.bit_size, c1)
 
     config["operand_stack"].append(c)
     config["idx"] += 1
@@ -1856,11 +1860,11 @@ def spec_trelop(config):
 
     S = config["S"]
     instr = config["instrstar"][config["idx"]][0]
-    t = instr[0:3]
+    t = ValType.from_str(instr[0:3])
     op = opcode2exec[instr][1]
     c2 = config["operand_stack"].pop()
     c1 = config["operand_stack"].pop()
-    c = op(get_bit_size(t), c1, c2)
+    c = op(t.bit_size, c1, c2)
 
     config["operand_stack"].append(c)
     config["idx"] += 1
@@ -1871,14 +1875,14 @@ def spec_t2cvtopt1(config):
 
     S = config["S"]
     instr = config["instrstar"][config["idx"]][0]
-    t2 = instr[0:3]
-    t1 = instr[-3:]
+    t2 = ValType.from_str(instr[0:3])
+    t1 = ValType.from_str(instr[-3:])
     op = opcode2exec[instr][1]
     c1 = config["operand_stack"].pop()
     if instr[4:15] == "reinterpret":
         c2 = op(t1, t2, c1)
     else:
-        c2 = op(int(t1[1:]), int(t2[1:]), c1)
+        c2 = op(t1.bit_size, t2.bit_size, c1)
 
     config["operand_stack"].append(c2)
     config["idx"] += 1
@@ -1988,7 +1992,7 @@ def spec_tload(config):
     F = config["F"]
     instr = config["instrstar"][config["idx"]][0]
     memarg = config["instrstar"][config["idx"]][1]
-    t = instr[:3]
+    t = ValType.from_str(instr[:3])
     # 3
     a = F[-1]["module"]["memaddrs"][0]
     # 5
@@ -2004,7 +2008,8 @@ def spec_tload(config):
             sxflag = True
         N = int(instr[8:10].strip("_"))
     else:
-        N = get_bit_size(t)
+        N = t.bit_size
+
     # 10
     if ea + N // 8 > len(mem["data"]):
         raise Trap("trap")
@@ -2013,7 +2018,7 @@ def spec_tload(config):
     # 12
     if sxflag:
         n = spec_bytest_inv(t, bstar)
-        c = spec_extend_sMN(N, get_bit_size(t), n)
+        c = spec_extend_sMN(N, t.bit_size, n)
     else:
         c = spec_bytest_inv(t, bstar)
     # 13
@@ -2029,7 +2034,7 @@ def spec_tstore(config):
     F = config["F"]
     instr = config["instrstar"][config["idx"]][0]
     memarg = config["instrstar"][config["idx"]][1]
-    t = instr[:3]
+    t = ValType.from_str(instr[:3])
     # 3
     a = F[-1]["module"]["memaddrs"][0]
     # 5
@@ -2046,13 +2051,13 @@ def spec_tstore(config):
         Nflag = True
         N = int(instr[9:])
     else:
-        N = get_bit_size(t)
+        N = t.bit_size
     # 12
     if ea + N // 8 > len(mem["data"]):
         raise Trap("trap")
     # 13
     if Nflag:
-        M = get_bit_size(t)
+        M = t.bit_size
         c = spec_wrapMN(M, N, c)
         bstar = spec_bytest(t, c)
     else:
@@ -2126,10 +2131,12 @@ def spec_block(config):
     control_stack = config["control_stack"]
     t = instrstar[idx][1]
     # 1
-    if type(t) == str:
+    if isinstance(t, ValType):
         n = 1
     elif type(t) == list:
         n = len(t)
+    else:
+        raise Exception("Invariant: unreachable code path")
     # 2
     continuation = [instrstar, idx + 1]
     L = {
@@ -2179,11 +2186,13 @@ def spec_if(config):
     # 2
     c = operand_stack.pop()
     # 3
-    t = instrstar[idx][1]
-    if type(t) == str:
+    valtype = instrstar[idx][1]
+    if isinstance(valtype, ValType):
         n = 1
-    elif type(t) == list:
-        n = len(t)
+    elif type(valtype) == list:
+        n = len(valtype)
+    else:
+        raise Exception("Invariant: unreachable code path")
     # 4
     continuation = [instrstar, idx + 1]
     L = {
@@ -2389,13 +2398,13 @@ def spec_invoke_function_address(config, a=None):
             del operand_stack[-1 * len(t1n) :]
         # 9
         val0star = []
-        for t in tstar:
-            if is_integer_type(t):
+        for valtype in tstar:
+            if valtype.is_integer_type:
                 val0star += [0]
-            elif is_float_type(t):
+            elif valtype.is_float_type:
                 val0star += [0.0]
             else:
-                raise Exception(f"Invariant: unkown type '{t}'")
+                raise Exception(f"Invariant: unkown type '{valtype}'")
         # 10 & 11
         F += [
             {
@@ -2716,7 +2725,14 @@ def spec_external_typing(S, externval):
         if len(S["globals"]) < a:
             raise Unlinkable("unlinkable")
         globalinst = S["globals"][a]
-        return ["global", [globalinst["mut"], globalinst["value"][0][:3]]]
+        assert isinstance(globalinst["mut"], Mutability)
+        return [
+            "global",
+            GlobalType(
+                globalinst["mut"],
+                ValType.from_str(globalinst["value"][0][:3])
+            ),
+        ]
     else:
         raise Unlinkable("unlinkable")
 
@@ -2822,13 +2838,15 @@ def spec_allocmem(S: Store, memory_type: MemoryType) -> Tuple[Store, int]:
     return S, memaddr
 
 
-def spec_allocglobal(S, globaltype, val):
+def spec_allocglobal(S: Store,
+                     global_type: GlobalType,
+                     val: Union[int, float]) -> Tuple[Store, int]:
     logger.debug('spec_allocglobal()')
 
-    mut = globaltype[0]
-    valtype = globaltype[1]
+    mut = global_type.mut
+    valtype = global_type.valtype
     globaladdr = len(S["globals"])
-    globalinst = {"value": [valtype + ".const", val], "mut": mut}
+    globalinst = {"value": [valtype.value + ".const", val], "mut": mut}
     S["globals"].append(globalinst)
     return S, globaladdr
 
@@ -3040,19 +3058,12 @@ def spec_invoke(S, funcaddr, valn):
         raise Exception("wrong number of arguments")
     # 5
     for ti, vali in zip(t1n, valn):
-        if vali[0][:3] != ti:
+        if vali[0][:3] != ti.value:
             raise Exception("argument type mismatch")
     # 6
     operand_stack = []
     for ti, vali in zip(t1n, valn):
         arg = vali[1]
-        if type(arg) == str:
-            if is_integer_type(ti):
-                arg = int(arg)
-            elif is_float_type(ti):
-                arg = float(arg)
-            else:
-                raise Exception(f"Invariant: unknown type '{t}'")
 
         operand_stack += [arg]
     # 7
@@ -3385,11 +3396,11 @@ def spec_binary_fN(raw, idx, N):
     for i in range(N // 8):
         bstar += bytearray([raw[idx]])
         idx += 1
-    return idx, spec_bytest_inv(get_float_type(N), bstar)  # bytearray(bstar)
+    return idx, spec_bytest_inv(ValType.get_float_type(N), bstar)  # bytearray(bstar)
 
 
 def spec_binary_fN_inv(node, N):
-    return spec_bytest(get_float_type(N), node)
+    return spec_bytest(ValType.get_float_type(N), node)
 
 
 # 5.2.4 NAMES
@@ -3496,26 +3507,26 @@ def spec_binary_name_inv(chars):
 
 # 5.3.1 VALUE TYPES
 
-valtype2bin = {constants.INT32: 0x7F, constants.INT64: 0x7E, constants.FLOAT32: 0x7D, constants.FLOAT64: 0x7C}
-bin2valtype = {val: key for key, val in valtype2bin.items()}
-
-
-def spec_binary_valtype(raw, idx):
+def spec_binary_valtype(raw: bytes, idx: int) -> Tuple[int, ValType]:
     if idx >= len(raw):
-        raise MalformedModule("malformed")
-    elif raw[idx] in bin2valtype:
-        return idx + 1, bin2valtype[raw[idx]]
-    else:
+        # TODO: this check seems out of place and should probably be removed
+        # and enforced at a higher level.
         raise MalformedModule("malformed")
 
-
-def spec_binary_valtype_inv(node):
-    logger.debug("spec_binary_valtype_inv(%s)", node)
-
-    if node in valtype2bin:
-        return bytearray([valtype2bin[node]])
+    try:
+        valtype = ValType.from_byte(raw[idx])
+    except KeyError as err:
+        raise MalformedModule(
+            "Invalid byte while parsing valtype.  Got '{hex(raw[idx]}: {str(err)}"
+        )
     else:
-        return bytearray([])  # error
+        return idx + 1, valtype
+
+
+def spec_binary_valtype_inv(valtype: ValType) -> bytearray:
+    logger.debug("spec_binary_valtype_inv(%s)", valtype)
+
+    return bytearray([valtype.to_byte()])
 
 
 # 5.3.2 RESULT TYPES
@@ -3524,8 +3535,8 @@ def spec_binary_valtype_inv(node):
 def spec_binary_blocktype(raw, idx):
     if raw[idx] == 0x40:
         return idx + 1, []
-    idx, t = spec_binary_valtype(raw, idx)
-    return idx, t
+    idx, valtype = spec_binary_valtype(raw, idx)
+    return idx, valtype
 
 
 def spec_binary_blocktype_inv(node):
@@ -3626,32 +3637,32 @@ def spec_binary_elemtype_inv(elem_type: Type[FuncRef]) -> bytearray:
 # 5.3.7 GLOBAL TYPES
 
 
-def spec_binary_globaltype(raw, idx):
-    idx, t = spec_binary_valtype(raw, idx)
-    idx, m = spec_binary_mut(raw, idx)
-    return idx, [m, t]
+def spec_binary_globaltype(raw: bytes, idx: int) -> Tuple[int, GlobalType]:
+    idx, valtype = spec_binary_valtype(raw, idx)
+    idx, mut = spec_binary_mut(raw, idx)
+    return idx, GlobalType(mut, valtype)
 
 
-def spec_binary_mut(raw, idx):
-    if raw[idx] == 0x00:
-        return idx + 1, "const"
-    elif raw[idx] == 0x01:
-        return idx + 1, "var"
+def spec_binary_mut(raw: bytes, idx: int) -> Tuple[int, Mutability]:
+    try:
+        mut = Mutability.from_byte(raw[idx])
+    except KeyError as err:
+        raise MalformedModule(
+            "Invalid byte while parsing mut.  Got '{hex(raw[idx]}: {str(err)}"
+        )
     else:
-        raise MalformedModule("malformed")
+        return idx + 1, mut
 
 
-def spec_binary_globaltype_inv(node):
-    return spec_binary_valtype_inv(node[1]) + spec_binary_mut_inv(node[0])
+def spec_binary_globaltype_inv(global_type: GlobalType) -> bytearray:
+    return (
+        spec_binary_valtype_inv(global_type.valtype) +
+        spec_binary_mut_inv(global_type.mut)
+    )
 
 
-def spec_binary_mut_inv(node):
-    if node == "const":
-        return bytearray([0x00])
-    elif node == "var":
-        return bytearray([0x01])
-    else:
-        return bytearray([])
+def spec_binary_mut_inv(mut: Mutability) -> bytearray:
+    return bytearray([mut.to_byte()])
 
 
 ##################
@@ -4242,11 +4253,13 @@ def spec_binary_code(raw, idx):
 def spec_binary_func(raw, idx):
     idx, tstarstar = spec_binary_vec(raw, idx, spec_binary_locals)
     num_locals = sum(locals_info.num for locals_info in tstarstar)
-    if num_locals >= constants.UINT32_CEIL:
+
+    if num_locals > constants.UINT32_MAX:
         raise MalformedModule("malformed")
+
     idx, e = spec_binary_expr(raw, idx)
     concattstarstar = [
-        locals_info.type_
+        locals_info.valtype
         for locals_info
         in tstarstar
         for _ in range(locals_info.num)
@@ -4256,13 +4269,13 @@ def spec_binary_func(raw, idx):
 
 class LocalsInfo(NamedTuple):
     num: int
-    type_: str
+    valtype: ValType
 
 
-def spec_binary_locals(raw, idx):
+def spec_binary_locals(raw: bytes, idx: int) -> Tuple[int, LocalsInfo]:
     idx, num = spec_binary_uN(raw, idx, 32)
-    idx, type_ = spec_binary_valtype(raw, idx)
-    return idx, LocalsInfo(num, type_)
+    idx, valtype = spec_binary_valtype(raw, idx)
+    return idx, LocalsInfo(num, valtype)
 
 
 def spec_binary_codesec_inv(node):
@@ -4774,7 +4787,7 @@ def write_global(store, globaladdr, val):
         )
     # TODO: type check; handle val without type
     gi = store["globals"][globaladdr]
-    if gi["mut"] != "var":
+    if gi["mut"] is not Mutability.var:
         raise ValidationError("Attempt to write to an immutable global variable at address '{globaladdr}'")
     gi["value"] = val
     return store
@@ -4913,7 +4926,7 @@ def spec_validate_opcode(C, opds, ctrls, opcode, immediates):
             elif opcode_binary == 0x03:  # loop
                 spec_push_ctrl(opds, ctrls, [], rt)
             else:  # if
-                spec_pop_opd_expect(opds, ctrls, constants.INT32)
+                spec_pop_opd_expect(opds, ctrls, ValType.i32)
                 spec_push_ctrl(opds, ctrls, rt, rt)
         elif opcode_binary == 0x05:  # else
             results = spec_pop_ctrl(opds, ctrls)
@@ -4937,7 +4950,7 @@ def spec_validate_opcode(C, opds, ctrls, opcode, immediates):
                 raise InvalidModule("invalid")
             elif len(ctrls) <= n:
                 raise InvalidModule("invalid")
-            spec_pop_opd_expect(opds, ctrls, constants.INT32)
+            spec_pop_opd_expect(opds, ctrls, ValType.i32)
             spec_pop_opds_expect(opds, ctrls, ctrls[-1 - n]["label_types"])
             spec_push_opds(opds, ctrls, ctrls[-1 - n]["label_types"])
         elif opcode_binary == 0x0E:  # br_table
@@ -4951,7 +4964,7 @@ def spec_validate_opcode(C, opds, ctrls, opcode, immediates):
                     or ctrls[-1 - n]["label_types"] != ctrls[-1 - m]["label_types"]
                 ):
                     raise InvalidModule("invalid")
-            spec_pop_opd_expect(opds, ctrls, constants.INT32)
+            spec_pop_opd_expect(opds, ctrls, ValType.i32)
             spec_pop_opds_expect(opds, ctrls, ctrls[-1 - m]["label_types"])
             spec_unreachable_(opds, ctrls)
         elif opcode_binary == 0x0F:  # return
@@ -4974,14 +4987,14 @@ def spec_validate_opcode(C, opds, ctrls, opcode, immediates):
                 raise InvalidModule("invalid")
             elif len(C["types"]) <= x:
                 raise InvalidModule("invalid")
-            spec_pop_opd_expect(opds, ctrls, constants.INT32)
+            spec_pop_opd_expect(opds, ctrls, ValType.i32)
             spec_pop_opds_expect(opds, ctrls, C["types"][x][0])
             spec_push_opds(opds, ctrls, C["types"][x][1])
     elif 0x1A <= opcode_binary <= 0x1B:  # PARAMETRIC INSTRUCTIONS
         if opcode_binary == 0x1A:  # drop
             spec_pop_opd(opds, ctrls)
         elif opcode_binary == 0x1B:  # select
-            spec_pop_opd_expect(opds, ctrls, constants.INT32)
+            spec_pop_opd_expect(opds, ctrls, ValType.i32)
             t1 = spec_pop_opd(opds, ctrls)
             t2 = spec_pop_opd_expect(opds, ctrls, t1)
             spec_push_opd(opds, t2)
@@ -4990,76 +5003,76 @@ def spec_validate_opcode(C, opds, ctrls, opcode, immediates):
             x = immediates
             if len(C["locals"]) <= x:
                 raise InvalidModule("invalid")
-            elif C["locals"][x] == constants.INT32:
-                spec_push_opd(opds, constants.INT32)
-            elif C["locals"][x] == constants.INT64:
-                spec_push_opd(opds, constants.INT64)
-            elif C["locals"][x] == constants.FLOAT32:
-                spec_push_opd(opds, constants.FLOAT32)
-            elif C["locals"][x] == constants.FLOAT64:
-                spec_push_opd(opds, constants.FLOAT64)
+            elif C["locals"][x] is ValType.i32:
+                spec_push_opd(opds, ValType.i32)
+            elif C["locals"][x] is ValType.i64:
+                spec_push_opd(opds, ValType.i64)
+            elif C["locals"][x] is ValType.f32:
+                spec_push_opd(opds, ValType.f32)
+            elif C["locals"][x] is ValType.f64:
+                spec_push_opd(opds, ValType.f64)
             else:
                 raise InvalidModule("invalid")
         elif opcode_binary == 0x21:  # set_local
             x = immediates
             if len(C["locals"]) <= x:
                 raise InvalidModule("invalid")
-            elif C["locals"][x] == constants.INT32:
-                ret = spec_pop_opd_expect(opds, ctrls, constants.INT32)
-            elif C["locals"][x] == constants.INT64:
-                ret = spec_pop_opd_expect(opds, ctrls, constants.INT64)
-            elif C["locals"][x] == constants.FLOAT32:
-                ret = spec_pop_opd_expect(opds, ctrls, constants.FLOAT32)
-            elif C["locals"][x] == constants.FLOAT64:
-                ret = spec_pop_opd_expect(opds, ctrls, constants.FLOAT64)
+            elif C["locals"][x] is ValType.i32:
+                ret = spec_pop_opd_expect(opds, ctrls, ValType.i32)
+            elif C["locals"][x] is ValType.i64:
+                ret = spec_pop_opd_expect(opds, ctrls, ValType.i64)
+            elif C["locals"][x] is ValType.f32:
+                ret = spec_pop_opd_expect(opds, ctrls, ValType.f32)
+            elif C["locals"][x] is ValType.f64:
+                ret = spec_pop_opd_expect(opds, ctrls, ValType.f64)
             else:
                 raise InvalidModule("invalid")
         elif opcode_binary == 0x22:  # tee_local
             x = immediates
             if len(C["locals"]) <= x:
                 raise InvalidModule("invalid")
-            elif C["locals"][x] == constants.INT32:
-                spec_pop_opd_expect(opds, ctrls, constants.INT32)
-                spec_push_opd(opds, constants.INT32)
-            elif C["locals"][x] == constants.INT64:
-                spec_pop_opd_expect(opds, ctrls, constants.INT64)
-                spec_push_opd(opds, constants.INT64)
-            elif C["locals"][x] == constants.FLOAT32:
-                spec_pop_opd_expect(opds, ctrls, constants.FLOAT32)
-                spec_push_opd(opds, constants.FLOAT32)
-            elif C["locals"][x] == constants.FLOAT64:
-                spec_pop_opd_expect(opds, ctrls, constants.FLOAT64)
-                spec_push_opd(opds, constants.FLOAT64)
+            elif C["locals"][x] is ValType.i32:
+                spec_pop_opd_expect(opds, ctrls, ValType.i32)
+                spec_push_opd(opds, ValType.i32)
+            elif C["locals"][x] is ValType.i64:
+                spec_pop_opd_expect(opds, ctrls, ValType.i64)
+                spec_push_opd(opds, ValType.i64)
+            elif C["locals"][x] is ValType.f32:
+                spec_pop_opd_expect(opds, ctrls, ValType.f32)
+                spec_push_opd(opds, ValType.f32)
+            elif C["locals"][x] is ValType.f64:
+                spec_pop_opd_expect(opds, ctrls, ValType.f64)
+                spec_push_opd(opds, ValType.f64)
             else:
                 raise InvalidModule("invalid")
         elif opcode_binary == 0x23:  # get_global
             x = immediates
             if len(C["globals"]) <= x:
                 raise InvalidModule("invalid")
-            elif C["globals"][x][1] == constants.INT32:
-                spec_push_opd(opds, constants.INT32)
-            elif C["globals"][x][1] == constants.INT64:
-                spec_push_opd(opds, constants.INT64)
-            elif C["globals"][x][1] == constants.FLOAT32:
-                spec_push_opd(opds, constants.FLOAT32)
-            elif C["globals"][x][1] == constants.FLOAT64:
-                spec_push_opd(opds, constants.FLOAT64)
+            elif C["globals"][x][1] is ValType.i32:
+                spec_push_opd(opds, ValType.i32)
+            elif C["globals"][x][1] is ValType.i64:
+                spec_push_opd(opds, ValType.i64)
+            elif C["globals"][x][1] is ValType.f32:
+                spec_push_opd(opds, ValType.f32)
+            elif C["globals"][x][1] is ValType.f64:
+                spec_push_opd(opds, ValType.f64)
             else:
                 raise InvalidModule("invalid")
         elif opcode_binary == 0x24:  # set_global
             x = immediates
             if len(C["globals"]) <= x:
                 raise InvalidModule("invalid")
-            elif C["globals"][x][0] != "var":
+            elif C["globals"][x][0] is not Mutability.var:
                 raise InvalidModule("invalid")
-            elif C["globals"][x][1] == constants.INT32:
-                ret = spec_pop_opd_expect(opds, ctrls, constants.INT32)
-            elif C["globals"][x][1] == constants.INT64:
-                ret = spec_pop_opd_expect(opds, ctrls, constants.INT64)
-            elif C["globals"][x][1] == constants.FLOAT32:
-                ret = spec_pop_opd_expect(opds, ctrls, constants.FLOAT32)
-            elif C["globals"][x][1] == constants.FLOAT64:
-                ret = spec_pop_opd_expect(opds, ctrls, constants.FLOAT64)
+            elif C["globals"][x][1] is ValType.i32:
+                ret = spec_pop_opd_expect(opds, ctrls, ValType.i32)
+            elif C["globals"][x][1] is ValType.i64:
+                ret = spec_pop_opd_expect(opds, ctrls, ValType.i64)
+            elif C["globals"][x][1] is ValType.f32:
+                ret = spec_pop_opd_expect(opds, ctrls, ValType.f32)
+            elif C["globals"][x][1] is ValType.f64:
+                ret = spec_pop_opd_expect(opds, ctrls, ValType.f64)
             else:
                 raise InvalidModule("invalid")
         else:
@@ -5071,199 +5084,199 @@ def spec_validate_opcode(C, opds, ctrls, opcode, immediates):
             memarg = immediates
             if opcode_binary == 0x28:  # i32.load
                 N = 32
-                t = constants.INT32
+                t = ValType.i32
             elif opcode_binary == 0x29:  # i64.load
                 N = 64
-                t = constants.INT64
+                t = ValType.i64
             elif opcode_binary == 0x2A:  # f32.load
                 N = 32
-                t = constants.FLOAT32
+                t = ValType.f32
             elif opcode_binary == 0x2B:  # f64.load
                 N = 64
-                t = constants.FLOAT64
+                t = ValType.f64
             elif opcode_binary <= 0x2D:  # i32.load8_s, i32.load8_u
                 N = 8
-                t = constants.INT32
+                t = ValType.i32
             elif opcode_binary <= 0x2F:  # i32.load16_s, i32.load16_u
                 N = 16
-                t = constants.INT32
+                t = ValType.i32
             elif opcode_binary <= 0x31:  # i64.load8_s, i64.load8_u
                 N = 8
-                t = constants.INT64
+                t = ValType.i64
             elif opcode_binary <= 0x33:  # i64.load16_s, i64.load16_u
                 N = 16
-                t = constants.INT64
+                t = ValType.i64
             elif opcode_binary <= 0x35:  # i64.load32_s, i64.load32_u
                 N = 32
-                t = constants.INT64
+                t = ValType.i64
             else:
                 raise Exception(f"Unexpected opcode value: {opcode_binary}")
 
             if 2 ** memarg["align"] > N // 8:
                 raise InvalidModule("invalid")
-            spec_pop_opd_expect(opds, ctrls, constants.INT32)
+            spec_pop_opd_expect(opds, ctrls, ValType.i32)
             spec_push_opd(opds, t)
         elif opcode_binary <= 0x3E:
             memarg = immediates
             if opcode_binary == 0x36:  # i32.store
                 N = 32
-                t = constants.INT32
+                t = ValType.i32
             elif opcode_binary == 0x37:  # i64.store
                 N = 64
-                t = constants.INT64
+                t = ValType.i64
             elif opcode_binary == 0x38:  # f32.store
                 N = 32
-                t = constants.FLOAT32
+                t = ValType.f32
             elif opcode_binary == 0x39:  # f64.store
                 N = 64
-                t = constants.FLOAT64
+                t = ValType.f64
             elif opcode_binary == 0x3A:  # i32.store8
                 N = 8
-                t = constants.INT32
+                t = ValType.i32
             elif opcode_binary == 0x3B:  # i32.store16
                 N = 16
-                t = constants.INT32
+                t = ValType.i32
             elif opcode_binary == 0x3C:  # i64.store8
                 N = 8
-                t = constants.INT64
+                t = ValType.i64
             elif opcode_binary == 0x3D:  # i64.store16
                 N = 16
-                t = constants.INT64
+                t = ValType.i64
             elif opcode_binary == 0x3E:  # i64.store32
                 N = 32
-                t = constants.INT64
+                t = ValType.i64
 
             if 2 ** memarg["align"] > N // 8:
                 raise InvalidModule("invalid")
 
             spec_pop_opd_expect(opds, ctrls, t)
-            spec_pop_opd_expect(opds, ctrls, constants.INT32)
+            spec_pop_opd_expect(opds, ctrls, ValType.i32)
         elif opcode_binary == 0x3F:  # memory.size
-            spec_push_opd(opds, constants.INT32)
+            spec_push_opd(opds, ValType.i32)
         elif opcode_binary == 0x40:  # memory.grow
-            spec_pop_opd_expect(opds, ctrls, constants.INT32)
-            spec_push_opd(opds, constants.INT32)
+            spec_pop_opd_expect(opds, ctrls, ValType.i32)
+            spec_push_opd(opds, ValType.i32)
         else:
             raise Exception(f"Unexpected opcode value: {opcode_binary}")
     elif 0x41 <= opcode_binary <= 0xBF:  # NUMERIC INSTRUCTIONS
         if opcode_binary <= 0x44:
             if opcode_binary == 0x41:  # i32.const
-                spec_push_opd(opds, constants.INT32)
+                spec_push_opd(opds, ValType.i32)
             elif opcode_binary == 0x42:  # i64.const
-                spec_push_opd(opds, constants.INT64)
+                spec_push_opd(opds, ValType.i64)
             elif opcode_binary == 0x43:  # f32.const
-                spec_push_opd(opds, constants.FLOAT32)
+                spec_push_opd(opds, ValType.f32)
             else:  # f64.const
-                spec_push_opd(opds, constants.FLOAT64)
+                spec_push_opd(opds, ValType.f64)
         elif opcode_binary <= 0x4F:
             if opcode_binary == 0x45:  # i32.eqz
-                spec_pop_opd_expect(opds, ctrls, constants.INT32)
-                spec_push_opd(opds, constants.INT32)
+                spec_pop_opd_expect(opds, ctrls, ValType.i32)
+                spec_push_opd(opds, ValType.i32)
             else:  # i32.eq, i32.ne, i32.lt_s, i32.lt_u, i32.gt_s, i32.gt_u, i32.le_s, i32.le_u, i32.ge_s, i32.ge_u
-                spec_pop_opd_expect(opds, ctrls, constants.INT32)
-                spec_pop_opd_expect(opds, ctrls, constants.INT32)
-                spec_push_opd(opds, constants.INT32)
+                spec_pop_opd_expect(opds, ctrls, ValType.i32)
+                spec_pop_opd_expect(opds, ctrls, ValType.i32)
+                spec_push_opd(opds, ValType.i32)
         elif opcode_binary <= 0x5A:
             if opcode_binary == 0x50:  # i64.eqz
-                spec_pop_opd_expect(opds, ctrls, constants.INT64)
-                spec_push_opd(opds, constants.INT32)
+                spec_pop_opd_expect(opds, ctrls, ValType.i64)
+                spec_push_opd(opds, ValType.i32)
             else:  # i64.eq, i64.ne, i64.lt_s, i64.lt_u, i64.gt_s, i64.gt_u, i64.le_s, i64.le_u, i64.ge_s, i64.ge_u
-                spec_pop_opd_expect(opds, ctrls, constants.INT64)
-                spec_pop_opd_expect(opds, ctrls, constants.INT64)
-                spec_push_opd(opds, constants.INT32)
+                spec_pop_opd_expect(opds, ctrls, ValType.i64)
+                spec_pop_opd_expect(opds, ctrls, ValType.i64)
+                spec_push_opd(opds, ValType.i32)
         elif opcode_binary <= 0x60:  # f32.eq, f32.ne, f32.lt, f32.gt, f32.le, f32.ge
-            spec_pop_opd_expect(opds, ctrls, constants.FLOAT32)
-            spec_pop_opd_expect(opds, ctrls, constants.FLOAT32)
-            spec_push_opd(opds, constants.INT32)
+            spec_pop_opd_expect(opds, ctrls, ValType.f32)
+            spec_pop_opd_expect(opds, ctrls, ValType.f32)
+            spec_push_opd(opds, ValType.i32)
         elif opcode_binary <= 0x66:  # f64.eq, f64.ne, f64.lt, f64.gt, f64.le, f64.ge
-            spec_pop_opd_expect(opds, ctrls, constants.FLOAT64)
-            spec_pop_opd_expect(opds, ctrls, constants.FLOAT64)
-            spec_push_opd(opds, constants.INT32)
+            spec_pop_opd_expect(opds, ctrls, ValType.f64)
+            spec_pop_opd_expect(opds, ctrls, ValType.f64)
+            spec_push_opd(opds, ValType.i32)
         elif opcode_binary <= 0x78:
             if opcode_binary <= 0x69:  # i32.clz, i32.ctz, i32.popcnt
-                spec_pop_opd_expect(opds, ctrls, constants.INT32)
-                spec_push_opd(opds, constants.INT32)
+                spec_pop_opd_expect(opds, ctrls, ValType.i32)
+                spec_push_opd(opds, ValType.i32)
             else:  # i32.add, i32.sub, i32.mul, i32.div_s, i32.div_u, i32.rem_s, i32.rem_u, i32.and, i32.or, i32.xor, i32.shl, i32.shr_s, i32.shr_u, i32.rotl, i32.rotr
-                spec_pop_opd_expect(opds, ctrls, constants.INT32)
-                spec_pop_opd_expect(opds, ctrls, constants.INT32)
-                spec_push_opd(opds, constants.INT32)
+                spec_pop_opd_expect(opds, ctrls, ValType.i32)
+                spec_pop_opd_expect(opds, ctrls, ValType.i32)
+                spec_push_opd(opds, ValType.i32)
         elif opcode_binary <= 0x8A:
             if opcode_binary <= 0x7B:  # i64.clz, i64.ctz, i64.popcnt
-                spec_pop_opd_expect(opds, ctrls, constants.INT64)
-                spec_push_opd(opds, constants.INT64)
+                spec_pop_opd_expect(opds, ctrls, ValType.i64)
+                spec_push_opd(opds, ValType.i64)
             else:  # i64.add, i64.sub, i64.mul, i64.div_s, i64.div_u, i64.rem_s, i64.rem_u, i64.and, i64.or, i64.xor, i64.shl, i64.shr_s, i64.shr_u, i64.rotl, i64.rotr
-                spec_pop_opd_expect(opds, ctrls, constants.INT64)
-                spec_pop_opd_expect(opds, ctrls, constants.INT64)
-                spec_push_opd(opds, constants.INT64)
+                spec_pop_opd_expect(opds, ctrls, ValType.i64)
+                spec_pop_opd_expect(opds, ctrls, ValType.i64)
+                spec_push_opd(opds, ValType.i64)
         elif opcode_binary <= 0x98:
             if (
                 opcode_binary <= 0x91
             ):  # f32.abs, f32.neg, f32.ceil, f32.floor, f32.trunc, f32.nearest, f32.sqrt,
-                spec_pop_opd_expect(opds, ctrls, constants.FLOAT32)
-                spec_push_opd(opds, constants.FLOAT32)
+                spec_pop_opd_expect(opds, ctrls, ValType.f32)
+                spec_push_opd(opds, ValType.f32)
             else:  # f32.add, f32.sub, f32.mul, f32.div, f32.min, f32.max, f32.copysign
-                spec_pop_opd_expect(opds, ctrls, constants.FLOAT32)
-                spec_pop_opd_expect(opds, ctrls, constants.FLOAT32)
-                spec_push_opd(opds, constants.FLOAT32)
+                spec_pop_opd_expect(opds, ctrls, ValType.f32)
+                spec_pop_opd_expect(opds, ctrls, ValType.f32)
+                spec_push_opd(opds, ValType.f32)
         elif opcode_binary <= 0xA6:
             if (
                 opcode_binary <= 0x9F
             ):  # f64.abs, f64.neg, f64.ceil, f64.floor, f64.trunc, f64.nearest, f64.sqrt,
-                spec_pop_opd_expect(opds, ctrls, constants.FLOAT64)
-                spec_push_opd(opds, constants.FLOAT64)
+                spec_pop_opd_expect(opds, ctrls, ValType.f64)
+                spec_push_opd(opds, ValType.f64)
             else:  # f64.add, f64.sub, f64.mul, f64.div, f64.min, f64.max, f64.copysign
-                spec_pop_opd_expect(opds, ctrls, constants.FLOAT64)
-                spec_pop_opd_expect(opds, ctrls, constants.FLOAT64)
-                spec_push_opd(opds, constants.FLOAT64)
+                spec_pop_opd_expect(opds, ctrls, ValType.f64)
+                spec_pop_opd_expect(opds, ctrls, ValType.f64)
+                spec_push_opd(opds, ValType.f64)
         elif opcode_binary <= 0xBF:
             if opcode_binary == 0xA7:  # i32.wrap/i64
-                spec_pop_opd_expect(opds, ctrls, constants.INT64)
-                spec_push_opd(opds, constants.INT32)
+                spec_pop_opd_expect(opds, ctrls, ValType.i64)
+                spec_push_opd(opds, ValType.i32)
             elif opcode_binary <= 0xA9:  # i32.trunc_s/f32, i32.trunc_u/f32
-                spec_pop_opd_expect(opds, ctrls, constants.FLOAT32)
-                spec_push_opd(opds, constants.INT32)
+                spec_pop_opd_expect(opds, ctrls, ValType.f32)
+                spec_push_opd(opds, ValType.i32)
             elif opcode_binary <= 0xAB:  # i32.trunc_s/f64, i32.trunc_u/f64
-                spec_pop_opd_expect(opds, ctrls, constants.FLOAT64)
-                spec_push_opd(opds, constants.INT32)
+                spec_pop_opd_expect(opds, ctrls, ValType.f64)
+                spec_push_opd(opds, ValType.i32)
             elif opcode_binary <= 0xAD:  # i64.extend_s/i32, i64.extend_u/i32
-                spec_pop_opd_expect(opds, ctrls, constants.INT32)
-                spec_push_opd(opds, constants.INT64)
+                spec_pop_opd_expect(opds, ctrls, ValType.i32)
+                spec_push_opd(opds, ValType.i64)
             elif opcode_binary <= 0xAF:  # i64.trunc_s/f32, i64.trunc_u/f32
-                spec_pop_opd_expect(opds, ctrls, constants.FLOAT32)
-                spec_push_opd(opds, constants.INT64)
+                spec_pop_opd_expect(opds, ctrls, ValType.f32)
+                spec_push_opd(opds, ValType.i64)
             elif opcode_binary <= 0xB1:  # i64.trunc_s/f64, i64.trunc_u/f64
-                spec_pop_opd_expect(opds, ctrls, constants.FLOAT64)
-                spec_push_opd(opds, constants.INT64)
+                spec_pop_opd_expect(opds, ctrls, ValType.f64)
+                spec_push_opd(opds, ValType.i64)
             elif opcode_binary <= 0xB3:  # f32.convert_s/i32, f32.convert_u/i32
-                spec_pop_opd_expect(opds, ctrls, constants.INT32)
-                spec_push_opd(opds, constants.FLOAT32)
+                spec_pop_opd_expect(opds, ctrls, ValType.i32)
+                spec_push_opd(opds, ValType.f32)
             elif opcode_binary <= 0xB5:  # f32.convert_s/i64, f32.convert_u/i64
-                spec_pop_opd_expect(opds, ctrls, constants.INT64)
-                spec_push_opd(opds, constants.FLOAT32)
+                spec_pop_opd_expect(opds, ctrls, ValType.i64)
+                spec_push_opd(opds, ValType.f32)
             elif opcode_binary <= 0xB6:  # f32.demote/f64
-                spec_pop_opd_expect(opds, ctrls, constants.FLOAT64)
-                spec_push_opd(opds, constants.FLOAT32)
+                spec_pop_opd_expect(opds, ctrls, ValType.f64)
+                spec_push_opd(opds, ValType.f32)
             elif opcode_binary <= 0xB8:  # f64.convert_s/i32, f64.convert_u/i32
-                spec_pop_opd_expect(opds, ctrls, constants.INT32)
-                spec_push_opd(opds, constants.FLOAT64)
+                spec_pop_opd_expect(opds, ctrls, ValType.i32)
+                spec_push_opd(opds, ValType.f64)
             elif opcode_binary <= 0xBA:  # f64.convert_s/i64, f64.convert_u/i64
-                spec_pop_opd_expect(opds, ctrls, constants.INT64)
-                spec_push_opd(opds, constants.FLOAT64)
+                spec_pop_opd_expect(opds, ctrls, ValType.i64)
+                spec_push_opd(opds, ValType.f64)
             elif opcode_binary == 0xBB:  # f64.promote/f32
-                spec_pop_opd_expect(opds, ctrls, constants.FLOAT32)
-                spec_push_opd(opds, constants.FLOAT64)
+                spec_pop_opd_expect(opds, ctrls, ValType.f32)
+                spec_push_opd(opds, ValType.f64)
             elif opcode_binary == 0xBC:  # i32.reinterpret/f32
-                spec_pop_opd_expect(opds, ctrls, constants.FLOAT32)
-                spec_push_opd(opds, constants.INT32)
+                spec_pop_opd_expect(opds, ctrls, ValType.f32)
+                spec_push_opd(opds, ValType.i32)
             elif opcode_binary == 0xBD:  # i64.reinterpret/f64
-                spec_pop_opd_expect(opds, ctrls, constants.FLOAT64)
-                spec_push_opd(opds, constants.INT64)
+                spec_pop_opd_expect(opds, ctrls, ValType.f64)
+                spec_push_opd(opds, ValType.i64)
             elif opcode_binary == 0xBE:  # f32.reinterpret/i32
-                spec_pop_opd_expect(opds, ctrls, constants.INT32)
-                spec_push_opd(opds, constants.FLOAT32)
+                spec_pop_opd_expect(opds, ctrls, ValType.i32)
+                spec_push_opd(opds, ValType.f32)
             elif opcode_binary == 0xBF:  # f64.reinterpret/i64
-                spec_pop_opd_expect(opds, ctrls, constants.INT64)
-                spec_push_opd(opds, constants.FLOAT64)
+                spec_pop_opd_expect(opds, ctrls, ValType.i64)
+                spec_push_opd(opds, ValType.f64)
             else:
                 raise Exception(f"Unexpected opcode value: {opcode_binary}")
         else:

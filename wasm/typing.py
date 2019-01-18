@@ -8,3 +8,4 @@ Store = Dict[Any, Any]
 
 
 UInt32 = NewType('UInt32', int)
+BitSize = NewType('BitSize', int)

@@ -1,14 +1,10 @@
 from .typing import (
+    BitSize,
     UInt32,
 )
 
-INT32 = 'i32'
-INT64 = 'i64'
-FLOAT32 = 'f32'
-FLOAT64 = 'f64'
-
-INTEGER_TYPES = {INT32, INT64}
-FLOAT_TYPES = {FLOAT32, FLOAT64}
+BITS32 = BitSize(32)
+BITS64 = BitSize(64)
 
 UINT6_CEIL = UInt32(2 ** 6)
 

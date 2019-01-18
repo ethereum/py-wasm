@@ -15,8 +15,8 @@ from mypy_extensions import (
     TypedDict,
 )
 
-from wasm import (
-    constants,
+from wasm.datatypes import (
+    ValType,
 )
 
 from .datatypes import (
@@ -72,21 +72,22 @@ def normalize_argument(raw_argument: RawCommand) -> Argument:
     if extra_keys:
         raise Exception(f"Unexpected keys: {extra_keys}")
 
-    _type = raw_argument['type']
+    raw_type = raw_argument['type']
+    type_ = ValType.from_str(raw_type)
 
     value: Union[int, float]
 
-    if _type in constants.INTEGER_TYPES:
+    if type_.is_integer_type:
         value = int(raw_argument['value'])
-    elif _type == constants.FLOAT32:
+    elif type_ is ValType.f32:
         value = int_to_float(32, int(raw_argument['value']))
-    elif _type == constants.FLOAT64:
+    elif type_ is ValType.f64:
         value = int_to_float(64, int(raw_argument['value']))
     else:
-        raise Exception(f"Unhandled type: {_type} | value: {raw_argument['value']}")
+        raise Exception(f"Unhandled type: {type_} | value: {raw_argument['value']}")
 
     return Argument(
-        type=_type,
+        type=type_,
         value=value,
     )
 
@@ -134,24 +135,25 @@ def normalize_expected(raw_expected: RawCommand) -> Expected:
     if extra_keys:
         raise Exception(f"Unexpected keys: {extra_keys}")
 
-    _type = raw_expected['type']
+    raw_type = raw_expected['type']
+    type_ = ValType.from_str(raw_type)
 
     value: Optional[Union[int, float]]
 
     if 'value' in raw_expected:
-        if _type in constants.INTEGER_TYPES:
+        if type_.is_integer_type:
             value = int(raw_expected['value'])
-        elif _type == constants.FLOAT32:
+        elif type_ is ValType.f32:
             value = int_to_float(32, int(raw_expected['value']))
-        elif _type == constants.FLOAT64:
+        elif type_ is ValType.f64:
             value = int_to_float(64, int(raw_expected['value']))
         else:
-            raise Exception(f"Unhandled type: {_type} | value: {raw_expected['value']}")
+            raise Exception(f"Unhandled type: {type_} | value: {raw_expected['value']}")
     else:
         value = None
 
     return Expected(
-        type=_type,
+        type=type_,
         value=value,
     )
 
