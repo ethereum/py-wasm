@@ -1,3 +1,6 @@
+from .func_type import (  # noqa: F401
+    FuncType,
+)
 from .global_type import (  # noqa: F401
     GlobalType,
 )

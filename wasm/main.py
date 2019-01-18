@@ -15,6 +15,7 @@ from wasm import (
 )
 from wasm.datatypes import (
     FuncRef,
+    FuncType,
     GlobalType,
     Limits,
     MemoryType,
@@ -501,8 +502,10 @@ def spec_validate_func(C, func, raw=None):
     x = func["type"]
     if len(C["types"]) <= x:
         raise InvalidModule("invalid")
-    t1 = C["types"][x][0]
-    t2 = C["types"][x][1]
+    func_type: FuncType = C["types"][x]
+    # TODO: remove list casts once everything is tuples
+    t1 = list(func_type.params)
+    t2 = list(func_type.results)
     C["locals"] = t1 + func["locals"]
     C["labels"] = t2
     C["return"] = t2
@@ -594,11 +597,13 @@ def spec_validate_data(C, data):
 
 def spec_validate_start(C, start):
     x = start["func"]
+
     if len(C["funcs"]) <= x:
         raise InvalidModule("invalid")
-    if C["funcs"][x] != [[], []]:
+    elif C["funcs"][x] != FuncType((), ()):
         raise InvalidModule("invalid")
-    return 0
+    else:
+        return 0
 
 
 # 3.4.8 EXPORTS
@@ -740,7 +745,8 @@ def spec_validate_module(mod):
         spec_validate_functype(functypei)
     for i, func in enumerate(mod["funcs"]):
         ft = spec_validate_func(C, func)
-        if ft != ftstar[i][1]:
+        # TODO: remove list cast once everything is a tuple
+        if ft != list(ftstar[i].results):
             raise InvalidModule("invalid")
     for i, table in enumerate(mod["tables"]):
         tt = spec_validate_table(table)
@@ -3551,20 +3557,21 @@ def spec_binary_blocktype_inv(node):
 # 5.3.3 FUNCTION TYPES
 
 
-def spec_binary_functype(raw, idx):
+def spec_binary_functype(raw: bytes, idx: int) -> Tuple[int, FuncType]:
     if raw[idx] != 0x60:
         raise MalformedModule("malformed")
     idx += 1
     idx, t1star = spec_binary_vec(raw, idx, spec_binary_valtype)
     idx, t2star = spec_binary_vec(raw, idx, spec_binary_valtype)
-    return idx, [t1star, t2star]
+    return idx, FuncType(tuple(t1star), tuple(t2star))
 
 
-def spec_binary_functype_inv(node):
+def spec_binary_functype_inv(func_type: FuncType) -> bytearray:
+    # TODO: this code path isn't excercised in the test suite.
     return (
         bytearray([0x60])
-        + spec_binary_vec_inv(node[0], spec_binary_valtype_inv)
-        + spec_binary_vec_inv(node[1], spec_binary_valtype_inv)
+        + spec_binary_vec_inv(func_type.params, spec_binary_valtype_inv)
+        + spec_binary_vec_inv(func_type.results, spec_binary_valtype_inv)
     )
 
 
