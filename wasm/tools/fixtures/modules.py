@@ -4,6 +4,7 @@ import wasm
 from wasm.datatypes import (
     FuncRef,
     Limits,
+    MemoryType,
     TableType,
 )
 
@@ -46,7 +47,7 @@ def instantiate_spectest_module(store):
     wasm.alloc_func(store, [["i32", "f32"], []], spectest__print_i32_f32)
     wasm.alloc_func(store, [["f64", "f64"], []], spectest__print_f64_f64)
     wasm.alloc_func(store, [[], []], spectest__print)
-    wasm.alloc_mem(store, Limits(1, 2))  # min:1,max:2 required by import.wast:
+    wasm.alloc_mem(store, MemoryType(1, 2))  # min:1,max:2 required by import.wast:
     wasm.alloc_global(store, ["const", "i32"], 666)  # 666 required by import.wast
     wasm.alloc_global(store, ["const", "f32"], 0.0)
     wasm.alloc_global(store, ["const", "f64"], 0.0)
@@ -115,7 +116,7 @@ def instantiate_test_module(store):
     wasm.alloc_func(store, [[], ["f32"]], test__func__f32)
     wasm.alloc_func(store, [["i32"], ["i32"]], test__func_i32_i32)
     wasm.alloc_func(store, [["i64"], ["i64"]], test__func_i64_i64)
-    wasm.alloc_mem(store, Limits(1, None))
+    wasm.alloc_mem(store, MemoryType(1, None))
     wasm.alloc_global(store, ["const", "i32"], 666)
     wasm.alloc_global(store, ["const", "f32"], 0.0)
     wasm.alloc_table(store, TableType(Limits(10, None), FuncRef))
