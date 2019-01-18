@@ -3,9 +3,12 @@ import logging
 import wasm
 from wasm.datatypes import (
     FuncRef,
+    GlobalType,
     Limits,
     MemoryType,
+    Mutability,
     TableType,
+    ValType,
 )
 
 
@@ -40,28 +43,33 @@ def instantiate_spectest_module(store):
         logger.debug('print: %s', arg)
         return store, []
 
-    wasm.alloc_func(store, [["i32"], []], spectest__print_i32)
-    wasm.alloc_func(store, [["i64"], []], spectest__print_i64)
-    wasm.alloc_func(store, [["f32"], []], spectest__print_f32)
-    wasm.alloc_func(store, [["f64"], []], spectest__print_f64)
-    wasm.alloc_func(store, [["i32", "f32"], []], spectest__print_i32_f32)
-    wasm.alloc_func(store, [["f64", "f64"], []], spectest__print_f64_f64)
+    wasm.alloc_func(store, [[ValType.i32], []], spectest__print_i32)
+    wasm.alloc_func(store, [[ValType.i64], []], spectest__print_i64)
+    wasm.alloc_func(store, [[ValType.f32], []], spectest__print_f32)
+    wasm.alloc_func(store, [[ValType.f64], []], spectest__print_f64)
+    wasm.alloc_func(store, [[ValType.i32, ValType.f32], []], spectest__print_i32_f32)
+    wasm.alloc_func(store, [[ValType.f64, ValType.f64], []], spectest__print_f64_f64)
     wasm.alloc_func(store, [[], []], spectest__print)
-    wasm.alloc_mem(store, MemoryType(1, 2))  # min:1,max:2 required by import.wast:
-    wasm.alloc_global(store, ["const", "i32"], 666)  # 666 required by import.wast
-    wasm.alloc_global(store, ["const", "f32"], 0.0)
-    wasm.alloc_global(store, ["const", "f64"], 0.0)
+
+    # min:1,max:2 required by import.wast:
+    wasm.alloc_mem(store, MemoryType(1, 2))
+
+    # 666 required by import.wast
+    wasm.alloc_global(store, GlobalType(Mutability.const, ValType.i32), 666)
+
+    wasm.alloc_global(store, GlobalType(Mutability.const, ValType.f32), 0.0)
+    wasm.alloc_global(store, GlobalType(Mutability.const, ValType.f64), 0.0)
     wasm.alloc_table(
         store, TableType(Limits(10, 20), FuncRef)
     )  # max was 30, changed to 20 for import.wast
     moduleinst = {
         "types": [
-            [["i32"], []],
-            [["i64"], []],
-            [["i32"], []],
-            [["f64"], []],
-            [["i32", "f32"], []],
-            [["f64", "f64"], []],
+            [[ValType.i32], []],
+            [[ValType.i64], []],
+            [[ValType.i32], []],
+            [[ValType.f64], []],
+            [[ValType.i32, ValType.f32], []],
+            [[ValType.f64, ValType.f64], []],
             [[], []],
         ],
         "funcaddrs": [0, 1, 2, 3, 4, 5, 6],
@@ -110,24 +118,24 @@ def instantiate_test_module(store):
         pass
 
     wasm.alloc_func(store, [[], []], test__func)
-    wasm.alloc_func(store, [["i32"], []], test__func_i32)
-    wasm.alloc_func(store, [["f32"], []], test__func_f32)
-    wasm.alloc_func(store, [[], ["i32"]], test__func__i32)
-    wasm.alloc_func(store, [[], ["f32"]], test__func__f32)
-    wasm.alloc_func(store, [["i32"], ["i32"]], test__func_i32_i32)
-    wasm.alloc_func(store, [["i64"], ["i64"]], test__func_i64_i64)
+    wasm.alloc_func(store, [[ValType.i32], []], test__func_i32)
+    wasm.alloc_func(store, [[ValType.f32], []], test__func_f32)
+    wasm.alloc_func(store, [[], [ValType.i32]], test__func__i32)
+    wasm.alloc_func(store, [[], [ValType.f32]], test__func__f32)
+    wasm.alloc_func(store, [[ValType.i32], [ValType.i32]], test__func_i32_i32)
+    wasm.alloc_func(store, [[ValType.i64], [ValType.i64]], test__func_i64_i64)
     wasm.alloc_mem(store, MemoryType(1, None))
-    wasm.alloc_global(store, ["const", "i32"], 666)
-    wasm.alloc_global(store, ["const", "f32"], 0.0)
+    wasm.alloc_global(store, GlobalType(Mutability.const, ValType.i32), 666)
+    wasm.alloc_global(store, GlobalType(Mutability.const, ValType.f32), 0.0)
     wasm.alloc_table(store, TableType(Limits(10, None), FuncRef))
     moduleinst = {
         "types": [
-            [["i32"], []],
-            [["f32"], []],
-            [[], ["i32"]],
-            [[], ["f32"]],
-            [["i32"], ["i32"]],
-            [["i64"], ["i64"]],
+            [[ValType.i32], []],
+            [[ValType.f32], []],
+            [[], [ValType.i32]],
+            [[], [ValType.f32]],
+            [[ValType.i32], [ValType.i32]],
+            [[ValType.i64], [ValType.i64]],
         ],
         "funcaddrs": [0, 1, 2, 3, 4, 5, 6],
         "tableaddrs": [0],
