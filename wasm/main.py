@@ -17,7 +17,7 @@ from wasm._utils.types import (
     is_integer_type,
 )
 from wasm.datatypes import (
-    FuncType,
+    FuncRef,
     Limits,
     TableType,
 )
@@ -443,7 +443,7 @@ def spec_validate_call_indirect(C, x):
     if C["tables"] == None or len(C["tables"]) < 1:
         raise InvalidModule("invalid")
     limits, elemtype = C["tables"][0]
-    if elemtype != FuncType:
+    if elemtype is not FuncRef:
         raise InvalidModule("invalid")
     if C["types"] == None or len(C["types"]) <= x:
         raise InvalidModule("invalid")
@@ -567,7 +567,7 @@ def spec_validate_elem(C, elem):
     table_type = C["tables"][x]
     limits = table_type.limits
     elem_type = table_type.elem_type
-    if elem_type is not FuncType:
+    if elem_type is not FuncRef:
         raise InvalidModule("invalid")
     # first wrap in block with appropriate return type
     instrstar = [["block", constants.INT32, elem["offset"]]]
@@ -2705,7 +2705,7 @@ def spec_external_typing(S, externval):
             "table",
             TableType(
                 limits=Limits(len(tableinst["elem"]), tableinst["max"]),
-                elem_type=FuncType,
+                elem_type=FuncRef,
             ),
         ]
     elif "mem" == externval[0]:
@@ -3613,9 +3613,9 @@ def spec_binary_tabletype(raw: bytes, idx: int) -> Tuple[int, TableType]:
     return idx, TableType(limits, elem_type)
 
 
-def spec_binary_elemtype(raw: bytes, idx: int) -> Tuple[int, Type[FuncType]]:
+def spec_binary_elemtype(raw: bytes, idx: int) -> Tuple[int, Type[FuncRef]]:
     if raw[idx] == 0x70:
-        return idx + 1, FuncType
+        return idx + 1, FuncRef
     else:
         raise MalformedModule("malformed")
 
@@ -3624,7 +3624,7 @@ def spec_binary_tabletype_inv(table_type: TableType) -> bytearray:
     return spec_binary_elemtype_inv(table_type.elem_type) + spec_binary_limits_inv(table_type.limits)
 
 
-def spec_binary_elemtype_inv(elem_type: Type[FuncType]) -> bytearray:
+def spec_binary_elemtype_inv(elem_type: Type[FuncRef]) -> bytearray:
     return bytearray([0x70])
 
 
@@ -4588,7 +4588,7 @@ def type_table(store, tableaddr):
     tableinst = store["tables"][tableaddr]
     max_ = tableinst["max"]
     min_ = len(tableinst["elem"])  # TODO: is this min OK?
-    tabletype = TableType(Limits(min_, max_), FuncType)
+    tabletype = TableType(Limits(min_, max_), FuncRef)
     return tabletype
 
 
@@ -4975,7 +4975,7 @@ def spec_validate_opcode(C, opds, ctrls, opcode, immediates):
             x = immediates
             if ("tables" not in C) or len(C["tables"]) == 0:
                 raise InvalidModule("invalid")
-            elif C["tables"][0][1] != FuncType:
+            elif C["tables"][0][1] is not FuncRef:
                 raise InvalidModule("invalid")
             elif len(C["types"]) <= x:
                 raise InvalidModule("invalid")

@@ -8,9 +8,9 @@ from .limits import (
 )
 
 
-class FuncType(NamedTuple):
+class FuncRef(NamedTuple):
     """
-    Placeholder until function types get their own formal data structure.
+    Stub data type for function references
     """
     pass
 
@@ -20,4 +20,4 @@ class TableType(NamedTuple):
     https://webassembly.github.io/spec/core/bikeshed/index.html#table-types%E2%91%A0
     """
     limits: Limits
-    elem_type: Type[FuncType]
+    elem_type: Type[FuncRef]
