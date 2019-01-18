@@ -33,6 +33,7 @@ from wasm.exceptions import (
 from wasm.typing import (
     BitSize,
     Store,
+    UInt8,
     UInt32,
 )
 
@@ -2725,7 +2726,6 @@ def spec_external_typing(S, externval):
         if len(S["globals"]) < a:
             raise Unlinkable("unlinkable")
         globalinst = S["globals"][a]
-        assert isinstance(globalinst["mut"], Mutability)
         return [
             "global",
             GlobalType(
@@ -3514,7 +3514,7 @@ def spec_binary_valtype(raw: bytes, idx: int) -> Tuple[int, ValType]:
         raise MalformedModule("malformed")
 
     try:
-        valtype = ValType.from_byte(raw[idx])
+        valtype = ValType.from_byte(UInt8(raw[idx]))
     except KeyError as err:
         raise MalformedModule(
             "Invalid byte while parsing valtype.  Got '{hex(raw[idx]}: {str(err)}"
@@ -3645,8 +3645,8 @@ def spec_binary_globaltype(raw: bytes, idx: int) -> Tuple[int, GlobalType]:
 
 def spec_binary_mut(raw: bytes, idx: int) -> Tuple[int, Mutability]:
     try:
-        mut = Mutability.from_byte(raw[idx])
-    except KeyError as err:
+        mut = Mutability.from_byte(UInt8(raw[idx]))
+    except ValueError as err:
         raise MalformedModule(
             "Invalid byte while parsing mut.  Got '{hex(raw[idx]}: {str(err)}"
         )

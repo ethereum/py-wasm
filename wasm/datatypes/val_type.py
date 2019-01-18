@@ -5,6 +5,7 @@ from wasm import (
 )
 from wasm.typing import (
     BitSize,
+    UInt8,
 )
 
 
@@ -15,7 +16,7 @@ class ValType(enum.Enum):
     f64 = 'f64'
 
     @classmethod
-    def from_byte(cls, byte: int) -> 'ValType':
+    def from_byte(cls, byte: UInt8) -> 'ValType':
         if byte == 0x7f:
             return cls.i32
         elif byte == 0x7e:
@@ -40,15 +41,15 @@ class ValType(enum.Enum):
                 f"No ValType match for provided type string: '{type_str}'"
             )
 
-    def to_byte(self) -> int:
+    def to_byte(self) -> UInt8:
         if self is self.i32:
-            return 0x7f
+            return UInt8(0x7f)
         elif self is self.i64:
-            return 0x7e
+            return UInt8(0x7e)
         elif self is self.f32:
-            return 0x7d
+            return UInt8(0x7d)
         elif self is self.f64:
-            return 0x7c
+            return UInt8(0x7c)
         else:
             raise Exception("Invariant")
 
@@ -74,7 +75,7 @@ class ValType(enum.Enum):
             raise Exception("Invariant")
 
     @classmethod
-    def get_float_type(cls, num_bits: int) -> 'ValType':
+    def get_float_type(cls, num_bits: BitSize) -> 'ValType':
         if num_bits == 32:
             return cls.f32
         elif num_bits == 64:
@@ -85,7 +86,7 @@ class ValType(enum.Enum):
             )
 
     @classmethod
-    def get_integer_type(cls, num_bits: int) -> 'ValType':
+    def get_integer_type(cls, num_bits: BitSize) -> 'ValType':
         if num_bits == 32:
             return cls.i32
         elif num_bits == 64:
