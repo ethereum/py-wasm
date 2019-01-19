@@ -647,28 +647,30 @@ def spec_validate_export(C: Context, export: Export) -> TExportValue:
 
 
 def spec_validate_exportdesc(C: Context,
-                             desc: ExportDesc) -> TExportValue:
-    if isinstance(desc, FuncIdx):
-        if len(C["funcs"]) <= desc:
+                             index: ExportDesc) -> TExportValue:
+    if isinstance(index, FuncIdx):
+        if len(C["funcs"]) <= index:
             raise InvalidModule("invalid")
-        return C["funcs"][desc]
-    elif isinstance(desc, TableIdx):
-        if len(C["tables"]) <= desc:
+        return C["funcs"][index]
+    elif isinstance(index, TableIdx):
+        if len(C["tables"]) <= index:
             raise InvalidModule("invalid")
-        return C["tables"][desc]
-    elif isinstance(desc, MemoryIdx):
-        if len(C["mems"]) <= desc:
+        return C["tables"][index]
+    elif isinstance(index, MemoryIdx):
+        if len(C["mems"]) <= index:
             raise InvalidModule("invalid")
-        return C["mems"][desc]
-    elif isinstance(desc, GlobalIdx):
-        if len(C["globals"]) <= desc:
+        return C["mems"][index]
+    elif isinstance(index, GlobalIdx):
+        if len(C["globals"]) <= index:
             raise InvalidModule("invalid")
         # TODO: verify compliance with the spec for this commented out line.
-        #mut, t = C["globals"][desc]
+        # Comment indicates that it should be enforced but that enabling this
+        # validation causes spec test failures.
+        # mut, t = C["globals"][index]
         # if mut != "const": raise InvalidModule("invalid") #TODO: this was in the spec, but tests fail linking.wast: $Mg exports a mutable global, seems not to parse in wabt
-        return C["globals"][desc]
+        return C["globals"][index]
     else:
-        raise InvalidModule("invalid")
+        raise InvalidModule(f"Unknown export descripto type: {type(index)}")
 
 
 # 3.4.9 IMPORTS
@@ -2983,7 +2985,7 @@ def spec_allocmodule(S: Store,
         elif exporti.is_global:
             desc = globaladdrmodstar[exporti.desc]
         else:
-            raise Exception("Invariant: Unknown export ")
+            raise Exception(f"Unknown export: {exporti}")
 
         exportinststar += [Export(exporti.name, desc)]
 
