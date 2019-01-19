@@ -74,13 +74,13 @@ def instantiate_module_from_wasm_file(
         # imports preparation
         externvalstar: List[Any] = []
         for import_ in module["imports"]:
-            if import_["module"] not in registered_modules:
-                raise Unlinkable(f"Unlinkable module: {import_['module']}")
+            if import_.module not in registered_modules:
+                raise Unlinkable(f"Unlinkable module: {import_.module}")
 
-            sub_module = registered_modules[import_["module"]]
+            sub_module = registered_modules[import_.module]
 
             for export in sub_module["exports"]:
-                if export.name == import_["name"]:
+                if export.name == import_.name:
                     externval = export.desc
                     break
             else:

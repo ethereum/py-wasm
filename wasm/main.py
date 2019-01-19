@@ -25,12 +25,14 @@ from wasm.datatypes import (
     FuncType,
     GlobalIdx,
     GlobalType,
+    Import,
     Limits,
     MemoryIdx,
     MemoryType,
     Mutability,
     TableIdx,
     TableType,
+    TypeIdx,
     ValType,
 )
 from wasm.exceptions import (
@@ -45,6 +47,8 @@ from wasm.typing import (
     BitSize,
     Context,
     ExportDesc,
+    ExternType,
+    ImportDesc,
     Module,
     Store,
     UInt8,
@@ -132,36 +136,20 @@ def spec_expon_inv(expon):
 # 2.3.8 EXTERNAL TYPES
 
 
-def spec_funcs(star):
-    funcs = []
-    for e in star:
-        if e[0] == "func":
-            funcs += [e[1]]
-    return funcs
+def spec_funcs(imports: Iterable[ExternType]) -> List[FuncType]:
+    return [item for item in imports if isinstance(item, FuncType)]
 
 
-def spec_tables(star):
-    tables = []
-    for e in star:
-        if e[0] == "table":
-            tables += [e[1]]
-    return tables
+def spec_tables(imports: Iterable[ExternType]) -> List[TableType]:
+    return [item for item in imports if isinstance(item, TableType)]
 
 
-def spec_mems(star):
-    mems = []
-    for e in star:
-        if e[0] == "mem":
-            mems += [e[1]]
-    return mems
+def spec_mems(imports: Iterable[ExternType]) -> List[MemoryType]:
+    return [item for item in imports if isinstance(item, MemoryType)]
 
 
-def spec_globals(star):
-    globals_ = []
-    for e in star:
-        if e[0] == "global":
-            globals_ += [e[1]]
-    return globals_
+def spec_globals(imports: Iterable[ExternType]) -> List[GlobalType]:
+    return [item for item in imports if isinstance(item, GlobalType)]
 
 
 # 2.5.10.1 EXTERNAL TYPES
@@ -676,29 +664,32 @@ def spec_validate_exportdesc(C: Context,
 # 3.4.9 IMPORTS
 
 
-def spec_validate_import(C, import_):
-    return spec_validate_importdesc(C, import_["desc"])
+# TODO: the return type of this function should probably be changed.
+def spec_validate_import(C: Context, import_: Import) -> ImportDesc:
+    return spec_validate_importdesc(C, import_.desc)
 
 
-def spec_validate_importdesc(C, importdesc):
-    if importdesc[0] == "func":
-        x = importdesc[1]
-        if len(C["funcs"]) <= x:
-            raise InvalidModule("invalid")
-        return ["func", C["types"][x]]
-    elif importdesc[0] == "table":
-        tabletype = importdesc[1]
-        spec_validate_tabletype(tabletype)
-        return ["table", tabletype]
-    elif importdesc[0] == "mem":
-        memtype = importdesc[1]
-        spec_validate_memtype(memtype)
-        return ["mem", memtype]
-    elif importdesc[0] == "global":
-        global_type = importdesc[1]
-        spec_validate_globaltype(global_type)
+def spec_validate_importdesc(C: Context, descriptor: ImportDesc) -> ImportDesc:
+    if isinstance(descriptor, TypeIdx):
+        if len(C["funcs"]) <= descriptor:
+            raise InvalidModule(
+                f"Type indices is out of range: {descriptor} > "
+                f"{len(C['funcs'])}"
+            )
+        return C["types"][descriptor]
+    elif isinstance(descriptor, TableType):
+        spec_validate_tabletype(descriptor)
+        return descriptor
+    elif isinstance(descriptor, MemoryType):
+        spec_validate_memtype(descriptor)
+        return descriptor
+    elif isinstance(descriptor, GlobalType):
+        spec_validate_globaltype(descriptor)
+        # TODO: confirm compliance with spec.  This comment indicates a
+        # validation step being ignore that causes a spec test to fail when
+        # enabled.
         # if global_type[0] != "const": raise InvalidModule("invalid") #TODO: this was in the spec, but tests fail linking.wast: $Mg exports a mutable global, seems not to parse in wabt
-        return ["global", global_type]
+        return descriptor
     else:
         raise InvalidModule("invalid")
 
@@ -706,31 +697,39 @@ def spec_validate_importdesc(C, importdesc):
 # 3.4.10 MODULE
 
 
-def spec_validate_module(mod):
+def spec_validate_module(mod: Module) -> List[List[ExternType]]:
     # mod is the module to validate
-    ftstar = []
+    ftstar: List[FuncType] = []
+
     for func in mod["funcs"]:
         if len(mod["types"]) <= func["type"]:
             # this was not explicit in spec, how about other *tstar
             raise InvalidModule("invalid")
         ftstar += [mod["types"][func["type"]]]
-    ttstar = [table["type"] for table in mod["tables"]]
-    mtstar = [mem["type"] for mem in mod["mems"]]
-    gtstar = [global_["type"] for global_ in mod["globals"]]
-    itstar = []
+
+    ttstar: List[TableType] = [table["type"] for table in mod["tables"]]
+    mtstar: List[MemoryType] = [mem["type"] for mem in mod["mems"]]
+    gtstar: List[GlobalType] = [global_["type"] for global_ in mod["globals"]]
+
+    itstar: List[ExternType] = []
     for import_ in mod["imports"]:
-        if import_["desc"][0] == "func":
-            if len(mod["types"]) <= import_["desc"][1]:
+        if import_.is_function:
+            if len(mod["types"]) <= import_.desc:
                 # this was not explicit in spec
-                raise InvalidModule("invalid")
-            itstar.append(["func", mod["types"][import_["desc"][1]]])
+                raise InvalidModule(
+                    f"Function import out of range: {import_.desc} > "
+                    f"{len(mod['types'])}"
+                )
+            itstar.append(mod["types"][import_.desc])
         else:
-            itstar.append(import_["desc"])
+            itstar.append(import_.desc)
+
     # let i_tstar be the concatenation of imports of each type
-    iftstar = spec_funcs(itstar)  # [it[1] for it in itstar if it[0]=="func"]
-    ittstar = spec_tables(itstar)  # [it[1] for it in itstar if it[0]=="table"]
-    imtstar = spec_mems(itstar)  # [it[1] for it in itstar if it[0]=="mem"]
-    igtstar = spec_globals(itstar)  # [it[1] for it in itstar if it[0]=="global"]
+    iftstar = spec_funcs(itstar)
+    ittstar = spec_tables(itstar)
+    imtstar = spec_mems(itstar)
+    igtstar = spec_globals(itstar)
+
     # let C and Cprime be contexts
     C = {
         "types": mod["types"],
@@ -753,7 +752,7 @@ def spec_validate_module(mod):
         "returns": [],
     }
     # et* is needed later, here is a good place to do it
-    etstar = []
+    etstar: List[ExternType] = []
     for export in mod["exports"]:
         if export.is_function:
             if len(C["funcs"]) <= export.desc:
@@ -828,7 +827,7 @@ def spec_validate_module(mod):
         raise InvalidModule("invalid")
 
     # export names must be unique
-    duplicate_exports = get_duplicates(export.name for export in mod["exports"])
+    duplicate_exports: Tuple[str, ...] = get_duplicates(export.name for export in mod["exports"])
     if duplicate_exports:
         raise InvalidModule(
             "Duplicate module name(s) exported: "
@@ -2747,47 +2746,38 @@ def spec_expr(config):
 
 def spec_external_typing(S: Store,
                          extern_desc: ExportDesc,
-                         ) -> List[Union[str, TExportValue]]:
+                         ) -> TExportValue:
     logger.debug('spec_external_typing(%s)', extern_desc)
 
     if isinstance(extern_desc, FuncIdx):
         if len(S["funcs"]) < extern_desc:
             raise Unlinkable("unlinkable")
         funcinst = S["funcs"][extern_desc]
-        return ["func", funcinst["type"]]
+        return funcinst["type"]
     elif isinstance(extern_desc, TableIdx):
         if len(S["tables"]) < extern_desc:
             raise Unlinkable("unlinkable")
         tableinst = S["tables"][extern_desc]
-        return [
-            "table",
-            TableType(
-                limits=Limits(UInt32(len(tableinst["elem"])), tableinst["max"]),
-                elem_type=FuncRef,
-            ),
-        ]
+        return TableType(
+            limits=Limits(UInt32(len(tableinst["elem"])), tableinst["max"]),
+            elem_type=FuncRef,
+        )
     elif isinstance(extern_desc, MemoryIdx):
         if len(S["mems"]) < extern_desc:
             raise Unlinkable("unlinkable")
         meminst = S["mems"][extern_desc]
-        return [
-            "mem",
-            MemoryType(
-                UInt32(len(meminst["data"]) // constants.PAGE_SIZE_64K),
-                meminst["max"],
-            ),
-        ]
+        return MemoryType(
+            UInt32(len(meminst["data"]) // constants.PAGE_SIZE_64K),
+            meminst["max"],
+        )
     elif isinstance(extern_desc, GlobalIdx):
         if len(S["globals"]) < extern_desc:
             raise Unlinkable("unlinkable")
         globalinst = S["globals"][extern_desc]
-        return [
-            "global",
-            GlobalType(
-                globalinst["mut"],
-                ValType.from_str(globalinst["value"][0][:3])
-            ),
-        ]
+        return GlobalType(
+            globalinst["mut"],
+            ValType.from_str(globalinst["value"][0][:3])
+        )
     else:
         raise Unlinkable("unlinkable")
 
@@ -2811,40 +2801,39 @@ def spec_externtype_matching_limits(limits_a: Limits, limits_b: Limits) -> str:
 def spec_externtype_matching(externtype1, externtype2):
     logger.debug('spec_externtype_matching(%s, %s)', externtype1, externtype2)
 
-    if externtype1[0] != externtype2[0]:
-        raise Unlinkable(f"Mismatch in extern types: {externtype1[0]} != {externtype2[0]}")
-    elif "func" == externtype1[0] and "func" == externtype2[0]:
-        if externtype1[1] == externtype2[1]:
+    if type(externtype1) is not type(externtype2):
+        raise Unlinkable(
+            f"Mismatch in extern types: {type(externtype1)} != {type(externtype2)}"
+        )
+    elif isinstance(externtype1, FuncType) and isinstance(externtype2, FuncType):
+        if externtype1 == externtype2:
             return "<="
         else:
-            raise Unlinkable(f"Function extern type mismatch: {externtype1[1]} != {externtype2[1]}")
-    elif "table" == externtype1[0] and "table" == externtype2[0]:
-        table_type_a, table_type_b = externtype1[1], externtype2[1]
+            raise Unlinkable(f"Function types not equal: {externtype1} != {externtype2}")
+    elif isinstance(externtype1, TableType) and isinstance(externtype2, TableType):
+        spec_externtype_matching_limits(externtype1.limits, externtype2.limits)
 
-        limits_a, limits_b = table_type_a.limits, table_type_b.limits
-        spec_externtype_matching_limits(limits_a, limits_b)
-
-        elem_type_a, elem_type_b = table_type_a.elem_type, table_type_b.elem_type
-        if elem_type_a is elem_type_b:
+        if externtype1.elem_type is externtype1.elem_type:
             return "<="
         else:
-            raise Unlinkable(f"Table element type mismatch: {elem_type_a} != {elem_type_b}")
-    elif "mem" == externtype1[0] and "mem" == externtype2[0]:
-        limits1 = externtype1[1]
-        limits2 = externtype2[1]
-        if spec_externtype_matching_limits(limits1, limits2) == "<=":
+            raise Unlinkable(
+                f"Table element type mismatch: {externtype1.elem_type} != "
+                f"{externtype2.elem_type}"
+            )
+    elif isinstance(externtype1, MemoryType) and isinstance(externtype2, MemoryType):
+        if spec_externtype_matching_limits(externtype1, externtype2) == "<=":
             return "<="
         else:
             # TODO: This code path doesn't appear to be excercised and it
             # likely isn't an invariant.
             raise Exception("Invariant")
-    elif "global" == externtype1[0] and "global" == externtype2[0]:
-        if externtype1[1] == externtype2[1]:
+    elif isinstance(externtype1, GlobalType) and isinstance(externtype2, GlobalType):
+        if externtype1 == externtype2:
             return "<="
         else:
-            raise Unlinkable(f"Globals extern type mismatch: {externtype1[1]} != {externtype2[1]}")
+            raise Unlinkable(f"Globals extern type mismatch: {externtype1} != {externtype2}")
     else:
-        raise Unlinkable(f"Unknown extern type: {externtype1[0]}")
+        raise Unlinkable(f"Unknown extern type: {type(externtype1)}")
 
 
 # 4.5.3 ALLOCATION
@@ -3922,49 +3911,49 @@ def spec_binary_expr_inv(node):
 # 5.5.1 INDICES
 
 
-def spec_binary_typeidx(raw, idx):
+def spec_binary_typeidx(raw: bytes, idx: int) -> Tuple[int, TypeIdx]:
     idx, x = spec_binary_uN(raw, idx, 32)
-    return idx, x
+    return idx, TypeIdx(x)
 
 
-def spec_binary_typeidx_inv(node):
-    return spec_binary_uN_inv(node, 32)
+def spec_binary_typeidx_inv(type_idx: TypeIdx) -> bytearray:
+    return spec_binary_uN_inv(type_idx, 32)
 
 
-def spec_binary_funcidx(raw, idx):
+def spec_binary_funcidx(raw: bytes, idx: int) -> Tuple[int, FuncIdx]:
     idx, x = spec_binary_uN(raw, idx, 32)
-    return idx, x
+    return idx, FuncIdx(x)
 
 
-def spec_binary_funcidx_inv(node):
-    return spec_binary_uN_inv(node, 32)
+def spec_binary_funcidx_inv(func_idx: FuncIdx) -> bytearray:
+    return spec_binary_uN_inv(func_idx, 32)
 
 
-def spec_binary_tableidx(raw, idx):
+def spec_binary_tableidx(raw: bytes, idx: int) -> Tuple[int, TableIdx]:
     idx, x = spec_binary_uN(raw, idx, 32)
-    return idx, x
+    return idx, TableIdx(x)
 
 
-def spec_binary_tableidx_inv(node):
-    return spec_binary_uN_inv(node, 32)
+def spec_binary_tableidx_inv(table_idx: TableIdx) -> bytearray:
+    return spec_binary_uN_inv(table_idx, 32)
 
 
-def spec_binary_memidx(raw, idx):
+def spec_binary_memidx(raw: bytes, idx: int) -> Tuple[int, MemoryIdx]:
     idx, x = spec_binary_uN(raw, idx, 32)
-    return idx, x
+    return idx, MemoryIdx(x)
 
 
-def spec_binary_memidx_inv(node):
-    return spec_binary_uN_inv(node, 32)
+def spec_binary_memidx_inv(memory_idx: MemoryIdx) -> bytearray:
+    return spec_binary_uN_inv(memory_idx, 32)
 
 
-def spec_binary_globalidx(raw, idx):
+def spec_binary_globalidx(raw: bytes, idx: int) -> Tuple[int, GlobalIdx]:
     idx, x = spec_binary_uN(raw, idx, 32)
-    return idx, x
+    return idx, GlobalIdx(x)
 
 
-def spec_binary_globalidx_inv(node):
-    return spec_binary_uN_inv(node, 32)
+def spec_binary_globalidx_inv(global_idx: GlobalIdx) -> bytearray:
+    return spec_binary_uN_inv(global_idx, 32)
 
 
 def spec_binary_localidx(raw, idx):
@@ -4071,26 +4060,22 @@ def spec_binary_importsec(raw, idx, skip=0):
     return spec_binary_sectionN(raw, idx, 2, spec_binary_import, skip)
 
 
-def spec_binary_import(raw, idx):
-    idx, mod = spec_binary_name(raw, idx)
-    idx, nm = spec_binary_name(raw, idx)
-    idx, d = spec_binary_importdesc(raw, idx)
-    return idx, {"module": mod, "name": nm, "desc": d}
+def spec_binary_import(raw: bytes, idx: int) -> Tuple[int, Import]:
+    idx, module = spec_binary_name(raw, idx)
+    idx, name = spec_binary_name(raw, idx)
+    idx, descriptor = spec_binary_importdesc(raw, idx)
+    return idx, Import(module, name, descriptor)
 
 
-def spec_binary_importdesc(raw, idx):
+def spec_binary_importdesc(raw: bytes, idx: int) -> Tuple[int, ImportDesc]:
     if raw[idx] == 0x00:
-        idx, x = spec_binary_typeidx(raw, idx + 1)
-        return idx, ["func", x]
+        return spec_binary_typeidx(raw, idx + 1)
     elif raw[idx] == 0x01:
-        idx, tt = spec_binary_tabletype(raw, idx + 1)
-        return idx, ["table", tt]
+        return spec_binary_tabletype(raw, idx + 1)
     elif raw[idx] == 0x02:
-        idx, mt = spec_binary_memtype(raw, idx + 1)
-        return idx, ["mem", mt]
+        return spec_binary_memtype(raw, idx + 1)
     elif raw[idx] == 0x03:
-        idx, gt = spec_binary_globaltype(raw, idx + 1)
-        return idx, ["global", gt]
+        return spec_binary_globaltype(raw, idx + 1)
     else:
         raise Exception("Invariant: unreachable code path")
 
@@ -4099,25 +4084,26 @@ def spec_binary_importsec_inv(node):
     return spec_binary_sectionN_inv(node, spec_binary_import_inv, 2)
 
 
-def spec_binary_import_inv(node):
+def spec_binary_import_inv(import_: Import) -> bytearray:
     return (
-        spec_binary_name_inv(node["module"])
-        + spec_binary_name_inv(node["name"])
-        + spec_binary_importdesc_inv(node["desc"])
+        spec_binary_name_inv(import_.module)
+        + spec_binary_name_inv(import_.name)
+        + spec_binary_importdesc_inv(import_.desc)
     )
 
 
-def spec_binary_importdesc_inv(node):
-    key = node[0]
-    if key == "func":
-        return bytearray([0x00]) + spec_binary_typeidx_inv(node[1])
-    elif key == "table":
-        return bytearray([0x01]) + spec_binary_tabletype_inv(node[1])
-    elif key == "mem":
-        return bytearray([0x02]) + spec_binary_memtype_inv(node[1])
-    elif key == "global":
-        return bytearray([0x03]) + spec_binary_globaltype_inv(node[1])
+def spec_binary_importdesc_inv(descriptor: ImportDesc) -> bytearray:
+    # TODO: this function not covered by test suite.
+    if isinstance(descriptor, TypeIdx):
+        return bytearray([0x00]) + spec_binary_typeidx_inv(descriptor)
+    elif isinstance(descriptor, TableType):
+        return bytearray([0x01]) + spec_binary_tabletype_inv(descriptor)
+    elif isinstance(descriptor, MemoryType):
+        return bytearray([0x02]) + spec_binary_memtype_inv(descriptor)
+    elif isinstance(descriptor, GlobalType):
+        return bytearray([0x03]) + spec_binary_globaltype_inv(descriptor)
     else:
+        # TODO: this is likely an invariant, needs testing.
         return bytearray()
 
 
@@ -4208,17 +4194,13 @@ def spec_binary_export(raw: bytes, idx: int) -> Tuple[int, Export]:
 
 def spec_binary_exportdesc(raw: bytes, idx: int) -> Tuple[int, ExportDesc]:
     if raw[idx] == 0x00:
-        idx, x = spec_binary_funcidx(raw, idx + 1)
-        return idx, FuncIdx(x)
+        return spec_binary_funcidx(raw, idx + 1)
     elif raw[idx] == 0x01:
-        idx, x = spec_binary_tableidx(raw, idx + 1)
-        return idx, TableIdx(x)
+        return spec_binary_tableidx(raw, idx + 1)
     elif raw[idx] == 0x02:
-        idx, x = spec_binary_memidx(raw, idx + 1)
-        return idx, MemoryIdx(x)
+        return spec_binary_memidx(raw, idx + 1)
     elif raw[idx] == 0x03:
-        idx, x = spec_binary_globalidx(raw, idx + 1)
-        return idx, GlobalIdx(x)
+        return spec_binary_globalidx(raw, idx + 1)
     else:
         raise Exception("Unreachable code path")
 
@@ -4581,11 +4563,10 @@ def module_imports(module):
             f"Wrong import length: expected {len(extertypeprimestar)} / got "
             f"{len(externtypestar)}"
         )
+
     result = []
-    for i in range(len(importstar)):
-        importi = importstar[i]
-        externtypei = externtypestar[i]
-        resutli = [immporti["module"], importi["name"], externtypei]
+    for importi, importstar in zip(importstar, externtypestar):
+        resutli = [immporti.module, importi.name, externtypei]
         result += resulti
     return result
 
@@ -4599,11 +4580,12 @@ def module_exports(module):
     if len(exportstar) != len(externtypeprimestar):
         raise Exception("TODO: proper error message")
 
+    # TODO: this code path may not be excercised. Verify.
     result = []
     for i in range(len(importstar)):
         exporti = exportstar[i]
         externtypeprimei = externtypeprimestar[i]
-        resutli = [exporti["name"], externtypeprimei]
+        resulti = [exporti["name"], externtypeprimei]
         result += resulti
     return result
 

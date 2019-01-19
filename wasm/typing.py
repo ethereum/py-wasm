@@ -9,9 +9,14 @@ from typing import (
 if TYPE_CHECKING:
     from wasm.datatypes import (  # noqa: F401
         FuncIdx,
+        FuncType,
         GlobalIdx,
+        GlobalType,
         MemoryIdx,
+        MemoryType,
         TableIdx,
+        TableType,
+        TypeIdx,
     )
 
 
@@ -25,6 +30,22 @@ ExportDesc = Union[
     'GlobalIdx',
     'MemoryIdx',
     'TableIdx',
+]
+
+
+ImportDesc = Union[
+    'TypeIdx',
+    'TableType',
+    'MemoryType',
+    'GlobalType',
+]
+
+
+ExternType = Union[
+    'FuncType',
+    'TableType',
+    'MemoryType',
+    'GlobalType',
 ]
 
 

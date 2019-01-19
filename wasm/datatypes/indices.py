@@ -2,7 +2,7 @@ class FuncIdx(int):
     pass
 
 
-class TableIdx(int):
+class GlobalIdx(int):
     pass
 
 
@@ -10,5 +10,9 @@ class MemoryIdx(int):
     pass
 
 
-class GlobalIdx(int):
+class TableIdx(int):
+    pass
+
+
+class TypeIdx(int):
     pass
