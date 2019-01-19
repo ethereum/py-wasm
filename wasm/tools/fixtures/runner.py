@@ -80,8 +80,8 @@ def instantiate_module_from_wasm_file(
             sub_module = registered_modules[import_["module"]]
 
             for export in sub_module["exports"]:
-                if export["name"] == import_["name"]:
-                    externval = export["value"]
+                if export.name == import_["name"]:
+                    externval = export.desc
                     break
             else:
                 raise Unlinkable("Unlinkable module: export name not found")
@@ -138,8 +138,8 @@ def run_opcode_action_invoke(action, store, module, all_modules, registered_modu
     funcaddr = None
     for export in module["exports"]:
         # print("export[\"name\"]",export["name"])
-        if export["name"] == funcname:
-            funcaddr = export["value"][1]
+        if export.name == funcname:
+            funcaddr = export.desc
             logger.debug("funcaddr: %s", funcaddr)
             break
     else:
@@ -168,8 +168,8 @@ def run_opcode_action_get(action, store, module, all_modules, registered_modules
     # this is naive, since test["expected"] is a list, should iterate over each
     # one, but maybe OK since there is only one test["action"]
     for export in exports:
-        if export["name"] == action.field:
-            globaladdr = export["value"][1]
+        if export.name == action.field:
+            globaladdr = export.desc
             value = store["globals"][globaladdr]["value"][1]
             return [value]
     else:
