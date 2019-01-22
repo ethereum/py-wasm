@@ -714,7 +714,7 @@ def spec_validate_module(mod: Module) -> List[List[ExternType]]:
     itstar: List[ExternType] = []
     for import_ in mod["imports"]:
         if import_.is_function:
-            if len(mod["types"]) <= import_.desc:
+            if import_.desc >= len(mod["types"]):
                 # this was not explicit in spec
                 raise InvalidModule(
                     f"Function import out of range: {import_.desc} > "
@@ -2805,29 +2805,29 @@ def spec_externtype_matching(externtype1, externtype2):
         raise Unlinkable(
             f"Mismatch in extern types: {type(externtype1)} != {type(externtype2)}"
         )
-    elif isinstance(externtype1, FuncType) and isinstance(externtype2, FuncType):
+    elif isinstance(externtype1, FuncType):
         if externtype1 == externtype2:
             return "<="
         else:
             raise Unlinkable(f"Function types not equal: {externtype1} != {externtype2}")
-    elif isinstance(externtype1, TableType) and isinstance(externtype2, TableType):
+    elif isinstance(externtype1, TableType):
         spec_externtype_matching_limits(externtype1.limits, externtype2.limits)
 
-        if externtype1.elem_type is externtype1.elem_type:
+        if externtype1.elem_type is externtype2.elem_type:
             return "<="
         else:
             raise Unlinkable(
                 f"Table element type mismatch: {externtype1.elem_type} != "
                 f"{externtype2.elem_type}"
             )
-    elif isinstance(externtype1, MemoryType) and isinstance(externtype2, MemoryType):
+    elif isinstance(externtype1, MemoryType):
         if spec_externtype_matching_limits(externtype1, externtype2) == "<=":
             return "<="
         else:
             # TODO: This code path doesn't appear to be excercised and it
             # likely isn't an invariant.
             raise Exception("Invariant")
-    elif isinstance(externtype1, GlobalType) and isinstance(externtype2, GlobalType):
+    elif isinstance(externtype1, GlobalType):
         if externtype1 == externtype2:
             return "<="
         else:
@@ -4565,8 +4565,9 @@ def module_imports(module):
         )
 
     result = []
-    for importi, importstar in zip(importstar, externtypestar):
-        resutli = [immporti.module, importi.name, externtypei]
+    for importi, externtypei in zip(importstar, externtypestar):
+        # This code path appears to be missing test coverage.
+        resutli = [importi.module, importi.name, externtypei]
         result += resulti
     return result
 
