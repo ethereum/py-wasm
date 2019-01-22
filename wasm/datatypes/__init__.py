@@ -7,11 +7,15 @@ from .func_type import (  # noqa: F401
 from .global_type import (  # noqa: F401
     GlobalType,
 )
+from .imports import (  # noqa: F401
+    Import,
+)
 from .indices import (  # noqa: F401
     FuncIdx,
     GlobalIdx,
     MemoryIdx,
     TableIdx,
+    TypeIdx,
 )
 from .limits import (  # noqa: F401
     Limits,

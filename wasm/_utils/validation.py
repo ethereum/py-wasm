@@ -2,7 +2,7 @@ from collections import (
     Counter,
 )
 from typing import (
-    Sequence,
+    Iterable,
     Tuple,
     TypeVar,
 )
@@ -10,7 +10,7 @@ from typing import (
 TVal = TypeVar("TVal")
 
 
-def get_duplicates(seq: Sequence[TVal]) -> Tuple[TVal, ...]:
+def get_duplicates(seq: Iterable[TVal]) -> Tuple[TVal, ...]:
     return tuple(
         value
         for value, count
