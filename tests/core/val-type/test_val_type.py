@@ -3,6 +3,7 @@ import itertools
 import pytest
 
 from wasm.datatypes import (
+    BitSize,
     ValType,
 )
 
@@ -11,7 +12,7 @@ from wasm.datatypes import (
     'get_X_type,bit_size',
     itertools.product(
         [ValType.get_integer_type, ValType.get_float_type],
-        (0, 31, 33, 63, 65),
+        (0, 31, 33, 63, 65, BitSize.b8, BitSize.b16),
     ),
 )
 def test_get_X_type_invalid_bit_size(get_X_type, bit_size):
@@ -22,8 +23,8 @@ def test_get_X_type_invalid_bit_size(get_X_type, bit_size):
 @pytest.mark.parametrize(
     'value,expected',
     (
-        (32, ValType.f32),
-        (64, ValType.f64),
+        (BitSize.b32, ValType.f32),
+        (BitSize.b64, ValType.f64),
     )
 )
 def test_get_float_type(value, expected):
@@ -36,8 +37,8 @@ def test_get_float_type(value, expected):
 @pytest.mark.parametrize(
     'value,expected',
     (
-        (32, ValType.i32),
-        (64, ValType.i64),
+        (BitSize.b32, ValType.i32),
+        (BitSize.b64, ValType.i64),
     )
 )
 def test_get_integer_type(value, expected):
@@ -76,10 +77,10 @@ def test_is_integer_type(value, expected):
 @pytest.mark.parametrize(
     'value,expected',
     (
-        (ValType.f32, 32),
-        (ValType.f64, 64),
-        (ValType.i32, 32),
-        (ValType.i64, 64),
+        (ValType.f32, BitSize.b32),
+        (ValType.f64, BitSize.b64),
+        (ValType.i32, BitSize.b32),
+        (ValType.i64, BitSize.b64),
     ),
 )
 def test_get_bit_size(value, expected):

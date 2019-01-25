@@ -1,10 +1,6 @@
 from .typing import (
-    BitSize,
     UInt32,
 )
-
-BITS32 = BitSize(32)
-BITS64 = BitSize(64)
 
 UINT6_CEIL = UInt32(2 ** 6)
 
