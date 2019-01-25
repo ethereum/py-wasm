@@ -1,3 +1,5 @@
+import pytest
+
 from wasm._utils.singleton import (
     Singleton,
 )
@@ -42,10 +44,11 @@ class WithArgs(Singleton):
 
 
 def test_singleton_class_with_initialization_args():
-    inst_a = WithArgs(1, val_b='2')
-    inst_b = WithArgs(1, val_b='2')
+    with pytest.raises(TypeError, match="does not allow arguments"):
+        WithArgs(1, 2)
 
-    assert inst_a is inst_b
+    with pytest.raises(TypeError, match="does not allow arguments"):
+        WithArgs(1, val_b=2)
 
-    assert inst_a.val_a == 1
-    assert inst_a.val_b == '2'
+    with pytest.raises(TypeError, match="does not allow arguments"):
+        WithArgs(val_a=1, val_b=2)

@@ -11,6 +11,7 @@ class Singleton:
     def __new__(cls, *args: Any, **kwargs: Any) -> 'Singleton':
         if cls not in cls._cache:
             instance = super().__new__(cls)
-            instance.__init__(*args, **kwargs)
+            if args or kwargs:
+                raise TypeError("Singleton does not allow arguments")
             cls._cache[cls] = instance
         return cls._cache[cls]
