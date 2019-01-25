@@ -19,6 +19,7 @@ from wasm._utils.validation import (
     get_duplicates,
 )
 from wasm.datatypes import (
+    BitSize,
     Export,
     FuncIdx,
     FuncRef,
@@ -44,7 +45,6 @@ from wasm.exceptions import (
     ValidationError,
 )
 from wasm.typing import (
-    BitSize,
     Context,
     ExportDesc,
     ExternType,
@@ -334,7 +334,7 @@ def spec_validate_t_load(C: Any,
                          ) -> Tuple[List[ValType], List[ValType]]:
     if len(C["mems"]) < 1:
         raise InvalidModule("invalid")
-    if 2 ** memarg["align"] > valtype.bit_size // 8:
+    if 2 ** memarg["align"] > valtype.bit_size.value // 8:
         raise InvalidModule("invalid")
     return [ValType.i32], [valtype]
 
@@ -350,7 +350,7 @@ def spec_validate_tloadNsx(C, t, N, memarg):
 def spec_validate_tstore(C, t, memarg):
     if len(C["mems"]) < 1:
         raise InvalidModule("invalid")
-    if 2 ** memarg["align"] > t.bit_size // 8:
+    if 2 ** memarg["align"] > t.bit_size.value // 8:
         raise InvalidModule("invalid")
     return [ValType.i32, t], []
 
@@ -877,7 +877,7 @@ def spec_trunc(q):
 def spec_bitst(valtype: ValType, c: Any) -> str:
     logger.debug("spec_bitst(%s, %s)", valtype, c)
 
-    N = valtype.bit_size
+    N = valtype.bit_size.value
 
     if valtype.is_integer_type:
         return spec_bitsiN(N, c)
@@ -890,7 +890,7 @@ def spec_bitst(valtype: ValType, c: Any) -> str:
 def spec_bitst_inv(t, bits):
     logger.debug("spec_bitst_inv(%s, %s)", t, bits)
 
-    N = t.bit_size
+    N = t.bit_size.value
 
     if t.is_integer_type:
         return spec_bitsiN_inv(N, bits)
@@ -900,7 +900,7 @@ def spec_bitst_inv(t, bits):
         raise Exception(f"Invariant: unknown type '{t}'")
 
 
-def spec_bitsiN(N: BitSize, i: int) -> str:
+def spec_bitsiN(N: int, i: int) -> str:
     logger.debug("spec_bitsiN(%s, %s)", N, i)
 
     return spec_ibitsN(N, i)
@@ -927,7 +927,7 @@ def spec_bitsfN_inv(N, bits):
 # Integers
 
 
-def spec_ibitsN(N: BitSize, i: int) -> str:
+def spec_ibitsN(N: int, i: int) -> str:
     logger.debug("spec_ibitsN(%s, %s)", N, i)
 
     return bin(i)[2:].zfill(N)
@@ -997,7 +997,7 @@ def spec_fsign(z):
 def spec_bytest(valtype: ValType, i: int) -> bytearray:
     logger.debug("spec_bytest(%s, %s)", valtype, i)
 
-    N = valtype.bit_size
+    N = valtype.bit_size.value
 
     if valtype.is_integer_type:
         bits = spec_bitsiN(N, i)
@@ -1015,9 +1015,9 @@ def spec_bytest_inv(valtype: ValType, bytes_: bytes) -> bytearray:
     bits = spec_littleendian_inv(bytes_)
 
     if valtype.is_integer_type:
-        return spec_bitsiN_inv(valtype.bit_size, bits)
+        return spec_bitsiN_inv(valtype.bit_size.value, bits)
     elif valtype.is_float_type:
-        return spec_bitsfN_inv(valtype.bit_size, bits)
+        return spec_bitsfN_inv(valtype.bit_size.value, bits)
     else:
         raise Exception(f"Invariant: unknown type '{valtype}'")
 
@@ -1043,7 +1043,7 @@ def spec_bytesiN_inv(N, bytes_):
 
 
 # TODO: these are unused, but might use when refactor floats to pass NaN significand tests
-def spec_bytesfN(N: BitSize, z: float) -> bytes:
+def spec_bytesfN(N: int, z: float) -> bytes:
     logger.debug("spec_bytesfN(%s, %s)", N, z)
 
     if N == 32:
@@ -1877,7 +1877,7 @@ def spec_tunop(config):
     t = ValType.from_str(instr[0:3])
     op = opcode2exec[instr][1]
     c1 = config["operand_stack"].pop()
-    c = op(t.bit_size, c1)
+    c = op(t.bit_size.value, c1)
 
     config["operand_stack"].append(c)
     config["idx"] += 1
@@ -1892,7 +1892,7 @@ def spec_tbinop(config):
     op = opcode2exec[instr][1]
     c2 = config["operand_stack"].pop()
     c1 = config["operand_stack"].pop()
-    c = op(t.bit_size, c1, c2)
+    c = op(t.bit_size.value, c1, c2)
 
     config["operand_stack"].append(c)
     config["idx"] += 1
@@ -1906,7 +1906,7 @@ def spec_ttestop(config):
     t = ValType.from_str(instr[0:3])
     op = opcode2exec[instr][1]
     c1 = config["operand_stack"].pop()
-    c = op(t.bit_size, c1)
+    c = op(t.bit_size.value, c1)
 
     config["operand_stack"].append(c)
     config["idx"] += 1
@@ -1921,7 +1921,7 @@ def spec_trelop(config):
     op = opcode2exec[instr][1]
     c2 = config["operand_stack"].pop()
     c1 = config["operand_stack"].pop()
-    c = op(t.bit_size, c1, c2)
+    c = op(t.bit_size.value, c1, c2)
 
     config["operand_stack"].append(c)
     config["idx"] += 1
@@ -1939,7 +1939,7 @@ def spec_t2cvtopt1(config):
     if instr[4:15] == "reinterpret":
         c2 = op(t1, t2, c1)
     else:
-        c2 = op(t1.bit_size, t2.bit_size, c1)
+        c2 = op(t1.bit_size.value, t2.bit_size.value, c1)
 
     config["operand_stack"].append(c2)
     config["idx"] += 1
@@ -2065,7 +2065,7 @@ def spec_tload(config):
             sxflag = True
         N = int(instr[8:10].strip("_"))
     else:
-        N = t.bit_size
+        N = t.bit_size.value
 
     # 10
     if ea + N // 8 > len(mem["data"]):
@@ -2075,7 +2075,7 @@ def spec_tload(config):
     # 12
     if sxflag:
         n = spec_bytest_inv(t, bstar)
-        c = spec_extend_sMN(N, t.bit_size, n)
+        c = spec_extend_sMN(N, t.bit_size.value, n)
     else:
         c = spec_bytest_inv(t, bstar)
     # 13
@@ -2108,13 +2108,13 @@ def spec_tstore(config):
         Nflag = True
         N = int(instr[9:])
     else:
-        N = t.bit_size
+        N = t.bit_size.value
     # 12
     if ea + N // 8 > len(mem["data"]):
         raise Trap("trap")
     # 13
     if Nflag:
-        M = t.bit_size
+        M = t.bit_size.value
         c = spec_wrapMN(M, N, c)
         bstar = spec_bytest(t, c)
     else:
@@ -3452,7 +3452,7 @@ def spec_binary_fN(raw, idx, N):
     for i in range(N // 8):
         bstar += bytearray([raw[idx]])
         idx += 1
-    return idx, spec_bytest_inv(ValType.get_float_type(N), bstar)  # bytearray(bstar)
+    return idx, spec_bytest_inv(ValType.get_float_type(BitSize(N)), bstar)  # bytearray(bstar)
 
 
 def spec_binary_fN_inv(node, N):

@@ -1,3 +1,6 @@
+from .bit_size import (  # noqa: F401
+    BitSize,
+)
 from .exports import (  # noqa: F401
     Export,
 )

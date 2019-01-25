@@ -6,6 +6,14 @@ class GlobalIdx(int):
     pass
 
 
+class LabelIdx(int):
+    pass
+
+
+class LocalIdx(int):
+    pass
+
+
 class MemoryIdx(int):
     pass
 
