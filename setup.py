@@ -14,7 +14,7 @@ extras_require = {
         "hypothesis>=3.88.3,<4",
     ],
     'lint': [
-        "flake8==3.4.1",
+        "flake8==3.6.0",
         "isort>=4.2.15,<5",
         "mypy==0.660",
     ],
@@ -50,6 +50,8 @@ setup(
     include_package_data=True,
     install_requires=[
         "mypy_extensions>=0.4.1,<1.0.0",
+        "toolz>0.9.0,<1;implementation_name=='pypy'",
+        "cytoolz>=0.9.0,<1.0.0;implementation_name=='cpython'",
     ],
     setup_requires=['setuptools-markdown'],
     python_requires='>=3.5, <4',
