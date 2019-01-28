@@ -73,7 +73,7 @@ def instantiate_module_from_wasm_file(
 
         # imports preparation
         externvalstar: List[Any] = []
-        for import_ in module["imports"]:
+        for import_ in module.imports:
             if import_.module not in registered_modules:
                 raise Unlinkable(f"Unlinkable module: {import_.module}")
 
@@ -164,10 +164,9 @@ def run_opcode_action_invoke(action, store, module, all_modules, registered_modu
 
 
 def run_opcode_action_get(action, store, module, all_modules, registered_modules):
-    exports = module["exports"]
     # this is naive, since test["expected"] is a list, should iterate over each
     # one, but maybe OK since there is only one test["action"]
-    for export in exports:
+    for export in module["exports"]:
         if export.name == action.field:
             globaladdr = export.desc
             value = store["globals"][globaladdr]["value"][1]

@@ -1,10 +1,7 @@
 from typing import (
+    TYPE_CHECKING,
     NamedTuple,
     Tuple,
-)
-
-from wasm.typing import (
-    Expression,
 )
 
 from .indices import (
@@ -12,8 +9,13 @@ from .indices import (
     TableIdx,
 )
 
+if TYPE_CHECKING:
+    from wasm.instructions import (  # noqa: F401
+        BaseInstruction,
+    )
+
 
 class ElementSegment(NamedTuple):
     table_idx: TableIdx
-    offset: Expression
+    offset: Tuple['BaseInstruction', ...]
     init: Tuple[FuncIdx, ]

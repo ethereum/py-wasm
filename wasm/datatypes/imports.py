@@ -1,9 +1,6 @@
 from typing import (
     NamedTuple,
-)
-
-from wasm.typing import (
-    ImportDesc,
+    Union,
 )
 
 from .globals import (
@@ -23,7 +20,14 @@ from .table import (
 class Import(NamedTuple):
     module: str
     name: str
-    desc: ImportDesc
+    desc: Union[TypeIdx, GlobalType, MemoryType, TableType]
+
+    @property
+    def type_idx(self) -> TypeIdx:
+        if isinstance(self.desc, TypeIdx):
+            return self.desc
+        else:
+            raise TypeError(f"Import descriptor of type: {type(self.desc)}")
 
     @property
     def is_function(self):

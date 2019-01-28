@@ -21,3 +21,7 @@ class TableType(NamedTuple):
     """
     limits: Limits
     elem_type: Type[FuncRef]
+
+
+class Table(NamedTuple):
+    type: TableType
