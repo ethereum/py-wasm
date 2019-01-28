@@ -16,6 +16,9 @@ from _pytest.outcomes import (
     Failed,
 )
 import wasm
+from wasm.datatypes import (
+    ModuleInstance,
+)
 from wasm.exceptions import (
     Exhaustion,
     InvalidModule,
@@ -55,7 +58,7 @@ class FloatingPointNotImplemented(NotImplementedError):
 def instantiate_module_from_wasm_file(
         file_path: Path,
         store: Store,
-        registered_modules: List[Any, ]
+        registered_modules: List[ModuleInstance, ]
 ) -> Dict[Any, Any]:
     logger.debug("Loading wasm module from file: %s", file_path.name)
 
@@ -79,9 +82,9 @@ def instantiate_module_from_wasm_file(
 
             sub_module = registered_modules[import_.module]
 
-            for export in sub_module["exports"]:
+            for export in sub_module.exports:
                 if export.name == import_.name:
-                    externval = export.desc
+                    externval = export.value
                     break
             else:
                 raise Unlinkable("Unlinkable module: export name not found")
@@ -136,10 +139,9 @@ def run_opcode_action_invoke(action, store, module, all_modules, registered_modu
 
     # get function address
     funcaddr = None
-    for export in module["exports"]:
-        # print("export[\"name\"]",export["name"])
-        if export.name == funcname:
-            funcaddr = export.desc
+    for export in module.exports:
+        if export.is_function and export.name == funcname:
+            funcaddr = export.value
             logger.debug("funcaddr: %s", funcaddr)
             break
     else:
@@ -166,10 +168,10 @@ def run_opcode_action_invoke(action, store, module, all_modules, registered_modu
 def run_opcode_action_get(action, store, module, all_modules, registered_modules):
     # this is naive, since test["expected"] is a list, should iterate over each
     # one, but maybe OK since there is only one test["action"]
-    for export in module["exports"]:
+    for export in module.exports:
         if export.name == action.field:
-            globaladdr = export.desc
-            value = store["globals"][globaladdr]["value"][1]
+            globaladdr = export.value
+            value = store["globals"][globaladdr].value
             return [value]
     else:
         raise Exception(f"No export found for name: '{action.field}")

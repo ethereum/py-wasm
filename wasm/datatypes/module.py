@@ -4,6 +4,12 @@ from typing import (
     Tuple,
 )
 
+from .addresses import (
+    FunctionAddress,
+    GlobalAddress,
+    MemoryAddress,
+    TableAddress,
+)
 from .data_segment import (
     DataSegment,
 )
@@ -12,6 +18,7 @@ from .element_segment import (
 )
 from .exports import (
     Export,
+    ExportInstance,
 )
 from .function import (
     Function,
@@ -43,3 +50,23 @@ class Module(NamedTuple):
     start: Optional[StartFunction]
     imports: Tuple[Import, ...]
     exports: Tuple[Export, ...]
+
+
+class ModuleInstance(NamedTuple):
+    types: Tuple[FunctionType, ...]
+    func_addrs: Tuple[FunctionAddress, ...]
+    table_addrs: Tuple[TableAddress, ...]
+    memory_addrs: Tuple[MemoryAddress, ...]
+    global_addrs: Tuple[GlobalAddress, ...]
+    exports: Tuple[ExportInstance, ...]
+
+
+# This class is located here to prevent `mypy` from complaining about recursive
+# types until they are supported.
+# https://github.com/python/mypy/issues/731
+class FunctionInstance(NamedTuple):
+    """
+    """
+    type: FunctionType
+    module: ModuleInstance
+    code: Function

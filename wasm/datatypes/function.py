@@ -1,3 +1,4 @@
+from abc import ABC
 from typing import (
     TYPE_CHECKING,
     NamedTuple,
@@ -16,6 +17,9 @@ if TYPE_CHECKING:
     from wasm.instructions import (  # noqa: F401
         BaseInstruction,
     )
+    from wasm.typing import (  # noqa: F401
+        HostFunctionCallable,
+    )
 
 
 class FunctionType(NamedTuple):
@@ -33,6 +37,15 @@ class Function(NamedTuple):
     type: TypeIdx
     locals: Tuple[ValType, ...]
     body: Tuple['BaseInstruction', ...]
+
+
+class BaseFunctionInstance(ABC):
+    type: FunctionType
+
+
+class HostFunction(NamedTuple):
+    type: FunctionType
+    hostcode: 'HostFunctionCallable'
 
 
 class StartFunction(NamedTuple):
