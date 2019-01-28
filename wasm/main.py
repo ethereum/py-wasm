@@ -23,6 +23,8 @@ from wasm._utils.validation import (
 )
 from wasm.datatypes import (
     BitSize,
+    DataSegment,
+    ElementSegment,
     Export,
     FuncIdx,
     FuncRef,
@@ -72,7 +74,6 @@ from wasm.parsers.instructions import (
 )
 from wasm.typing import (
     Config,
-    Context,
     ExportDesc,
     Expression,
     ExternType,
@@ -81,6 +82,9 @@ from wasm.typing import (
     Store,
     UInt8,
     UInt32,
+)
+from wasm.validation import (
+    Context,
 )
 
 logger = logging.getLogger('wasm.spec')
@@ -230,10 +234,11 @@ def spec_validate_limit(limits: Limits, upper_bound: int) -> None:
 # 3.2.2 FUNCTION TYPES
 
 
-def spec_validate_functype(ft):
-    if len(ft[1]) > 1:
-        raise InvalidModule("invalid")
-    return ft
+def spec_validate_functype(ft: FuncType) -> None:
+    if len(ft.results) > 1:
+        raise InvalidModule(
+            f"Function types may only have one result.  Got {len(ft.results)}"
+        )
 
 
 # 3.2.3 TABLE TYPES
@@ -281,12 +286,12 @@ def spec_validate_globaltype(global_type: GlobalType) -> GlobalType:
 # 3.3.7 EXPRESSIONS
 
 
-def spec_validate_expr(C: Context, expr: Expression) -> Tuple[ValType, ...]:
+def spec_validate_expr(context: Context, expr: Expression) -> Tuple[ValType, ...]:
     opd_stack: List[ValType] = []
     ctrl_stack: List[Dict[Any, Any]] = []
 
     iterate_through_expression_and_validate_each_opcode(
-        expr, C, opd_stack, ctrl_stack
+        expr, context, opd_stack, ctrl_stack
     )  # call to the algorithm in the appendix
 
     if len(opd_stack) > 1:
@@ -295,11 +300,14 @@ def spec_validate_expr(C: Context, expr: Expression) -> Tuple[ValType, ...]:
         return tuple(opd_stack)
 
 
-def spec_validate_const_instr(C: Context, instruction: Instruction) -> Mutability:
+def spec_validate_const_instr(context: Context, instruction: Instruction) -> Mutability:
     if isinstance(instruction, GlobalOp):
         if instruction.action is not GlobalAction.get:
             raise InvalidModule(f"Must be a get_local instruction.  Got {instruction}")
-        elif C["globals"][instruction.global_idx].mut is not Mutability.const:
+
+        global_ = context.get_global(instruction.global_idx)
+
+        if global_.mut is not Mutability.const:
             raise InvalidModule(f"Retrieved global type is mutable")
     elif not isinstance(instruction, (I32Const, I64Const, F32Const, F64Const, GlobalOp)):
         raise InvalidModule(
@@ -309,10 +317,10 @@ def spec_validate_const_instr(C: Context, instruction: Instruction) -> Mutabilit
     return Mutability.const
 
 
-def spec_validate_const_expr(C: Context, expr: Expression) -> Mutability:
+def spec_validate_const_expr(context: Context, expr: Expression) -> Mutability:
     # expr is in AST form
     for e in expr[:-1]:
-        spec_validate_const_instr(C, e)
+        spec_validate_const_instr(context, e)
 
     if not isinstance(expr[-1], End):
         raise InvalidModule(
@@ -329,19 +337,21 @@ def spec_validate_const_expr(C: Context, expr: Expression) -> Mutability:
 # 3.4.1 FUNCTIONS
 
 
-def spec_validate_func(C: Context, func: ModuleFunction) -> Tuple[ValType, ...]:
-    if func.type >= len(C["types"]):
+def spec_validate_func(context: Context, func: ModuleFunction) -> Tuple[ValType, ...]:
+    if func.type >= len(context.types):
         raise InvalidModule(
-            f"ModuleFunction type index out of range: {func.type} >= {len(C['types'])}"
+            f"ModuleFunction type index out of range: {func.type} >= {len(context.types)}"
         )
 
-    func_type: FuncType = C["types"][func.type]
+    func_type: FuncType = context.types[func.type]
 
     t1 = func_type.params
     t2 = func_type.results
-    C["locals"] = t1 + func.locals
-    C["labels"] = t2
-    C["return"] = t2
+    func_context = context.prime(
+        locals=tuple(t1 + func.locals),
+        labels=t2,
+        returns=t2,
+    )
     # validate body using algorithm in appendix
     # TODO: resolve this comment:
     # - "spec didn't nest func body in a block, but algorithm in appendix gives errors otherwise"
@@ -351,11 +361,7 @@ def spec_validate_func(C: Context, func: ModuleFunction) -> Tuple[ValType, ...]:
             cast(Tuple[BaseInstruction, ...], func.expr),
         ),
     ))
-    ft = spec_validate_expr(C, instrstar)
-    # clear out function-specific things
-    C["locals"] = []
-    C["labels"] = []
-    C["return"] = []
+    ft = spec_validate_expr(func_context, instrstar)
 
     return ft
 
@@ -400,11 +406,10 @@ def spec_validate_global(C, global_):
 # 3.4.5 ELEMENT SEGMENT
 
 
-def spec_validate_elem(C, elem):
-    x = elem["table"]
-    if "tables" not in C or len(C["tables"]) <= x:
-        raise InvalidModule("invalid")
-    table_type = C["tables"][x]
+def spec_validate_elem(context: Context, element_segment: ElementSegment) -> None:
+    context.validate_table_idx(element_segment.table_idx)
+    table_type = context.get_table(element_segment.table_idx)
+
     limits = table_type.limits
     elem_type = table_type.elem_type
     if elem_type is not FuncRef:
@@ -413,47 +418,52 @@ def spec_validate_elem(C, elem):
     instrstar = (
         Block(
             (ValType.i32,),
-            elem["offset"],
+            cast(Tuple[BaseInstruction, ...], element_segment.offset),
         ),
     )
-    ret = spec_validate_expr(C, instrstar)
+    ret = spec_validate_expr(context, instrstar)
     if ret != (ValType.i32,):
         raise InvalidModule("invalid")
-    spec_validate_const_expr(C, elem["offset"])
-    for y in elem["init"]:
-        if len(C["funcs"]) <= y:
-            raise InvalidModule("invalid")
+    spec_validate_const_expr(context, element_segment.offset)
+    for y in element_segment.init:
+        context.validate_func_idx(y)
 
 
 # 3.4.6 DATA SEGMENTS
 
 
-def spec_validate_data(C, data):
-    x = data["data"]
-    if len(C["mems"]) <= x:
-        raise InvalidModule("invalid")
+def spec_validate_data(context: Context, data_segment: DataSegment) -> None:
+    context.validate_mem_idx(data_segment.mem_idx)
+
     instrstar = (
-        Block((ValType.i32,), data["offset"]),
+        Block(
+            (ValType.i32,),
+            cast(Tuple[BaseInstruction, ...], data_segment.offset),
+        ),
     )
-    ret = spec_validate_expr(C, instrstar)
+    ret = spec_validate_expr(context, instrstar)
     if tuple(ret) != (ValType.i32,):
-        raise InvalidModule("invalid")
-    spec_validate_const_expr(C, data["offset"])
-    return 0
+        raise InvalidModule(
+            f"Invalid data segment.  Return type must be '(i32,)'.  Got {ret}"
+        )
+    spec_validate_const_expr(context, data_segment.offset)
 
 
 # 3.4.7 START FUNCTION
 
 
-def spec_validate_start(C, start):
-    x = start["func"]
+# TODO: formal type for `start`
+def spec_validate_start(context: Context, start: Any) -> None:
+    func_idx = start["func"]
 
-    if len(C["funcs"]) <= x:
-        raise InvalidModule("invalid")
-    elif C["funcs"][x] != FuncType((), ()):
-        raise InvalidModule("invalid")
-    else:
-        return 0
+    context.validate_func_idx(func_idx)
+    func_type = context.get_func(func_idx)
+
+    if func_type != FuncType((), ()):
+        raise InvalidModule(
+            "Start function may not have arguments or a result type.  Got "
+            f"{func_type}"
+        )
 
 
 # 3.4.8 EXPORTS
@@ -462,53 +472,47 @@ def spec_validate_start(C, start):
 TExportValue = Union[FuncType, TableType, MemoryType, GlobalType]
 
 
-def spec_validate_export(C: Context, export: Export) -> TExportValue:
-    return spec_validate_exportdesc(C, export.desc)
+def spec_validate_export(context: Context, export: Export) -> TExportValue:
+    return spec_validate_exportdesc(context, export.desc)
 
 
-def spec_validate_exportdesc(C: Context,
-                             index: ExportDesc) -> TExportValue:
-    if isinstance(index, FuncIdx):
-        if len(C["funcs"]) <= index:
-            raise InvalidModule("invalid")
-        return C["funcs"][index]
-    elif isinstance(index, TableIdx):
-        if len(C["tables"]) <= index:
-            raise InvalidModule("invalid")
-        return C["tables"][index]
-    elif isinstance(index, MemoryIdx):
-        if len(C["mems"]) <= index:
-            raise InvalidModule("invalid")
-        return C["mems"][index]
-    elif isinstance(index, GlobalIdx):
-        if len(C["globals"]) <= index:
-            raise InvalidModule("invalid")
-        # TODO: verify compliance with the spec for this commented out line.
-        # Comment indicates that it should be enforced but that enabling this
-        # validation causes spec test failures.
-        # mut, t = C["globals"][index]
-        # if mut != "const": raise InvalidModule("invalid") #TODO: this was in the spec, but tests fail linking.wast: $Mg exports a mutable global, seems not to parse in wabt
-        return C["globals"][index]
+def spec_validate_exportdesc(context: Context,
+                             idx: ExportDesc) -> TExportValue:
+    if isinstance(idx, FuncIdx):
+        context.validate_func_idx(idx)
+        return context.get_func(idx)
+    elif isinstance(idx, TableIdx):
+        context.validate_table_idx(idx)
+        return context.get_table(idx)
+    elif isinstance(idx, MemoryIdx):
+        context.validate_mem_idx(idx)
+        return context.get_mem(idx)
+    elif isinstance(idx, GlobalIdx):
+        context.validate_global_idx(idx)
+        global_ = context.get_global(idx)
+        # TODO: tests fail linking.wast: $Mg exports a mutable global, seems not to parse in wabt
+        # if global_.mut is not Mutability.const:
+        #     raise InvalidModule("Globals must be constant")
+        return global_
     else:
-        raise InvalidModule(f"Unknown export descripto type: {type(index)}")
+        raise InvalidModule(f"Unknown export descripto type: {type(idx)}")
 
 
 # 3.4.9 IMPORTS
 
 
+TImport = Union[FuncType, TableType, MemoryType, GlobalType]
+
+
 # TODO: the return type of this function should probably be changed.
-def spec_validate_import(C: Context, import_: Import) -> ImportDesc:
-    return spec_validate_importdesc(C, import_.desc)
+def spec_validate_import(context: Context, import_: Import) -> TImport:
+    return spec_validate_importdesc(context, import_.desc)
 
 
-def spec_validate_importdesc(C: Context, descriptor: ImportDesc) -> ImportDesc:
+def spec_validate_importdesc(context: Context, descriptor: ImportDesc) -> TImport:
     if isinstance(descriptor, TypeIdx):
-        if len(C["funcs"]) <= descriptor:
-            raise InvalidModule(
-                f"Type indices is out of range: {descriptor} > "
-                f"{len(C['funcs'])}"
-            )
-        return C["types"][descriptor]
+        context.validate_type_idx(descriptor)
+        return context.get_type(descriptor)
     elif isinstance(descriptor, TableType):
         spec_validate_tabletype(descriptor)
         return descriptor
@@ -563,49 +567,51 @@ def spec_validate_module(mod: Module) -> List[List[ExternType]]:
     igtstar = spec_globals(itstar)
 
     # let C and Cprime be contexts
-    C = {
-        "types": mod["types"],
-        "funcs": iftstar + ftstar,
-        "tables": ittstar + ttstar,
-        "mems": imtstar + mtstar,
-        "globals": igtstar + gtstar,
-        "locals": [],
-        "labels": [],
-        "return": [],
-    }
-    Cprime = {
-        "types": [],
-        "funcs": [],
-        "tables": [],
-        "mems": [],
-        "globals": igtstar,
-        "locals": [],
-        "labels": [],
-        "returns": [],
-    }
+    context = Context(
+        types=tuple(mod["types"]),
+        funcs=tuple(iftstar + ftstar),
+        tables=tuple(ittstar + ttstar),
+        mems=tuple(imtstar + mtstar),
+        globals=tuple(igtstar + gtstar),
+        locals=(),
+        labels=(),
+        returns=(),
+
+    )
+    context_p = Context(
+        types=(),
+        funcs=(),
+        tables=(),
+        mems=(),
+        globals=tuple(igtstar),
+        locals=(),
+        labels=(),
+        returns=(),
+    )
+
     # et* is needed later, here is a good place to do it
     etstar: List[ExternType] = []
     for export in mod["exports"]:
         if export.is_function:
-            if len(C["funcs"]) <= export.desc:
+            if len(context.funcs) <= export.desc:
                 # this was not explicit in spec
                 raise InvalidModule("invalid")
-            etstar.append(C["funcs"][export.desc])
+            etstar.append(context.funcs[export.desc])
         elif export.is_table:
-            if len(C["tables"]) <= export.desc:
+            if len(context.tables) <= export.desc:
                 # this was not explicit in spec
                 raise InvalidModule("invalid")
-            etstar.append(C["tables"][export.desc])
+            etstar.append(context.tables[export.desc])
         elif export.is_memory:
-            if len(C["mems"]) <= export.desc:
+            if len(context.mems) <= export.desc:
                 # this was not explicit in spec
                 raise InvalidModule("invalid")
-            etstar.append(C["mems"][export.desc])
+            etstar.append(context.mems[export.desc])
         elif export.is_global:
-            if len(C["globals"]) <= export.desc:
+            if len(context.globals) <= export.desc:
                 # this was not explicit in spec
                 raise InvalidModule("invalid")
-            etstar.append(C["globals"][export.desc])
+            etstar.append(context.globals[export.desc])
         else:
             raise Exception(f"Invariant: Unknown export type: {type(export.desc)}")
 
@@ -614,8 +620,8 @@ def spec_validate_module(mod: Module) -> List[List[ExternType]]:
         spec_validate_functype(functypei)
 
     for i, func in enumerate(mod["funcs"]):
-        ft = spec_validate_func(C, func)
-        if tuple(ft) != ftstar[i].results:
+        ft = spec_validate_func(context, func)
+        if ft != ftstar[i].results:
             raise InvalidModule("invalid")
 
     for i, table in enumerate(mod["tables"]):
@@ -629,32 +635,34 @@ def spec_validate_module(mod: Module) -> List[List[ExternType]]:
             raise InvalidModule("invalid")
 
     for i, global_ in enumerate(mod["globals"]):
-        gt = spec_validate_global(Cprime, global_)
+        # TODO: this is the only place that `context_p` is used and can
+        # probably be cleaned up to not polute local namespace.
+        gt = spec_validate_global(context_p, global_)
         if gt != gtstar[i]:
             raise InvalidModule("invalid")
 
     for elem in mod["elem"]:
-        spec_validate_elem(C, elem)
+        spec_validate_elem(context, elem)
 
     for data in mod["data"]:
-        spec_validate_data(C, data)
+        spec_validate_data(context, data)
 
     if mod["start"]:
-        spec_validate_start(C, mod["start"])
+        spec_validate_start(context, mod["start"])
 
     for i, import_ in enumerate(mod["imports"]):
-        it = spec_validate_import(C, import_)
+        it = spec_validate_import(context, import_)
         if it != itstar[i]:
             raise InvalidModule("invalid")
 
     for i, export in enumerate(mod["exports"]):
-        et = spec_validate_export(C, export)
+        et = spec_validate_export(context, export)
         if et != etstar[i]:
             raise InvalidModule("invalid")
 
-    if len(C["tables"]) > 1:
+    if len(context.tables) > 1:
         raise InvalidModule("invalid")
-    elif len(C["mems"]) > 1:
+    elif len(context.mems) > 1:
         raise InvalidModule("invalid")
 
     # export names must be unique
@@ -2864,7 +2872,7 @@ def spec_instantiate(S, module, externvaln):
         config = {
             "S": S,
             "F": framestack,
-            "instrstar": elemi["offset"],
+            "instrstar": elemi.offset,
             "idx": 0,
             "operand_stack": [],
             "control_stack": [],
@@ -2872,11 +2880,11 @@ def spec_instantiate(S, module, externvaln):
         eovali = spec_expr(config)[0]
         eoi = eovali
         eo += [eoi]
-        tableidxi = elemi["table"]
+        tableidxi = elemi.table_idx
         tableaddri = moduleinst["tableaddrs"][tableidxi]
         tableinsti = S["tables"][tableaddri]
         tableinst += [tableinsti]
-        eendi = eoi + len(elemi["init"])
+        eendi = eoi + len(elemi.init)
         if eendi > len(tableinsti["elem"]):
             raise Unlinkable("unlinkable")
     # 10
@@ -2886,7 +2894,7 @@ def spec_instantiate(S, module, externvaln):
         config = {
             "S": S,
             "F": framestack,
-            "instrstar": datai["offset"],
+            "instrstar": datai.offset,
             "idx": 0,
             "operand_stack": [],
             "control_stack": [],
@@ -2894,11 +2902,11 @@ def spec_instantiate(S, module, externvaln):
         dovali = spec_expr(config)[0]
         doi = dovali
         do += [doi]
-        memidxi = datai["data"]
+        memidxi = datai.mem_idx
         memaddri = moduleinst["memaddrs"][memidxi]
         meminsti = S["mems"][memaddri]
         meminst += [meminsti]
-        dendi = doi + len(datai["init"])
+        dendi = doi + len(datai.init)
         if dendi > len(meminsti["data"]):
             raise Unlinkable("unlinkable")
     # 11
@@ -2906,12 +2914,12 @@ def spec_instantiate(S, module, externvaln):
     framestack.pop()
     # 13
     for i, elemi in enumerate(module["elem"]):
-        for j, funcidxij in enumerate(elemi["init"]):
+        for j, funcidxij in enumerate(elemi.init):
             funcaddrij = moduleinst["funcaddrs"][funcidxij]
             tableinst[i]["elem"][eo[i] + j] = funcaddrij
     # 14
     for i, datai in enumerate(module["data"]):
-        for j, bij in enumerate(datai["init"]):
+        for j, bij in enumerate(datai.init):
             meminst[i]["data"][do[i] + j] = bij
     # 15
     if module["start"]:
@@ -3767,22 +3775,22 @@ def spec_binary_elemsec(raw, idx, skip=0):
     return spec_binary_sectionN(raw, idx, 9, spec_binary_elem, skip)
 
 
-def spec_binary_elem(raw, idx):
-    idx, x = spec_binary_tableidx(raw, idx)
-    idx, e = spec_binary_expr(raw, idx)
-    idx, ystar = spec_binary_vec(raw, idx, spec_binary_funcidx)
-    return idx, {"table": x, "offset": e, "init": ystar}
+def spec_binary_elem(raw: bytes, idx: int) -> Tuple[int, ElementSegment]:
+    idx, table_idx = spec_binary_tableidx(raw, idx)
+    idx, offset = spec_binary_expr(raw, idx)
+    idx, init = spec_binary_vec(raw, idx, spec_binary_funcidx)
+    return idx, ElementSegment(table_idx, offset, init)
 
 
 def spec_binary_elemsec_inv(node):
     return spec_binary_sectionN_inv(node, spec_binary_elem_inv, 9)
 
 
-def spec_binary_elem_inv(node):
+def spec_binary_elem_inv(element_type: ElementSegment) -> bytearray:
     return (
-        spec_binary_tableidx_inv(node["table"])
-        + spec_binary_expr_inv(node["offset"])
-        + spec_binary_vec_inv(node["init"], spec_binary_funcidx_inv)
+        spec_binary_tableidx_inv(element_type.table_idx)
+        + spec_binary_expr_inv(element_type.offset)
+        + spec_binary_vec_inv(element_type.init, spec_binary_funcidx_inv)
     )
 
 
@@ -3873,22 +3881,22 @@ def spec_binary_datasec(raw, idx, skip=0):
     return spec_binary_sectionN(raw, idx, 11, spec_binary_data, skip)
 
 
-def spec_binary_data(raw, idx):
-    idx, x = spec_binary_memidx(raw, idx)
-    idx, e = spec_binary_expr(raw, idx)
-    idx, bstar = spec_binary_vec(raw, idx, spec_binary_byte)
-    return idx, {"data": x, "offset": e, "init": bstar}
+def spec_binary_data(raw: bytes, idx: int) -> Tuple[int, DataSegment]:
+    idx, mem_idx = spec_binary_memidx(raw, idx)
+    idx, expression = spec_binary_expr(raw, idx)
+    idx, init = spec_binary_vec(raw, idx, spec_binary_byte)
+    return idx, DataSegment(mem_idx, expression, init)
 
 
 def spec_binary_datasec_inv(node):
     return spec_binary_sectionN_inv(node, spec_binary_data_inv, 11)
 
 
-def spec_binary_data_inv(node):
+def spec_binary_data_inv(data: DataSegment) -> bytearray:
     return (
-        spec_binary_memidx_inv(node["data"])
-        + spec_binary_expr_inv(node["offset"])
-        + spec_binary_vec_inv(node["init"], spec_binary_byte_inv)
+        spec_binary_memidx_inv(data.mem_idx)
+        + spec_binary_expr_inv(data.offset)
+        + spec_binary_vec_inv(data.init, spec_binary_byte_inv)
     )
 
 
@@ -4471,8 +4479,8 @@ def spec_unreachable_(opds, ctrls):
 # 7.3.2 VALIDATION OF OPCODE SEQUENCES
 
 # validate a single opcode based on current context C, operand stack opds, and control stack ctrls
-def spec_validate_opcode(C: Context, opds: Any, ctrls: Any, instruction: Instruction) -> None:
-    logger.debug("spec_validate_opcode(%s, %s, %s, %s)", C, opds, ctrls, instruction)
+def spec_validate_opcode(context: Context, opds: Any, ctrls: Any, instruction: Instruction) -> None:
+    logger.debug("spec_validate_opcode(%s, %s, %s, %s)", context, opds, ctrls, instruction)
     # C is the context
     # opds is the operand stack
     # ctrls is the control stack
@@ -4525,26 +4533,25 @@ def spec_validate_opcode(C: Context, opds: Any, ctrls: Any, instruction: Instruc
             spec_pop_opds_expect(opds, ctrls, label_types)
             spec_unreachable_(opds, ctrls)
         elif instruction.opcode is BinaryOpcode.RETURN:
-            if "return" not in C:
-                raise InvalidModule("invalid")
-            t = C["return"]
-            spec_pop_opds_expect(opds, ctrls, t)
+            result_type = context.returns
+            spec_pop_opds_expect(opds, ctrls, result_type)
             spec_unreachable_(opds, ctrls)
         elif instruction.opcode is BinaryOpcode.CALL:
-            if ("funcs" not in C) or len(C["funcs"]) <= instruction.func_idx:  # type: ignore
-                raise InvalidModule("invalid")
-            func_type = C["funcs"][instruction.func_idx]  # type: ignore
+            context.validate_func_idx(instruction.func_idx)  # type: ignore
+
+            func_type = context.get_func(instruction.func_idx)  # type: ignore
             spec_pop_opds_expect(opds, ctrls, func_type.params)
             spec_push_opds(opds, ctrls, func_type.results)
         elif instruction.opcode is BinaryOpcode.CALL_INDIRECT:
-            if "tables" not in C or len(C["tables"]) == 0:
-                raise InvalidModule("invalid")
-            elif C["tables"][0][1] is not FuncRef:
-                raise InvalidModule("invalid")
-            elif len(C["types"]) <= instruction.type_idx:  # type: ignore
+            context.validate_table_idx(0)
+            table_type = context.get_table(0)
+
+            if table_type.elem_type is not FuncRef:
                 raise InvalidModule("invalid")
 
-            func_type = C["types"][instruction.type_idx]  # type: ignore
+            context.validate_type_idx(instruction.type_idx)  # type: ignore
+            func_type = context.get_type(instruction.type_idx)  # type: ignore
+
             spec_pop_opd_expect(opds, ctrls, ValType.i32)
             spec_pop_opds_expect(opds, ctrls, func_type.params)
             spec_push_opds(opds, ctrls, func_type.results)
@@ -4560,46 +4567,36 @@ def spec_validate_opcode(C: Context, opds: Any, ctrls: Any, instruction: Instruc
             raise Exception("Invariant")
     elif instruction.opcode.is_variable:
         if instruction.opcode is BinaryOpcode.GET_LOCAL:
-            if len(C["locals"]) <= instruction.local_idx:  # type: ignore
-                raise InvalidModule("invalid")
-            else:
-                valtype = C["locals"][instruction.local_idx]  # type: ignore
-                spec_push_opd(opds, valtype)
+            context.validate_local_idx(instruction.local_idx)  # type: ignore
+            valtype = context.get_local(instruction.local_idx)  # type: ignore
+            spec_push_opd(opds, valtype)
         elif instruction.opcode is BinaryOpcode.SET_LOCAL:
-            if len(C["locals"]) <= instruction.local_idx:  # type: ignore
-                raise InvalidModule("invalid")
-            else:
-                valtype = C["locals"][instruction.local_idx]  # type: ignore
-                ret = spec_pop_opd_expect(opds, ctrls, valtype)
+            context.validate_local_idx(instruction.local_idx)  # type: ignore
+            valtype = context.get_local(instruction.local_idx)  # type: ignore
+            spec_pop_opd_expect(opds, ctrls, valtype)
         elif instruction.opcode is BinaryOpcode.TEE_LOCAL:
-            if len(C["locals"]) <= instruction.local_idx:  # type: ignore
-                raise InvalidModule("invalid")
-            else:
-                valtype = C["locals"][instruction.local_idx]  # type: ignore
-                spec_pop_opd_expect(opds, ctrls, valtype)
-                spec_push_opd(opds, valtype)
+            context.validate_local_idx(instruction.local_idx)  # type: ignore
+            valtype = context.get_local(instruction.local_idx)  # type: ignore
+            spec_pop_opd_expect(opds, ctrls, valtype)
+            spec_push_opd(opds, valtype)
         elif instruction.opcode is BinaryOpcode.GET_GLOBAL:
-            if len(C["globals"]) <= instruction.global_idx:  # type: ignore
-                raise InvalidModule("invalid")
-            else:
-                valtype = C["globals"][instruction.global_idx].valtype  # type: ignore
-                spec_push_opd(opds, valtype)
+            context.validate_global_idx(instruction.global_idx)  # type: ignore
+            global_ = context.get_global(instruction.global_idx)  # type: ignore
+            spec_push_opd(opds, global_.valtype)
         elif instruction.opcode is BinaryOpcode.SET_GLOBAL:
-            if len(C["globals"]) <= instruction.global_idx:  # type: ignore
+            context.validate_global_idx(instruction.global_idx)  # type: ignore
+            global_ = context.get_global(instruction.global_idx)  # type: ignore
+
+            if global_.mut is not Mutability.var:  # type: ignore
                 raise InvalidModule("invalid")
-            elif C["globals"][instruction.global_idx].mut is not Mutability.var:  # type: ignore
-                raise InvalidModule("invalid")
-            else:
-                valtype = C["globals"][instruction.global_idx].valtype  # type: ignore
-                ret = spec_pop_opd_expect(opds, ctrls, valtype)
+
+            spec_pop_opd_expect(opds, ctrls, global_.valtype)
         else:
             raise Exception(f"Unexpected opcode value: {opcode_binary}")
     elif instruction.opcode.is_memory:
-        if "mems" not in C:
-            raise InvalidModule("Context does not contain 'mems'")
-        elif len(C["mems"]) == 0:
-            raise InvalidModule("Context contains empty 'mems'")
-        elif instruction.opcode.is_memory_load:
+        context.validate_mem_idx(0)
+
+        if instruction.opcode.is_memory_load:
             if 2 ** instruction.memarg.align > instruction.memory_bit_size.value // 8:  # type: ignore
                 raise InvalidModule("Invalid memarg alignment")
 
@@ -4749,7 +4746,7 @@ BLOCK_LOOP_IF = {
 # args when called the first time:
 # TODO: tighten up type hints for `ctrls`
 def iterate_through_expression_and_validate_each_opcode(
-        expression: Expression, C: Context, opds: List[ValType], ctrls: Any
+        expression: Expression, context: Context, opds: List[ValType], ctrls: Any
 ) -> None:
     for idx, instruction in enumerate(expression):
         if not isinstance(instruction, BaseInstruction):
@@ -4758,19 +4755,19 @@ def iterate_through_expression_and_validate_each_opcode(
             )
 
         # validate
-        spec_validate_opcode(C, opds, ctrls, instruction)
+        spec_validate_opcode(context, opds, ctrls, instruction)
 
         # recurse for block, loop, if
         if instruction.opcode in BLOCK_LOOP_IF:
             # arbitrarily use Block to make type checker happy.
             sub_instructions = cast(Block, instruction).instructions
             iterate_through_expression_and_validate_each_opcode(
-                sub_instructions, C, opds, ctrls
+                sub_instructions, context, opds, ctrls
             )
             if instruction.opcode is BinaryOpcode.IF:
                 else_instructions = cast(If, instruction).else_instructions
                 iterate_through_expression_and_validate_each_opcode(
-                    else_instructions, C, opds, ctrls
+                    else_instructions, context, opds, ctrls
                 )
 
 

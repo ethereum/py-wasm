@@ -1,6 +1,12 @@
 from .bit_size import (  # noqa: F401
     BitSize,
 )
+from .data_segment import (  # noqa: F401
+    DataSegment,
+)
+from .element_segment import (  # noqa: F401
+    ElementSegment,
+)
 from .exports import (  # noqa: F401
     Export,
 )
