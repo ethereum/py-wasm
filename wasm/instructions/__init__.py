@@ -1,0 +1,91 @@
+from typing import (
+    Union,
+)
+
+from .control import (  # noqa: F401
+    BaseInstruction,
+    Block,
+    Br,
+    BrIf,
+    BrTable,
+    Call,
+    CallIndirect,
+    Else,
+    End,
+    If,
+    Loop,
+    Nop,
+    Return,
+    Unreachable,
+)
+from .memory import (  # noqa: F401
+    MemoryAction,
+    MemoryArg,
+    MemoryGrow,
+    MemoryOp,
+    MemorySize,
+)
+from .numeric import (  # noqa: F401
+    BinOp,
+    Comparison,
+    Convert,
+    Demote,
+    Extend,
+    F32Const,
+    F64Const,
+    I32Const,
+    I64Const,
+    Promote,
+    Reinterpret,
+    RelOp,
+    TestOp,
+    Truncate,
+    UnOp,
+    Wrap,
+)
+from .parametric import (
+    Drop,
+    Select,
+)
+from .variable import (  # noqa: F401
+    GlobalOp,
+    LocalOp,
+)
+
+
+Instruction = Union[
+    BaseInstruction,
+    I32Const, I64Const,
+    F32Const, F64Const,
+    UnOp,
+    BinOp,
+    RelOp,
+    TestOp,
+    Wrap,
+    Extend,
+    Truncate,
+    Convert,
+    Promote,
+    Demote,
+    Reinterpret,
+    LocalOp,
+    GlobalOp,
+    MemoryOp,
+    MemoryGrow,
+    MemorySize,
+    Drop,
+    Select,
+    Block,
+    Br,
+    BrIf,
+    BrTable,
+    Loop,
+    If,
+    Else,
+    End,
+    Call,
+    CallIndirect,
+    Nop,
+    Unreachable,
+    Return,
+]

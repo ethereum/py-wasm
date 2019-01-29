@@ -1,8 +1,10 @@
+import io
 import logging
 import math
 import struct
 from typing import (
     Any,
+    Dict,
     Iterable,
     List,
     NamedTuple,
@@ -10,6 +12,7 @@ from typing import (
     Tuple,
     Type,
     Union,
+    cast,
 )
 
 from wasm import (
@@ -30,6 +33,7 @@ from wasm.datatypes import (
     Limits,
     MemoryIdx,
     MemoryType,
+    ModuleFunction,
     Mutability,
     TableIdx,
     TableType,
@@ -44,9 +48,33 @@ from wasm.exceptions import (
     Unlinkable,
     ValidationError,
 )
+from wasm.instructions import (
+    BaseInstruction,
+    Block,
+    End,
+    F32Const,
+    F64Const,
+    GlobalOp,
+    I32Const,
+    I64Const,
+    If,
+    Instruction,
+    Loop,
+)
+from wasm.instructions.variable import (
+    GlobalAction,
+)
+from wasm.opcodes import (
+    BinaryOpcode,
+)
+from wasm.parsers.instructions import (
+    parse_instruction,
+)
 from wasm.typing import (
+    Config,
     Context,
     ExportDesc,
+    Expression,
     ExternType,
     ImportDesc,
     Module,
@@ -77,16 +105,6 @@ def spec_fN(N, f):
         return fNmag
     else:
         return -1 * fNmag
-
-
-def spec_fNmag(N, f):
-    # TODO: this function appears to be a noop
-    M = spec_signif(N)
-    E = spec_expon(N)
-    e = bitstring[1 : E + 1]
-    m = bitstring[E + 1 :]
-    if -1 * (2 ** (E - 1)) + 2 <= e <= 2 ** (E - 1) - 1:
-        pass
 
 
 def spec_signif(N):
@@ -332,6 +350,7 @@ def spec_validate_t_load(C: Any,
                          valtype: ValType,
                          memarg: Any
                          ) -> Tuple[List[ValType], List[ValType]]:
+    # TODO: This function not covered by tests
     if len(C["mems"]) < 1:
         raise InvalidModule("invalid")
     if 2 ** memarg["align"] > valtype.bit_size.value // 8:
@@ -340,6 +359,7 @@ def spec_validate_t_load(C: Any,
 
 
 def spec_validate_tloadNsx(C, t, N, memarg):
+    # TODO: This function not covered by tests
     if len(C["mems"]) < 1:
         raise InvalidModule("invalid")
     if 2 ** memarg["align"] > N // 8:
@@ -348,6 +368,7 @@ def spec_validate_tloadNsx(C, t, N, memarg):
 
 
 def spec_validate_tstore(C, t, memarg):
+    # TODO: This function not covered by tests
     if len(C["mems"]) < 1:
         raise InvalidModule("invalid")
     if 2 ** memarg["align"] > t.bit_size.value // 8:
@@ -356,6 +377,7 @@ def spec_validate_tstore(C, t, memarg):
 
 
 def spec_validate_tstoreN(C, t, N, memarg):
+    # TODO: This function not covered by tests
     if len(C["mems"]) < 1:
         raise InvalidModule("invalid")
     if 2 ** memarg["align"] > N // 8:
@@ -364,12 +386,14 @@ def spec_validate_tstoreN(C, t, N, memarg):
 
 
 def spec_validate_memorysize(C):
+    # TODO: This function not covered by tests
     if len(C["mems"]) < 1:
         raise InvalidModule("invalid")
     return [], [ValType.i32]
 
 
 def spec_validate_memorygrow(C):
+    # TODO: This function not covered by tests
     if len(C["mems"]) < 1:
         raise InvalidModule("invalid")
     return [ValType.i32], [ValType.i32]
@@ -473,39 +497,44 @@ def spec_validate_call_indirect(C, x):
 # 3.3.7 EXPRESSIONS
 
 
-def spec_validate_expr(C, expr):
-    opd_stack = []
-    ctrl_stack = []
+def spec_validate_expr(C: Context, expr: Expression) -> Tuple[ValType, ...]:
+    opd_stack: List[ValType] = []
+    ctrl_stack: List[Dict[Any, Any]] = []
+
     iterate_through_expression_and_validate_each_opcode(
         expr, C, opd_stack, ctrl_stack
     )  # call to the algorithm in the appendix
+
     if len(opd_stack) > 1:
         raise InvalidModule("invalid")
     else:
-        return opd_stack
+        return tuple(opd_stack)
 
 
-def spec_validate_const_instr(C, instr):
-    if instr[0] not in {
-        "i32.const",
-        "i64.const",
-        "f32.const",
-        "f64.const",
-        "get_global",
-    }:
-        raise InvalidModule("invalid")
-    if instr[0] == "get_global" and C["globals"][instr[1]][0] is not Mutability.const:
-        raise InvalidModule("invalid")
+def spec_validate_const_instr(C: Context, instruction: Instruction) -> Mutability:
+    if isinstance(instruction, GlobalOp):
+        if instruction.action is not GlobalAction.get:
+            raise InvalidModule(f"Must be a get_local instruction.  Got {instruction}")
+        elif C["globals"][instruction.global_idx].mut is not Mutability.const:
+            raise InvalidModule(f"Retrieved global type is mutable")
+    elif not isinstance(instruction, (I32Const, I64Const, F32Const, F64Const, GlobalOp)):
+        raise InvalidModule(
+            f"Instruction is not a const: Got {instruction}"
+        )
+
     return Mutability.const
 
 
-def spec_validate_const_expr(C, expr):
+def spec_validate_const_expr(C: Context, expr: Expression) -> Mutability:
     # expr is in AST form
-    stack = []
     for e in expr[:-1]:
         spec_validate_const_instr(C, e)
-    if expr[-1][0] != "end":
-        raise InvalidModule("invalid")
+
+    if not isinstance(expr[-1], End):
+        raise InvalidModule(
+            f"Expression must terminate with an `End` instruction: Got {expr[-1]}"
+        )
+
     return Mutability.const
 
 
@@ -516,26 +545,34 @@ def spec_validate_const_expr(C, expr):
 # 3.4.1 FUNCTIONS
 
 
-def spec_validate_func(C, func, raw=None):
-    x = func["type"]
-    if len(C["types"]) <= x:
-        raise InvalidModule("invalid")
-    func_type: FuncType = C["types"][x]
-    # TODO: remove list casts once everything is tuples
-    t1 = list(func_type.params)
-    t2 = list(func_type.results)
-    C["locals"] = t1 + func["locals"]
+def spec_validate_func(C: Context, func: ModuleFunction) -> Tuple[ValType, ...]:
+    if func.type >= len(C["types"]):
+        raise InvalidModule(
+            f"ModuleFunction type index out of range: {func.type} >= {len(C['types'])}"
+        )
+
+    func_type: FuncType = C["types"][func.type]
+
+    t1 = func_type.params
+    t2 = func_type.results
+    C["locals"] = t1 + func.locals
     C["labels"] = t2
     C["return"] = t2
     # validate body using algorithm in appendix
-    instrstar = [
-        ["block", t2, func["body"]]
-    ]  # spec didn't nest func body in a block, but algorithm in appendix gives errors otherwise
+    # TODO: resolve this comment:
+    # - "spec didn't nest func body in a block, but algorithm in appendix gives errors otherwise"
+    instrstar: Tuple[Instruction, ...] = cast(Tuple[Instruction, ...], (
+        Block(
+            t2,
+            cast(Tuple[BaseInstruction, ...], func.expr),
+        ),
+    ))
     ft = spec_validate_expr(C, instrstar)
     # clear out function-specific things
     C["locals"] = []
     C["labels"] = []
     C["return"] = []
+
     return ft
 
 
@@ -563,9 +600,14 @@ def spec_validate_global(C, global_):
     spec_validate_globaltype(global_["type"])
     # validate expr, but wrap it in a block first since empty control stack gives errors
     # but first wrap in block with appropriate return type
-    instrstar = [["block", global_["type"][1], global_["init"]]]
+    instrstar = (
+        Block(
+            (global_["type"].valtype,),
+            global_["init"],
+        ),
+    )
     ret = spec_validate_expr(C, instrstar)
-    if ret != [global_["type"][1]]:
+    if ret != (global_["type"].valtype,):
         raise InvalidModule("invalid")
     ret = spec_validate_const_expr(C, global_["init"])
     return global_["type"]
@@ -584,15 +626,19 @@ def spec_validate_elem(C, elem):
     if elem_type is not FuncRef:
         raise InvalidModule("invalid")
     # first wrap in block with appropriate return type
-    instrstar = [["block", ValType.i32, elem["offset"]]]
+    instrstar = (
+        Block(
+            (ValType.i32,),
+            elem["offset"],
+        ),
+    )
     ret = spec_validate_expr(C, instrstar)
-    if ret != [ValType.i32]:
+    if ret != (ValType.i32,):
         raise InvalidModule("invalid")
     spec_validate_const_expr(C, elem["offset"])
     for y in elem["init"]:
         if len(C["funcs"]) <= y:
             raise InvalidModule("invalid")
-    return 0
 
 
 # 3.4.6 DATA SEGMENTS
@@ -602,9 +648,11 @@ def spec_validate_data(C, data):
     x = data["data"]
     if len(C["mems"]) <= x:
         raise InvalidModule("invalid")
-    instrstar = [["block", ValType.i32, data["offset"]]]
+    instrstar = (
+        Block((ValType.i32,), data["offset"]),
+    )
     ret = spec_validate_expr(C, instrstar)
-    if ret != [ValType.i32]:
+    if tuple(ret) != (ValType.i32,):
         raise InvalidModule("invalid")
     spec_validate_const_expr(C, data["offset"])
     return 0
@@ -702,10 +750,10 @@ def spec_validate_module(mod: Module) -> List[List[ExternType]]:
     ftstar: List[FuncType] = []
 
     for func in mod["funcs"]:
-        if len(mod["types"]) <= func["type"]:
+        if len(mod["types"]) <= func.type:
             # this was not explicit in spec, how about other *tstar
             raise InvalidModule("invalid")
-        ftstar += [mod["types"][func["type"]]]
+        ftstar += [mod["types"][func.type]]
 
     ttstar: List[TableType] = [table["type"] for table in mod["tables"]]
     mtstar: List[MemoryType] = [mem["type"] for mem in mod["mems"]]
@@ -783,8 +831,7 @@ def spec_validate_module(mod: Module) -> List[List[ExternType]]:
 
     for i, func in enumerate(mod["funcs"]):
         ft = spec_validate_func(C, func)
-        # TODO: remove list cast once everything is a tuple
-        if ft != list(ftstar[i].results):
+        if tuple(ft) != ftstar[i].results:
             raise InvalidModule("invalid")
 
     for i, table in enumerate(mod["tables"]):
@@ -933,7 +980,7 @@ def spec_ibitsN(N: int, i: int) -> str:
     return bin(i)[2:].zfill(N)
 
 
-def spec_ibitsN_inv(N, bits):
+def spec_ibitsN_inv(N: int, bits: str) -> int:
     logger.debug("spec_ibitsN_inv(%s, %s)", N, bits)
 
     return int(bits, 2)
@@ -970,6 +1017,8 @@ def spec_fbitsN_inv(N, bits):
         z = struct.unpack(">f", bytes_)[0]
     elif N == 64:
         z = struct.unpack(">d", bytes_)[0]
+    else:
+        raise Exception(f"Invariant: N must be one of 32/64 - Got '{N}'")
     return z
 
 
@@ -1861,7 +1910,7 @@ def spec_reinterprett1t2(t1, t2, c):
 
 def spec_tconst(config):
     S = config["S"]
-    c = config["instrstar"][config["idx"]][1]
+    c = config["instrstar"][config["idx"]].value
 
     logger.debug("spec_tconst(%s)", c)
 
@@ -1873,9 +1922,9 @@ def spec_tunop(config):
     logger.debug("spec_tunop()")
 
     S = config["S"]
-    instr = config["instrstar"][config["idx"]][0]
-    t = ValType.from_str(instr[0:3])
-    op = opcode2exec[instr][1]
+    instruction = config["instrstar"][config["idx"]]
+    t = instruction.valtype
+    op = opcode2exec[instruction.opcode][1]
     c1 = config["operand_stack"].pop()
     c = op(t.bit_size.value, c1)
 
@@ -1887,9 +1936,9 @@ def spec_tbinop(config):
     logger.debug("spec_tbinop()")
 
     S = config["S"]
-    instr = config["instrstar"][config["idx"]][0]
-    t = ValType.from_str(instr[0:3])
-    op = opcode2exec[instr][1]
+    instruction = config["instrstar"][config["idx"]]
+    t = instruction.valtype
+    op = opcode2exec[instruction.opcode][1]
     c2 = config["operand_stack"].pop()
     c1 = config["operand_stack"].pop()
     c = op(t.bit_size.value, c1, c2)
@@ -1902,9 +1951,9 @@ def spec_ttestop(config):
     logger.debug("spec_ttestop()")
 
     S = config["S"]
-    instr = config["instrstar"][config["idx"]][0]
-    t = ValType.from_str(instr[0:3])
-    op = opcode2exec[instr][1]
+    instruction = config["instrstar"][config["idx"]]
+    t = instruction.valtype
+    op = opcode2exec[instruction.opcode][1]
     c1 = config["operand_stack"].pop()
     c = op(t.bit_size.value, c1)
 
@@ -1916,9 +1965,9 @@ def spec_trelop(config):
     logger.debug("spec_trelop()")
 
     S = config["S"]
-    instr = config["instrstar"][config["idx"]][0]
-    t = ValType.from_str(instr[0:3])
-    op = opcode2exec[instr][1]
+    instruction = config["instrstar"][config["idx"]]
+    t = instruction.valtype
+    op = opcode2exec[instruction.opcode][1]
     c2 = config["operand_stack"].pop()
     c1 = config["operand_stack"].pop()
     c = op(t.bit_size.value, c1, c2)
@@ -1931,12 +1980,13 @@ def spec_t2cvtopt1(config):
     logger.debug("spec_t2cvtopt1()")
 
     S = config["S"]
-    instr = config["instrstar"][config["idx"]][0]
-    t2 = ValType.from_str(instr[0:3])
-    t1 = ValType.from_str(instr[-3:])
-    op = opcode2exec[instr][1]
+    instruction = config["instrstar"][config["idx"]]
+    t2 = instruction.valtype
+    t1 = instruction.result
+    op = opcode2exec[instruction.opcode][1]
     c1 = config["operand_stack"].pop()
-    if instr[4:15] == "reinterpret":
+
+    if instruction.opcode.is_reinterpret:
         c2 = op(t1, t2, c1)
     else:
         c2 = op(t1.bit_size.value, t2.bit_size.value, c1)
@@ -1951,7 +2001,6 @@ def spec_t2cvtopt1(config):
 def spec_drop(config):
     logger.debug("spec_drop()")
 
-    S = config["S"]
     config["operand_stack"].pop()
     config["idx"] += 1
 
@@ -1959,7 +2008,6 @@ def spec_drop(config):
 def spec_select(config):
     logger.debug("spec_select()")
 
-    S = config["S"]
     operand_stack = config["operand_stack"]
     c = operand_stack.pop()
     val1 = operand_stack.pop()
@@ -1979,8 +2027,8 @@ def spec_get_local(config):
 
     S = config["S"]
     F = config["F"]
-    x = config["instrstar"][config["idx"]][1]
-    val = F[-1]["locals"][x]
+    instruction = config["instrstar"][config["idx"]]
+    val = F[-1]["locals"][instruction.local_idx]
     config["operand_stack"].append(val)
     config["idx"] += 1
 
@@ -1988,26 +2036,21 @@ def spec_get_local(config):
 def spec_set_local(config):
     logger.debug("spec_set_local()")
 
-    S = config["S"]
     F = config["F"]
-    x = config["instrstar"][config["idx"]][1]
+    instruction = config["instrstar"][config["idx"]]
     val = config["operand_stack"].pop()
-    F[-1]["locals"][x] = val
+    F[-1]["locals"][instruction.local_idx] = val
     config["idx"] += 1
 
 
 def spec_tee_local(config):
     logger.debug("spec_tee_local()")
 
-    S = config["S"]
-    x = config["instrstar"][config["idx"]][1]
     operand_stack = config["operand_stack"]
     val = operand_stack.pop()
     operand_stack.append(val)
     operand_stack.append(val)
     spec_set_local(config)
-    # TODO: confirm that this should be commented out.
-    # config["idx"] += 1
 
 
 def spec_get_global(config):
@@ -2015,8 +2058,8 @@ def spec_get_global(config):
 
     S = config["S"]
     F = config["F"]
-    x = config["instrstar"][config["idx"]][1]
-    a = F[-1]["module"]["globaladdrs"][x]
+    instruction = config["instrstar"][config["idx"]]
+    a = F[-1]["module"]["globaladdrs"][instruction.global_idx]
     glob = S["globals"][a]
     # TODO: confirm this spec difference and remedy
     val = glob["value"][
@@ -2031,8 +2074,8 @@ def spec_set_global(config):
 
     S = config["S"]
     F = config["F"]
-    x = config["instrstar"][config["idx"]][1]
-    a = F[-1]["module"]["globaladdrs"][x]
+    instruction = config["instrstar"][config["idx"]]
+    a = F[-1]["module"]["globaladdrs"][instruction.global_idx]
     glob = S["globals"][a]
     val = config["operand_stack"].pop()
     glob["value"][1] = val
@@ -2047,9 +2090,9 @@ def spec_tload(config):
 
     S = config["S"]
     F = config["F"]
-    instr = config["instrstar"][config["idx"]][0]
-    memarg = config["instrstar"][config["idx"]][1]
-    t = ValType.from_str(instr[:3])
+    instruction = config["instrstar"][config["idx"]]
+    memarg = instruction.memarg
+    t = instruction.valtype
     # 3
     a = F[-1]["module"]["memaddrs"][0]
     # 5
@@ -2057,15 +2100,10 @@ def spec_tload(config):
     # 7
     i = config["operand_stack"].pop()
     # 8
-    ea = i + memarg["offset"]
+    ea = i + memarg.offset
     # 9
-    sxflag = False
-    if instr[3:] != ".load":  # N is part of the opcode eg i32.load8_s has N=8
-        if instr[-1] == "s":
-            sxflag = True
-        N = int(instr[8:10].strip("_"))
-    else:
-        N = t.bit_size.value
+    sxflag = instruction.signed
+    N = instruction.memory_bit_size.value
 
     # 10
     if ea + N // 8 > len(mem["data"]):
@@ -2089,9 +2127,9 @@ def spec_tstore(config):
 
     S = config["S"]
     F = config["F"]
-    instr = config["instrstar"][config["idx"]][0]
-    memarg = config["instrstar"][config["idx"]][1]
-    t = ValType.from_str(instr[:3])
+    instruction = config["instrstar"][config["idx"]]
+    memarg = instruction.memarg
+    t = instruction.valtype
     # 3
     a = F[-1]["module"]["memaddrs"][0]
     # 5
@@ -2101,14 +2139,10 @@ def spec_tstore(config):
     # 9
     i = config["operand_stack"].pop()
     # 10
-    ea = i + memarg["offset"]
+    ea = i + memarg.offset
     # 11
-    Nflag = False
-    if instr[3:] != ".store":  # N is part of the instruction, eg i32.store8
-        Nflag = True
-        N = int(instr[9:])
-    else:
-        N = t.bit_size.value
+    Nflag = instruction.declared_bit_size is not None
+    N = instruction.memory_bit_size.value
     # 12
     if ea + N // 8 > len(mem["data"]):
         raise Trap("trap")
@@ -2184,16 +2218,11 @@ def spec_block(config):
 
     instrstar = config["instrstar"]
     idx = config["idx"]
+    block = instrstar[idx]
     operand_stack = config["operand_stack"]
     control_stack = config["control_stack"]
-    t = instrstar[idx][1]
     # 1
-    if isinstance(t, ValType):
-        n = 1
-    elif type(t) == list:
-        n = len(t)
-    else:
-        raise Exception("Invariant: unreachable code path")
+    n = len(block.result_type)
     # 2
     continuation = [instrstar, idx + 1]
     L = {
@@ -2203,7 +2232,7 @@ def spec_block(config):
         "end": continuation,
     }
     # 3
-    spec_enter_block(config, instrstar[idx][2], L)
+    spec_enter_block(config, block.instructions, L)
     # control_stack.append(L)
     # config["instrstar"] = instrstar[idx][2]
     # config["idx"] = 0
@@ -2214,10 +2243,11 @@ def spec_loop(config):
 
     instrstar = config["instrstar"]
     idx = config["idx"]
+    instruction = instrstar[idx]
     operand_stack = config["operand_stack"]
     control_stack = config["control_stack"]
     # 1
-    continuation = [instrstar[idx][2], 0]
+    continuation = [instruction.instructions, 0]
     end = [instrstar, idx + 1]
     L = {
         "arity": 0,
@@ -2227,7 +2257,7 @@ def spec_loop(config):
         "loop_flag": 1,
     }
     # 2
-    spec_enter_block(config, instrstar[idx][2], L)
+    spec_enter_block(config, instruction.instructions, L)
     # control_stack.append(L)
     # config["instrstar"] = instrstar[idx][2]
     # config["idx"] = 0
@@ -2243,13 +2273,10 @@ def spec_if(config):
     # 2
     c = operand_stack.pop()
     # 3
-    valtype = instrstar[idx][1]
-    if isinstance(valtype, ValType):
-        n = 1
-    elif type(valtype) == list:
-        n = len(valtype)
-    else:
-        raise Exception("Invariant: unreachable code path")
+    instruction = instrstar[idx]
+    result_type = instruction.result_type
+
+    n = len(result_type)
     # 4
     continuation = [instrstar, idx + 1]
     L = {
@@ -2260,21 +2287,22 @@ def spec_if(config):
     }
     # 5
     if c:
-        spec_enter_block(config, instrstar[idx][2], L)
+        spec_enter_block(config, instruction.instructions, L)
     # 6
     else:
-        spec_enter_block(config, instrstar[idx][3], L)
+        spec_enter_block(config, instruction.else_instructions, L)
 
 
-def spec_br(config, l=None):
+def spec_br(config, label_idx=None):
     logger.debug('spec_br()')
 
     operand_stack = config["operand_stack"]
     control_stack = config["control_stack"]
-    if l == None:
-        l = config["instrstar"][config["idx"]][1]
+
+    if label_idx == None:
+        label_idx = config["instrstar"][config["idx"]].label_idx
     # 2
-    L = control_stack[-1 * (l + 1)]
+    L = control_stack[-1 * (label_idx + 1)]
     # 3
     n = L["arity"]
     # 5
@@ -2286,11 +2314,11 @@ def spec_br(config, l=None):
     if (
         "loop_flag" in L
     ):  # branching to loop starts at beginning of loop, so don't delete
-        if l > 0:
-            del control_stack[-1 * l :]
+        if label_idx > 0:
+            del control_stack[-1 * label_idx :]
         config["idx"] = 0
     else:
-        del control_stack[-1 * (l + 1) :]
+        del control_stack[-1 * (label_idx + 1) :]
     # 7
     operand_stack += valn
     # 8
@@ -2300,12 +2328,12 @@ def spec_br(config, l=None):
 def spec_br_if(config):
     logger.debug('spec_br_if()')
 
-    l = config["instrstar"][config["idx"]][1]
+    instruction = config["instrstar"][config["idx"]]
     # 2
     c = config["operand_stack"].pop()
     # 3
     if c != 0:
-        spec_br(config, l)
+        spec_br(config, instruction.label_idx)
     # 4
     else:
         config["idx"] += 1
@@ -2314,8 +2342,9 @@ def spec_br_if(config):
 def spec_br_table(config):
     logger.debug('spec_br_table()')
 
-    lstar = config["instrstar"][config["idx"]][1]
-    lN = config["instrstar"][config["idx"]][2]
+    instruction = config["instrstar"][config["idx"]]
+    lstar = instruction.label_indices
+    lN = instruction.default_idx
     # 2
     i = config["operand_stack"].pop()
     # 3
@@ -2348,16 +2377,15 @@ def spec_return(config):
     config["instrstar"], config["idx"], config["control_stack"] = F["continuation"]
 
 
-def spec_call(config):
+def spec_call(config: Config) -> None:
     logger.debug('spec_call()')
 
     operand_stack = config["operand_stack"]
-    instr = config["instrstar"][config["idx"]]
-    x = instr[1]
+    instruction = config["instrstar"][config["idx"]]
     # 1
     F = config["F"][-1]
     # 3
-    a = F["module"]["funcaddrs"][x]
+    a = F["module"]["funcaddrs"][instruction.func_idx]
     # 4
     ret = spec_invoke_function_address(config, a)
 
@@ -2373,8 +2401,8 @@ def spec_call_indirect(config):
     # 5
     tab = S["tables"][ta]
     # 7
-    x = config["instrstar"][config["idx"]][1]
-    ftexpect = F["module"]["types"][x]
+    instruction = config["instrstar"][config["idx"]]
+    ftexpect = F["module"]["types"][instruction.type_idx]
     # 9
     i = config["operand_stack"].pop()
     # 10
@@ -2405,13 +2433,12 @@ def spec_enter_block(config, instrstar, L):
     # 1
     config["control_stack"].append(L)
     # 2
+    logger.info('INSTRUCTIONS: %d -> %s', len(instrstar), instrstar)
     config["instrstar"] = instrstar
     config["idx"] = 0
 
 
-# this is unused, just done in spec_expr() since need to check if label stack is empty
 def spec_exit_block(config):
-    # TODO: decide if this can be removed per the comment above
     logger.debug('spec_exit_block()')
 
     # 4
@@ -2437,17 +2464,19 @@ def spec_invoke_function_address(config, a=None):
     idx = config["idx"]
     operand_stack = config["operand_stack"]
     control_stack = config["control_stack"]
+
     if a == None:
-        a = config["instrstar"][config["idx"]][1]
+        a = instrstar[idx].func_addr
+
     # 2
     f = S["funcs"][a]
     # 3
     t1n, t2m = f["type"]
     if "code" in f:
         # 5
-        tstar = f["code"]["locals"]
+        tstar = f["code"].locals
         # 6
-        instrstarend = f["code"]["body"]
+        instrstarend = f["code"].expr
         # 8
         valn = []
         if len(t1n) > 0:
@@ -2473,15 +2502,10 @@ def spec_invoke_function_address(config, a=None):
             }
         ]
         # 12
-        retval = [] if not t2m else t2m[0]
-        blockinstrstarendend = [["block", retval, instrstarend], ["end"]]
+        blockinstrstarendend = [Block(t2m, tuple(instrstarend)), End()]
         config["instrstar"] = blockinstrstarendend
         config["idx"] = 0
         config["control_stack"] = []
-        # TODO: confirm that 1) this code path is actually used and two that it
-        # complies with the spec.  Multiple lines of commented code were
-        # removed from here indicating there may be in-implemented or
-        # incorrectly implemented logic
     elif "hostcode" in f:
         valn = []
         if len(t1n) > 0:
@@ -2511,6 +2535,10 @@ def spec_return_from_func(config):
 
 def spec_end(config):
     logger.debug('spec_end()')
+    logger.debug('control_stack: %s', len(config["control_stack"]))
+    logger.debug('F: %s', len(config["F"]))
+    if config["F"]:
+        logger.debug("F[-1]: %s", config["F"][-1].keys())
 
     if len(config["control_stack"]) >= 1:
         spec_exit_block(config)
@@ -2520,186 +2548,198 @@ def spec_end(config):
         ):  # continuation for case of init elem or data or global
             spec_return_from_func(config)
         else:
+            # TODO: remove magic string
             return "done"
 
 
 # 4.4.8 EXPRESSIONS
 
+
+class InvokeOp:
+    pass
+
+
+class InvokeInstruction(NamedTuple):
+    opcode = InvokeOp  # type: ignore
+    func_addr: FuncIdx
+
+
 # Map each opcode to the function(s) to invoke when it is encountered. For opcodes with two functions, the second function is called by the first function.
 opcode2exec = {
-    "unreachable": (spec_unreachable,),
-    "nop": (spec_nop,),
-    "block": (spec_block,),  # blocktype in* end
-    "loop": (spec_loop,),  # blocktype in* end
-    "if": (spec_if,),  # blocktype in1* else? in2* end
-    "else": (spec_end,),  # in2*
-    "end": (spec_end,),
-    "br": (spec_br,),  # labelidx
-    "br_if": (spec_br_if,),  # labelidx
-    "br_table": (spec_br_table,),  # labelidx* labelidx
-    "return": (spec_return,),
-    "call": (spec_call,),  # funcidx
-    "call_indirect": (spec_call_indirect,),  # typeidx 0x00
-    "drop": (spec_drop,),
-    "select": (spec_select,),
-    "get_local": (spec_get_local,),  # localidx
-    "set_local": (spec_set_local,),  # localidx
-    "tee_local": (spec_tee_local,),  # localidx
-    "get_global": (spec_get_global,),  # globalidx
-    "set_global": (spec_set_global,),  # globalidx
-    "i32.load": (spec_tload,),  # memarg
-    "i64.load": (spec_tload,),  # memarg
-    "f32.load": (spec_tload,),  # memarg
-    "f64.load": (spec_tload,),  # memarg
-    "i32.load8_s": (spec_tload,),  # memarg
-    "i32.load8_u": (spec_tload,),  # memarg
-    "i32.load16_s": (spec_tload,),  # memarg
-    "i32.load16_u": (spec_tload,),  # memarg
-    "i64.load8_s": (spec_tload,),  # memarg
-    "i64.load8_u": (spec_tload,),  # memarg
-    "i64.load16_s": (spec_tload,),  # memarg
-    "i64.load16_u": (spec_tload,),  # memarg
-    "i64.load32_s": (spec_tload,),  # memarg
-    "i64.load32_u": (spec_tload,),  # memarg
-    "i32.store": (spec_tstore,),  # memarg
-    "i64.store": (spec_tstore,),  # memarg
-    "f32.store": (spec_tstore,),  # memarg
-    "f64.store": (spec_tstore,),  # memarg
-    "i32.store8": (spec_tstore,),  # memarg
-    "i32.store16": (spec_tstore,),  # memarg
-    "i64.store8": (spec_tstore,),  # memarg
-    "i64.store16": (spec_tstore,),  # memarg
-    "i64.store32": (spec_tstore,),  # memarg
-    "memory.size": (spec_memorysize,),
-    "memory.grow": (spec_memorygrow,),
-    "i32.const": (spec_tconst,),  # i32
-    "i64.const": (spec_tconst,),  # i64
-    "f32.const": (spec_tconst,),  # f32
-    "f64.const": (spec_tconst,),  # f64
-    "i32.eqz": (spec_ttestop, spec_ieqzN),
-    "i32.eq": (spec_trelop, spec_ieqN),
-    "i32.ne": (spec_trelop, spec_ineN),
-    "i32.lt_s": (spec_trelop, spec_ilt_sN),
-    "i32.lt_u": (spec_trelop, spec_ilt_uN),
-    "i32.gt_s": (spec_trelop, spec_igt_sN),
-    "i32.gt_u": (spec_trelop, spec_igt_uN),
-    "i32.le_s": (spec_trelop, spec_ile_sN),
-    "i32.le_u": (spec_trelop, spec_ile_uN),
-    "i32.ge_s": (spec_trelop, spec_ige_sN),
-    "i32.ge_u": (spec_trelop, spec_ige_uN),
-    "i64.eqz": (spec_ttestop, spec_ieqzN),
-    "i64.eq": (spec_trelop, spec_ieqN),
-    "i64.ne": (spec_trelop, spec_ineN),
-    "i64.lt_s": (spec_trelop, spec_ilt_sN),
-    "i64.lt_u": (spec_trelop, spec_ilt_uN),
-    "i64.gt_s": (spec_trelop, spec_igt_sN),
-    "i64.gt_u": (spec_trelop, spec_igt_uN),
-    "i64.le_s": (spec_trelop, spec_ile_sN),
-    "i64.le_u": (spec_trelop, spec_ile_uN),
-    "i64.ge_s": (spec_trelop, spec_ige_sN),
-    "i64.ge_u": (spec_trelop, spec_ige_uN),
-    "f32.eq": (spec_trelop, spec_feqN),
-    "f32.ne": (spec_trelop, spec_fneN),
-    "f32.lt": (spec_trelop, spec_fltN),
-    "f32.gt": (spec_trelop, spec_fgtN),
-    "f32.le": (spec_trelop, spec_fleN),
-    "f32.ge": (spec_trelop, spec_fgeN),
-    "f64.eq": (spec_trelop, spec_feqN),
-    "f64.ne": (spec_trelop, spec_fneN),
-    "f64.lt": (spec_trelop, spec_fltN),
-    "f64.gt": (spec_trelop, spec_fgtN),
-    "f64.le": (spec_trelop, spec_fleN),
-    "f64.ge": (spec_trelop, spec_fgeN),
-    "i32.clz": (spec_tunop, spec_iclzN),
-    "i32.ctz": (spec_tunop, spec_ictzN),
-    "i32.popcnt": (spec_tunop, spec_ipopcntN),
-    "i32.add": (spec_tbinop, spec_iaddN),
-    "i32.sub": (spec_tbinop, spec_isubN),
-    "i32.mul": (spec_tbinop, spec_imulN),
-    "i32.div_s": (spec_tbinop, spec_idiv_sN),
-    "i32.div_u": (spec_tbinop, spec_idiv_uN),
-    "i32.rem_s": (spec_tbinop, spec_irem_sN),
-    "i32.rem_u": (spec_tbinop, spec_irem_uN),
-    "i32.and": (spec_tbinop, spec_iandN),
-    "i32.or": (spec_tbinop, spec_iorN),
-    "i32.xor": (spec_tbinop, spec_ixorN),
-    "i32.shl": (spec_tbinop, spec_ishlN),
-    "i32.shr_s": (spec_tbinop, spec_ishr_sN),
-    "i32.shr_u": (spec_tbinop, spec_ishr_uN),
-    "i32.rotl": (spec_tbinop, spec_irotlN),
-    "i32.rotr": (spec_tbinop, spec_irotrN),
-    "i64.clz": (spec_tunop, spec_iclzN),
-    "i64.ctz": (spec_tunop, spec_ictzN),
-    "i64.popcnt": (spec_tunop, spec_ipopcntN),
-    "i64.add": (spec_tbinop, spec_iaddN),
-    "i64.sub": (spec_tbinop, spec_isubN),
-    "i64.mul": (spec_tbinop, spec_imulN),
-    "i64.div_s": (spec_tbinop, spec_idiv_sN),
-    "i64.div_u": (spec_tbinop, spec_idiv_uN),
-    "i64.rem_s": (spec_tbinop, spec_irem_sN),
-    "i64.rem_u": (spec_tbinop, spec_irem_uN),
-    "i64.and": (spec_tbinop, spec_iandN),
-    "i64.or": (spec_tbinop, spec_iorN),
-    "i64.xor": (spec_tbinop, spec_ixorN),
-    "i64.shl": (spec_tbinop, spec_ishlN),
-    "i64.shr_s": (spec_tbinop, spec_ishr_sN),
-    "i64.shr_u": (spec_tbinop, spec_ishr_uN),
-    "i64.rotl": (spec_tbinop, spec_irotlN),
-    "i64.rotr": (spec_tbinop, spec_irotrN),
-    "f32.abs": (spec_tunop, spec_fabsN),
-    "f32.neg": (spec_tunop, spec_fnegN),
-    "f32.ceil": (spec_tunop, spec_fceilN),
-    "f32.floor": (spec_tunop, spec_ffloorN),
-    "f32.trunc": (spec_tunop, spec_ftruncN),
-    "f32.nearest": (spec_tunop, spec_fnearestN),
-    "f32.sqrt": (spec_tunop, spec_fsqrtN),
-    "f32.add": (spec_tbinop, spec_faddN),
-    "f32.sub": (spec_tbinop, spec_fsubN),
-    "f32.mul": (spec_tbinop, spec_fmulN),
-    "f32.div": (spec_tbinop, spec_fdivN),
-    "f32.min": (spec_tbinop, spec_fminN),
-    "f32.max": (spec_tbinop, spec_fmaxN),
-    "f32.copysign": (spec_tbinop, spec_fcopysignN),
-    "f64.abs": (spec_tunop, spec_fabsN),
-    "f64.neg": (spec_tunop, spec_fnegN),
-    "f64.ceil": (spec_tunop, spec_fceilN),
-    "f64.floor": (spec_tunop, spec_ffloorN),
-    "f64.trunc": (spec_tunop, spec_ftruncN),
-    "f64.nearest": (spec_tunop, spec_fnearestN),
-    "f64.sqrt": (spec_tunop, spec_fsqrtN),
-    "f64.add": (spec_tbinop, spec_faddN),
-    "f64.sub": (spec_tbinop, spec_fsubN),
-    "f64.mul": (spec_tbinop, spec_fmulN),
-    "f64.div": (spec_tbinop, spec_fdivN),
-    "f64.min": (spec_tbinop, spec_fminN),
-    "f64.max": (spec_tbinop, spec_fmaxN),
-    "f64.copysign": (spec_tbinop, spec_fcopysignN),
-    "i32.wrap/i64": (spec_t2cvtopt1, spec_wrapMN),
-    "i32.trunc_s/f32": (spec_t2cvtopt1, spec_trunc_sMN),
-    "i32.trunc_u/f32": (spec_t2cvtopt1, spec_trunc_uMN),
-    "i32.trunc_s/f64": (spec_t2cvtopt1, spec_trunc_sMN),
-    "i32.trunc_u/f64": (spec_t2cvtopt1, spec_trunc_uMN),
-    "i64.extend_s/i32": (spec_t2cvtopt1, spec_extend_sMN),
-    "i64.extend_u/i32": (spec_t2cvtopt1, spec_extend_uMN),
-    "i64.trunc_s/f32": (spec_t2cvtopt1, spec_trunc_sMN),
-    "i64.trunc_u/f32": (spec_t2cvtopt1, spec_trunc_uMN),
-    "i64.trunc_s/f64": (spec_t2cvtopt1, spec_trunc_sMN),
-    "i64.trunc_u/f64": (spec_t2cvtopt1, spec_trunc_uMN),
-    "f32.convert_s/i32": (spec_t2cvtopt1, spec_convert_sMN),
-    "f32.convert_u/i32": (spec_t2cvtopt1, spec_convert_uMN),
-    "f32.convert_s/i64": (spec_t2cvtopt1, spec_convert_sMN),
-    "f32.convert_u/i64": (spec_t2cvtopt1, spec_convert_uMN),
-    "f32.demote/f64": (spec_t2cvtopt1, spec_demoteMN),
-    "f64.convert_s/i32": (spec_t2cvtopt1, spec_convert_sMN),
-    "f64.convert_u/i32": (spec_t2cvtopt1, spec_convert_uMN),
-    "f64.convert_s/i64": (spec_t2cvtopt1, spec_convert_sMN),
-    "f64.convert_u/i64": (spec_t2cvtopt1, spec_convert_uMN),
-    "f64.promote/f32": (spec_t2cvtopt1, spec_promoteMN),
-    "i32.reinterpret/f32": (spec_t2cvtopt1, spec_reinterprett1t2),
-    "i64.reinterpret/f64": (spec_t2cvtopt1, spec_reinterprett1t2),
-    "f32.reinterpret/i32": (spec_t2cvtopt1, spec_reinterprett1t2),
-    "f64.reinterpret/i64": (spec_t2cvtopt1, spec_reinterprett1t2),
-    "invoke": (spec_invoke_function_address,),
+    BinaryOpcode.UNREACHABLE: (spec_unreachable,),
+    BinaryOpcode.NOP: (spec_nop,),
+    BinaryOpcode.BLOCK: (spec_block,),  # blocktype in* end
+    BinaryOpcode.LOOP: (spec_loop,),  # blocktype in* end
+    BinaryOpcode.IF: (spec_if,),  # blocktype in1* else? in2* end
+    BinaryOpcode.ELSE: (spec_end,),  # in2*
+    BinaryOpcode.END: (spec_end,),
+    BinaryOpcode.BR: (spec_br,),  # labelidx
+    BinaryOpcode.BR_IF: (spec_br_if,),  # labelidx
+    BinaryOpcode.BR_TABLE: (spec_br_table,),  # labelidx* labelidx
+    BinaryOpcode.RETURN: (spec_return,),
+    BinaryOpcode.CALL: (spec_call,),  # funcidx
+    BinaryOpcode.CALL_INDIRECT: (spec_call_indirect,),  # typeidx 0x00
+    BinaryOpcode.DROP: (spec_drop,),
+    BinaryOpcode.SELECT: (spec_select,),
+    BinaryOpcode.GET_LOCAL: (spec_get_local,),  # localidx
+    BinaryOpcode.SET_LOCAL: (spec_set_local,),  # localidx
+    BinaryOpcode.TEE_LOCAL: (spec_tee_local,),  # localidx
+    BinaryOpcode.GET_GLOBAL: (spec_get_global,),  # globalidx
+    BinaryOpcode.SET_GLOBAL: (spec_set_global,),  # globalidx
+    BinaryOpcode.I32_LOAD: (spec_tload,),  # memarg
+    BinaryOpcode.I64_LOAD: (spec_tload,),  # memarg
+    BinaryOpcode.F32_LOAD: (spec_tload,),  # memarg
+    BinaryOpcode.F64_LOAD: (spec_tload,),  # memarg
+    BinaryOpcode.I32_LOAD8_S: (spec_tload,),  # memarg
+    BinaryOpcode.I32_LOAD8_U: (spec_tload,),  # memarg
+    BinaryOpcode.I32_LOAD16_S: (spec_tload,),  # memarg
+    BinaryOpcode.I32_LOAD16_U: (spec_tload,),  # memarg
+    BinaryOpcode.I64_LOAD8_S: (spec_tload,),  # memarg
+    BinaryOpcode.I64_LOAD8_U: (spec_tload,),  # memarg
+    BinaryOpcode.I64_LOAD16_S: (spec_tload,),  # memarg
+    BinaryOpcode.I64_LOAD16_U: (spec_tload,),  # memarg
+    BinaryOpcode.I64_LOAD32_S: (spec_tload,),  # memarg
+    BinaryOpcode.I64_LOAD32_U: (spec_tload,),  # memarg
+    BinaryOpcode.I32_STORE: (spec_tstore,),  # memarg
+    BinaryOpcode.I64_STORE: (spec_tstore,),  # memarg
+    BinaryOpcode.F32_STORE: (spec_tstore,),  # memarg
+    BinaryOpcode.F64_STORE: (spec_tstore,),  # memarg
+    BinaryOpcode.I32_STORE8: (spec_tstore,),  # memarg
+    BinaryOpcode.I32_STORE16: (spec_tstore,),  # memarg
+    BinaryOpcode.I64_STORE8: (spec_tstore,),  # memarg
+    BinaryOpcode.I64_STORE16: (spec_tstore,),  # memarg
+    BinaryOpcode.I64_STORE32: (spec_tstore,),  # memarg
+    BinaryOpcode.MEMORY_SIZE: (spec_memorysize,),
+    BinaryOpcode.MEMORY_GROW: (spec_memorygrow,),
+    BinaryOpcode.I32_CONST: (spec_tconst,),  # i32
+    BinaryOpcode.I64_CONST: (spec_tconst,),  # i64
+    BinaryOpcode.F32_CONST: (spec_tconst,),  # f32
+    BinaryOpcode.F64_CONST: (spec_tconst,),  # f64
+    BinaryOpcode.I32_EQZ: (spec_ttestop, spec_ieqzN),
+    BinaryOpcode.I32_EQ: (spec_trelop, spec_ieqN),
+    BinaryOpcode.I32_NE: (spec_trelop, spec_ineN),
+    BinaryOpcode.I32_LT_S: (spec_trelop, spec_ilt_sN),
+    BinaryOpcode.I32_LT_U: (spec_trelop, spec_ilt_uN),
+    BinaryOpcode.I32_GT_S: (spec_trelop, spec_igt_sN),
+    BinaryOpcode.I32_GT_U: (spec_trelop, spec_igt_uN),
+    BinaryOpcode.I32_LE_S: (spec_trelop, spec_ile_sN),
+    BinaryOpcode.I32_LE_U: (spec_trelop, spec_ile_uN),
+    BinaryOpcode.I32_GE_S: (spec_trelop, spec_ige_sN),
+    BinaryOpcode.I32_GE_U: (spec_trelop, spec_ige_uN),
+    BinaryOpcode.I64_EQZ: (spec_ttestop, spec_ieqzN),
+    BinaryOpcode.I64_EQ: (spec_trelop, spec_ieqN),
+    BinaryOpcode.I64_NE: (spec_trelop, spec_ineN),
+    BinaryOpcode.I64_LT_S: (spec_trelop, spec_ilt_sN),
+    BinaryOpcode.I64_LT_U: (spec_trelop, spec_ilt_uN),
+    BinaryOpcode.I64_GT_S: (spec_trelop, spec_igt_sN),
+    BinaryOpcode.I64_GT_U: (spec_trelop, spec_igt_uN),
+    BinaryOpcode.I64_LE_S: (spec_trelop, spec_ile_sN),
+    BinaryOpcode.I64_LE_U: (spec_trelop, spec_ile_uN),
+    BinaryOpcode.I64_GE_S: (spec_trelop, spec_ige_sN),
+    BinaryOpcode.I64_GE_U: (spec_trelop, spec_ige_uN),
+    BinaryOpcode.F32_EQ: (spec_trelop, spec_feqN),
+    BinaryOpcode.F32_NE: (spec_trelop, spec_fneN),
+    BinaryOpcode.F32_LT: (spec_trelop, spec_fltN),
+    BinaryOpcode.F32_GT: (spec_trelop, spec_fgtN),
+    BinaryOpcode.F32_LE: (spec_trelop, spec_fleN),
+    BinaryOpcode.F32_GE: (spec_trelop, spec_fgeN),
+    BinaryOpcode.F64_EQ: (spec_trelop, spec_feqN),
+    BinaryOpcode.F64_NE: (spec_trelop, spec_fneN),
+    BinaryOpcode.F64_LT: (spec_trelop, spec_fltN),
+    BinaryOpcode.F64_GT: (spec_trelop, spec_fgtN),
+    BinaryOpcode.F64_LE: (spec_trelop, spec_fleN),
+    BinaryOpcode.F64_GE: (spec_trelop, spec_fgeN),
+    BinaryOpcode.I32_CLZ: (spec_tunop, spec_iclzN),
+    BinaryOpcode.I32_CTZ: (spec_tunop, spec_ictzN),
+    BinaryOpcode.I32_POPCNT: (spec_tunop, spec_ipopcntN),
+    BinaryOpcode.I32_ADD: (spec_tbinop, spec_iaddN),
+    BinaryOpcode.I32_SUB: (spec_tbinop, spec_isubN),
+    BinaryOpcode.I32_MUL: (spec_tbinop, spec_imulN),
+    BinaryOpcode.I32_DIV_S: (spec_tbinop, spec_idiv_sN),
+    BinaryOpcode.I32_DIV_U: (spec_tbinop, spec_idiv_uN),
+    BinaryOpcode.I32_REM_S: (spec_tbinop, spec_irem_sN),
+    BinaryOpcode.I32_REM_U: (spec_tbinop, spec_irem_uN),
+    BinaryOpcode.I32_AND: (spec_tbinop, spec_iandN),
+    BinaryOpcode.I32_OR: (spec_tbinop, spec_iorN),
+    BinaryOpcode.I32_XOR: (spec_tbinop, spec_ixorN),
+    BinaryOpcode.I32_SHL: (spec_tbinop, spec_ishlN),
+    BinaryOpcode.I32_SHR_S: (spec_tbinop, spec_ishr_sN),
+    BinaryOpcode.I32_SHR_U: (spec_tbinop, spec_ishr_uN),
+    BinaryOpcode.I32_ROTL: (spec_tbinop, spec_irotlN),
+    BinaryOpcode.I32_ROTR: (spec_tbinop, spec_irotrN),
+    BinaryOpcode.I64_CLZ: (spec_tunop, spec_iclzN),
+    BinaryOpcode.I64_CTZ: (spec_tunop, spec_ictzN),
+    BinaryOpcode.I64_POPCNT: (spec_tunop, spec_ipopcntN),
+    BinaryOpcode.I64_ADD: (spec_tbinop, spec_iaddN),
+    BinaryOpcode.I64_SUB: (spec_tbinop, spec_isubN),
+    BinaryOpcode.I64_MUL: (spec_tbinop, spec_imulN),
+    BinaryOpcode.I64_DIV_S: (spec_tbinop, spec_idiv_sN),
+    BinaryOpcode.I64_DIV_U: (spec_tbinop, spec_idiv_uN),
+    BinaryOpcode.I64_REM_S: (spec_tbinop, spec_irem_sN),
+    BinaryOpcode.I64_REM_U: (spec_tbinop, spec_irem_uN),
+    BinaryOpcode.I64_AND: (spec_tbinop, spec_iandN),
+    BinaryOpcode.I64_OR: (spec_tbinop, spec_iorN),
+    BinaryOpcode.I64_XOR: (spec_tbinop, spec_ixorN),
+    BinaryOpcode.I64_SHL: (spec_tbinop, spec_ishlN),
+    BinaryOpcode.I64_SHR_S: (spec_tbinop, spec_ishr_sN),
+    BinaryOpcode.I64_SHR_U: (spec_tbinop, spec_ishr_uN),
+    BinaryOpcode.I64_ROTL: (spec_tbinop, spec_irotlN),
+    BinaryOpcode.I64_ROTR: (spec_tbinop, spec_irotrN),
+    BinaryOpcode.F32_ABS: (spec_tunop, spec_fabsN),
+    BinaryOpcode.F32_NEG: (spec_tunop, spec_fnegN),
+    BinaryOpcode.F32_CEIL: (spec_tunop, spec_fceilN),
+    BinaryOpcode.F32_FLOOR: (spec_tunop, spec_ffloorN),
+    BinaryOpcode.F32_TRUNC: (spec_tunop, spec_ftruncN),
+    BinaryOpcode.F32_NEAREST: (spec_tunop, spec_fnearestN),
+    BinaryOpcode.F32_SQRT: (spec_tunop, spec_fsqrtN),
+    BinaryOpcode.F32_ADD: (spec_tbinop, spec_faddN),
+    BinaryOpcode.F32_SUB: (spec_tbinop, spec_fsubN),
+    BinaryOpcode.F32_MUL: (spec_tbinop, spec_fmulN),
+    BinaryOpcode.F32_DIV: (spec_tbinop, spec_fdivN),
+    BinaryOpcode.F32_MIN: (spec_tbinop, spec_fminN),
+    BinaryOpcode.F32_MAX: (spec_tbinop, spec_fmaxN),
+    BinaryOpcode.F32_COPYSIGN: (spec_tbinop, spec_fcopysignN),
+    BinaryOpcode.F64_ABS: (spec_tunop, spec_fabsN),
+    BinaryOpcode.F64_NEG: (spec_tunop, spec_fnegN),
+    BinaryOpcode.F64_CEIL: (spec_tunop, spec_fceilN),
+    BinaryOpcode.F64_FLOOR: (spec_tunop, spec_ffloorN),
+    BinaryOpcode.F64_TRUNC: (spec_tunop, spec_ftruncN),
+    BinaryOpcode.F64_NEAREST: (spec_tunop, spec_fnearestN),
+    BinaryOpcode.F64_SQRT: (spec_tunop, spec_fsqrtN),
+    BinaryOpcode.F64_ADD: (spec_tbinop, spec_faddN),
+    BinaryOpcode.F64_SUB: (spec_tbinop, spec_fsubN),
+    BinaryOpcode.F64_MUL: (spec_tbinop, spec_fmulN),
+    BinaryOpcode.F64_DIV: (spec_tbinop, spec_fdivN),
+    BinaryOpcode.F64_MIN: (spec_tbinop, spec_fminN),
+    BinaryOpcode.F64_MAX: (spec_tbinop, spec_fmaxN),
+    BinaryOpcode.F64_COPYSIGN: (spec_tbinop, spec_fcopysignN),
+    BinaryOpcode.I32_WRAP_I64: (spec_t2cvtopt1, spec_wrapMN),
+    BinaryOpcode.I32_TRUNC_S_F32: (spec_t2cvtopt1, spec_trunc_sMN),
+    BinaryOpcode.I32_TRUNC_U_F32: (spec_t2cvtopt1, spec_trunc_uMN),
+    BinaryOpcode.I32_TRUNC_S_F64: (spec_t2cvtopt1, spec_trunc_sMN),
+    BinaryOpcode.I32_TRUNC_U_F64: (spec_t2cvtopt1, spec_trunc_uMN),
+    BinaryOpcode.I64_EXTEND_S_I32: (spec_t2cvtopt1, spec_extend_sMN),
+    BinaryOpcode.I64_EXTEND_U_I32: (spec_t2cvtopt1, spec_extend_uMN),
+    BinaryOpcode.I64_TRUNC_S_F32: (spec_t2cvtopt1, spec_trunc_sMN),
+    BinaryOpcode.I64_TRUNC_U_F32: (spec_t2cvtopt1, spec_trunc_uMN),
+    BinaryOpcode.I64_TRUNC_S_F64: (spec_t2cvtopt1, spec_trunc_sMN),
+    BinaryOpcode.I64_TRUNC_U_F64: (spec_t2cvtopt1, spec_trunc_uMN),
+    BinaryOpcode.F32_CONVERT_S_I32: (spec_t2cvtopt1, spec_convert_sMN),
+    BinaryOpcode.F32_CONVERT_U_I32: (spec_t2cvtopt1, spec_convert_uMN),
+    BinaryOpcode.F32_CONVERT_S_I64: (spec_t2cvtopt1, spec_convert_sMN),
+    BinaryOpcode.F32_CONVERT_U_I64: (spec_t2cvtopt1, spec_convert_uMN),
+    BinaryOpcode.F32_DEMOTE_F64: (spec_t2cvtopt1, spec_demoteMN),
+    BinaryOpcode.F64_CONVERT_S_I32: (spec_t2cvtopt1, spec_convert_sMN),
+    BinaryOpcode.F64_CONVERT_U_I32: (spec_t2cvtopt1, spec_convert_uMN),
+    BinaryOpcode.F64_CONVERT_S_I64: (spec_t2cvtopt1, spec_convert_sMN),
+    BinaryOpcode.F64_CONVERT_U_I64: (spec_t2cvtopt1, spec_convert_uMN),
+    BinaryOpcode.F64_PROMOTE_F32: (spec_t2cvtopt1, spec_promoteMN),
+    BinaryOpcode.I32_REINTERPRET_F32: (spec_t2cvtopt1, spec_reinterprett1t2),
+    BinaryOpcode.I64_REINTERPRET_F64: (spec_t2cvtopt1, spec_reinterprett1t2),
+    BinaryOpcode.F32_REINTERPRET_I32: (spec_t2cvtopt1, spec_reinterprett1t2),
+    BinaryOpcode.F64_REINTERPRET_I64: (spec_t2cvtopt1, spec_reinterprett1t2),
+    # special case
+    InvokeOp: (spec_invoke_function_address,),
 }
 
 
@@ -2710,10 +2750,9 @@ def instrstarend_loop(config):
 
     # TODO: try to refactor to make this loop have a defined exit condition.
     while True:
-        instr = config["instrstar"][config["idx"]][
-            0
-        ]  # idx<len(instrs) since instrstar[-1]=="end" which changes instrstar
-        ret = opcode2exec[instr][0](config)
+        # idx<len(instrs) since instrstar[-1]=="end" which changes instrstar
+        instruction = config["instrstar"][config["idx"]]
+        ret = opcode2exec[instruction.opcode][0](config)
         if ret:
             return ret, config["operand_stack"]  # eg "done"
 
@@ -2724,18 +2763,19 @@ def spec_expr(config):
 
     config["idx"] = 0
     while 1:
-        instr = config["instrstar"][config["idx"]][
-            0
-        ]  # idx<len(instrs) since instrstar[-1]=="end" which changes instrstar
-        ret = opcode2exec[instr][0](config)
+        # idx<len(instrs) since instrstar[-1]=="end" which changes instrstar
+        instruction = config["instrstar"][config["idx"]]
+        logic_fn = opcode2exec[instruction.opcode][0]
+        ret = logic_fn(config)
 
         if ret:
             return config["operand_stack"]
         else:
+            pass
             # TODO: log at DEBUG2
-            logger.debug('operand_stack: %s', config["operand_stack"])
+            #logger.debug('operand_stack: %s', config["operand_stack"])
             # TODO: log at DEBUG3
-            logger.debug('control_stack: %s', config["control_stack"])
+            #logger.debug('control_stack: %s', config["control_stack"])
 
 
 #############
@@ -2839,13 +2879,11 @@ def spec_externtype_matching(externtype1, externtype2):
 # 4.5.3 ALLOCATION
 
 
-# TODO: tighten up type hint for `func` once function instance types have been
-# implemented.
-def spec_allocfunc(S: Store, func: Any, moduleinst: Module) -> Tuple[Store, FuncIdx]:
+def spec_allocfunc(S: Store, func: ModuleFunction, moduleinst: Module) -> Tuple[Store, FuncIdx]:
     logger.debug('spec_allocfunc()')
 
     funcaddr = FuncIdx(len(S["funcs"]))
-    functype = moduleinst["types"][func["type"]]
+    functype = moduleinst["types"][func.type]
     funcinst = {"type": functype, "module": moduleinst, "code": func}
     S["funcs"].append(funcinst)
     return S, funcaddr
@@ -2907,9 +2945,11 @@ def spec_growtable(tableinst, n):
     len_ = n + len(tableinst["elem"])
 
     if len_ >= constants.UINT32_CEIL:
-        return "fail"
+        # TODO: runtime validation that should be removed
+        raise Exception("Invariant")
     elif tablinst["max"] != None and tableinst["max"] < len_:
-        return "fail"  # TODO: what does fail mean? raise Exception("trap")
+        # TODO: runtime validation that should be removed
+        raise Exception("Invariant")
     else:
         tableinst["elem"] += [None for i in range(n)]
 
@@ -2920,24 +2960,27 @@ def spec_growmem(meminst, n):
     logger.debug('spec_growmem()')
 
     if len(meminst["data"]) % constants.PAGE_SIZE_64K != 0:
-        raise Exception("TODO: more appropriate exception type")
+        # TODO: runtime validation that should be removed
+        raise Exception("Invariant")
 
     len_ = n + len(meminst["data"]) // constants.PAGE_SIZE_64K
     if len_ >= constants.UINT16_CEIL:
+        # TODO: remove use of magic strings
         return "fail"
     elif meminst["max"] != None and meminst["max"] < len_:
+        # TODO: remove use of magic strings
         return "fail"
-        # TODO: what does fail mean? raise Exception("trap")
 
     meminst["data"] += bytearray(
         n * constants.PAGE_SIZE_64K
     )  # each page created with bytearray(65536) which is 0s
 
 
+# TODO: more precice type hint for valstar
 def spec_allocmodule(S: Store,
                      module: Module,
                      externvalimstar: Sequence[ExportDesc],
-                     valstar: Any,  # TODO: more precise type
+                     valstar: Any,
                      ) -> Tuple[Store, Module]:
     logger.debug('spec_allocmodule()')
 
@@ -3123,28 +3166,24 @@ def spec_invoke(S, funcaddr, valn):
 
         operand_stack += [arg]
     # 7
-    valresm = None
     if "code" in funcinst:
-        # config = {"S":S,"F":[],"instrstar":funcinst["code"]["body"],"idx":0,"operand_stack":operand_stack,"control_stack":[]}  #TODO: toggle these back when uncomment main loop execution
-        # valresm = spec_invoke_function_address(config,funcaddr)  #TODO: toggle these back when uncomment main loop execution
         config = {
             "S": S,
             "F": [],
-            "instrstar": [["invoke", funcaddr], ["end", None]],
+            "instrstar": (InvokeInstruction(funcaddr), End()),
             "idx": 0,
             "operand_stack": operand_stack,
             "control_stack": [],
         }
-        valresm = spec_expr(config)  # instrstarend_loop(config)
-        # moved this here from bottom
+        valresm = spec_expr(config)
+        assert valresm is not None
         return valresm
     elif "hostcode" in funcinst:
         S, valresm = funcinst["hostcode"](S, operand_stack)
-        # moved this here from bottom
+        assert valresm is not None
         return valresm
     else:
         raise Exception("")
-    # return valresm  #TODO: toggle these back when uncomment main loop execution
 
 
 ###################
@@ -3155,195 +3194,12 @@ def spec_invoke(S, funcaddr, valn):
 
 # Chapter 5 defines a binary syntax over the abstract syntax. The implementation is a recursive-descent parser which takes a `.wasm` file and builds an abstract syntax tree out of nested Python lists and dicts. Also implemented are inverses (up to a canonical form) which write an abstract syntax tree back to a `.wasm` file.
 
-# key-value pairs of binary opcodes and their text reperesentation
-opcodes_binary2text = {
-    0x00: "unreachable",
-    0x01: "nop",
-    0x02: "block",  # blocktype in* end		# begin block
-    0x03: "loop",  # blocktype in* end		# begin block
-    0x04: "if",  # blocktype in1* else? end	# begin block
-    0x05: "else",  # in2*				# end block & begin block
-    0x0B: "end",  # end block
-    0x0C: "br",  # labelidx			# branch
-    0x0D: "br_if",  # labelidx			# branch
-    0x0E: "br_table",  # labelidx* labelidx		# branch
-    0x0F: "return",  # end outermost block
-    0x10: "call",  # funcidx			# branch
-    0x11: "call_indirect",  # typeidx 0x00			# branch
-    0x1A: "drop",
-    0x1B: "select",
-    0x20: "get_local",  # localidx
-    0x21: "set_local",  # localidx
-    0x22: "tee_local",  # localidx
-    0x23: "get_global",  # globalidx
-    0x24: "set_global",  # globalidx
-    0x28: "i32.load",  # memarg
-    0x29: "i64.load",  # memarg
-    0x2A: "f32.load",  # memarg
-    0x2B: "f64.load",  # memarg
-    0x2C: "i32.load8_s",  # memarg
-    0x2D: "i32.load8_u",  # memarg
-    0x2E: "i32.load16_s",  # memarg
-    0x2F: "i32.load16_u",  # memarg
-    0x30: "i64.load8_s",  # memarg
-    0x31: "i64.load8_u",  # memarg
-    0x32: "i64.load16_s",  # memarg
-    0x33: "i64.load16_u",  # memarg
-    0x34: "i64.load32_s",  # memarg
-    0x35: "i64.load32_u",  # memarg
-    0x36: "i32.store",  # memarg
-    0x37: "i64.store",  # memarg
-    0x38: "f32.store",  # memarg
-    0x39: "f64.store",  # memarg
-    0x3A: "i32.store8",  # memarg
-    0x3B: "i32.store16",  # memarg
-    0x3C: "i64.store8",  # memarg
-    0x3D: "i64.store16",  # memarg
-    0x3E: "i64.store32",  # memarg
-    0x3F: "memory.size",
-    0x40: "memory.grow",
-    0x41: "i32.const",  # i32
-    0x42: "i64.const",  # i64
-    0x43: "f32.const",  # f32
-    0x44: "f64.const",  # f64
-    0x45: "i32.eqz",
-    0x46: "i32.eq",
-    0x47: "i32.ne",
-    0x48: "i32.lt_s",
-    0x49: "i32.lt_u",
-    0x4A: "i32.gt_s",
-    0x4B: "i32.gt_u",
-    0x4C: "i32.le_s",
-    0x4D: "i32.le_u",
-    0x4E: "i32.ge_s",
-    0x4F: "i32.ge_u",
-    0x50: "i64.eqz",
-    0x51: "i64.eq",
-    0x52: "i64.ne",
-    0x53: "i64.lt_s",
-    0x54: "i64.lt_u",
-    0x55: "i64.gt_s",
-    0x56: "i64.gt_u",
-    0x57: "i64.le_s",
-    0x58: "i64.le_u",
-    0x59: "i64.ge_s",
-    0x5A: "i64.ge_u",
-    0x5B: "f32.eq",
-    0x5C: "f32.ne",
-    0x5D: "f32.lt",
-    0x5E: "f32.gt",
-    0x5F: "f32.le",
-    0x60: "f32.ge",
-    0x61: "f64.eq",
-    0x62: "f64.ne",
-    0x63: "f64.lt",
-    0x64: "f64.gt",
-    0x65: "f64.le",
-    0x66: "f64.ge",
-    0x67: "i32.clz",
-    0x68: "i32.ctz",
-    0x69: "i32.popcnt",
-    0x6A: "i32.add",
-    0x6B: "i32.sub",
-    0x6C: "i32.mul",
-    0x6D: "i32.div_s",
-    0x6E: "i32.div_u",
-    0x6F: "i32.rem_s",
-    0x70: "i32.rem_u",
-    0x71: "i32.and",
-    0x72: "i32.or",
-    0x73: "i32.xor",
-    0x74: "i32.shl",
-    0x75: "i32.shr_s",
-    0x76: "i32.shr_u",
-    0x77: "i32.rotl",
-    0x78: "i32.rotr",
-    0x79: "i64.clz",
-    0x7A: "i64.ctz",
-    0x7B: "i64.popcnt",
-    0x7C: "i64.add",
-    0x7D: "i64.sub",
-    0x7E: "i64.mul",
-    0x7F: "i64.div_s",
-    0x80: "i64.div_u",
-    0x81: "i64.rem_s",
-    0x82: "i64.rem_u",
-    0x83: "i64.and",
-    0x84: "i64.or",
-    0x85: "i64.xor",
-    0x86: "i64.shl",
-    0x87: "i64.shr_s",
-    0x88: "i64.shr_u",
-    0x89: "i64.rotl",
-    0x8A: "i64.rotr",
-    0x8B: "f32.abs",
-    0x8C: "f32.neg",
-    0x8D: "f32.ceil",
-    0x8E: "f32.floor",
-    0x8F: "f32.trunc",
-    0x90: "f32.nearest",
-    0x91: "f32.sqrt",
-    0x92: "f32.add",
-    0x93: "f32.sub",
-    0x94: "f32.mul",
-    0x95: "f32.div",
-    0x96: "f32.min",
-    0x97: "f32.max",
-    0x98: "f32.copysign",
-    0x99: "f64.abs",
-    0x9A: "f64.neg",
-    0x9B: "f64.ceil",
-    0x9C: "f64.floor",
-    0x9D: "f64.trunc",
-    0x9E: "f64.nearest",
-    0x9F: "f64.sqrt",
-    0xA0: "f64.add",
-    0xA1: "f64.sub",
-    0xA2: "f64.mul",
-    0xA3: "f64.div",
-    0xA4: "f64.min",
-    0xA5: "f64.max",
-    0xA6: "f64.copysign",
-    0xA7: "i32.wrap/i64",
-    0xA8: "i32.trunc_s/f32",
-    0xA9: "i32.trunc_u/f32",
-    0xAA: "i32.trunc_s/f64",
-    0xAB: "i32.trunc_u/f64",
-    0xAC: "i64.extend_s/i32",
-    0xAD: "i64.extend_u/i32",
-    0xAE: "i64.trunc_s/f32",
-    0xAF: "i64.trunc_u/f32",
-    0xB0: "i64.trunc_s/f64",
-    0xB1: "i64.trunc_u/f64",
-    0xB2: "f32.convert_s/i32",
-    0xB3: "f32.convert_u/i32",
-    0xB4: "f32.convert_s/i64",
-    0xB5: "f32.convert_u/i64",
-    0xB6: "f32.demote/f64",
-    0xB7: "f64.convert_s/i32",
-    0xB8: "f64.convert_u/i32",
-    0xB9: "f64.convert_s/i64",
-    0xBA: "f64.convert_u/i64",
-    0xBB: "f64.promote/f32",
-    0xBC: "i32.reinterpret/f32",
-    0xBD: "i64.reinterpret/f64",
-    0xBE: "f32.reinterpret/i32",
-    0xBF: "f64.reinterpret/i64",
-}
-
-# key-value pairs of text opcodes and their binary reperesentation
-opcodes_text2binary = {}
-for opcode in opcodes_binary2text:
-    opcodes_text2binary[opcodes_binary2text[opcode]] = opcode
-
-
 # 5.1.3 VECTORS
 
 
 def spec_binary_vec(raw, idx, B):
-    logger.debug('spec_binary_vec(%s)', idx)
-
     idx, num = spec_binary_uN(raw, idx, 32)
+    logger.debug('spec_binary_vec(%s, %s)[%d]', idx, B, num)
     xn = []
     for i in range(num):
         idx, x = B(raw, idx)
@@ -3392,7 +3248,7 @@ def spec_binary_uN(raw, idx, N):
         raise MalformedModule("malformed")
 
 
-def spec_binary_uN_inv(k, N):
+def spec_binary_uN_inv(k: int, N: int) -> bytearray:
     logger.debug('spec_binary_uN_inv(%s, %s)', k, N)
 
     if k < 2 ** 7 and k < 2 ** N:
@@ -3462,7 +3318,7 @@ def spec_binary_fN_inv(node, N):
 # 5.2.4 NAMES
 
 # name as UTF-8 codepoints
-def spec_binary_name(raw, idx):
+def spec_binary_name(raw: bytes, idx: int) -> Tuple[int, str]:
     logger.debug('spec_binary_name()')
     idx, bstar = spec_binary_vec(raw, idx, spec_binary_byte)
 
@@ -3471,62 +3327,6 @@ def spec_binary_name(raw, idx):
     except UnicodeDecodeError as err:
         raise MalformedModule from err
 
-    return idx, nametxt
-
-    # TODO: decide fate of this code
-    # rest is unused, for finding inverse of utf8(name)=b*, keep since want to correct spec doc
-    bstaridx = 0
-    lenbstar = len(bstar)
-    name = []
-    while bstaridx < lenbstar:
-        if bstaridx >= len(bstar):
-            raise MalformedModule("malformed")
-        b1 = bstar[bstaridx]
-        bstaridx += 1
-        if b1 < 0x80:
-            name += [b1]
-            continue
-        if bstaridx >= len(bstar):
-            raise MalformedModule("malformed")
-        b2 = bstar[bstaridx]
-        if b2 >> 6 != 0b01:
-            raise MalformedModule("malformed")
-        bstaridx += 1
-        c = (2 ** 6) * (b1 - 0xC0) + (b2 - 0x80)
-        # c_check = 2**6*(b1-192) + (b2-128)
-        if 0x80 <= c < 0x800:
-            name += [c]
-            continue
-        if bstaridx >= len(bstar):
-            raise MalformedModule("malformed")
-        b3 = bstar[bstaridx]
-        if b2 >> 5 != 0b011:
-            raise MalformedModule("malformed")
-        bstaridx += 1
-        c = (constants.UINT12_CEIL) * (b1 - 0xE0) + (2 ** 6) * (b2 - 0x80) + (b3 - 0x80)
-        if 0x800 <= c < 0x10000 and (b2 >> 6 == 0b01):
-            name += [c]
-            continue
-        if bstaridx >= len(bstar):
-            raise MalformedModule("malformed")
-        b4 = bstar[bstaridx]
-        if b2 >> 4 != 0b0111:
-            raise MalformedModule("malformed")
-        bstaridx += 1
-        c = (
-            constants.UINT18_CEIL * (b1 - 0xF0)
-            + constants.UINT12_CEIL * (b2 - 0x80)
-            + constants.UINT6_CEIL * (b3 - 0x80)
-            + (b4 - 0x80)
-        )
-        if 0x10000 <= c < 0x110000:
-            name += [c]
-        else:
-            raise MalformedModule("malformed")
-    # convert each codepoint to utf8 character
-    nametxt = ""
-    for c in name:
-        nametxt += chr(c)
     return idx, nametxt
 
 
@@ -3552,8 +3352,7 @@ def spec_binary_name_inv(chars):
                 ]
             )
         else:
-            # TODO: return value checking cleanup
-            return None  # error
+            raise Exception("Invariant")
     return bytearray([len(name_bytes)]) + name_bytes
 
 
@@ -3564,11 +3363,6 @@ def spec_binary_name_inv(chars):
 # 5.3.1 VALUE TYPES
 
 def spec_binary_valtype(raw: bytes, idx: int) -> Tuple[int, ValType]:
-    if idx >= len(raw):
-        # TODO: this check seems out of place and should probably be removed
-        # and enforced at a higher level.
-        raise MalformedModule("malformed")
-
     try:
         valtype = ValType.from_byte(UInt8(raw[idx]))
     except KeyError as err:
@@ -3598,7 +3392,9 @@ def spec_binary_blocktype(raw, idx):
 def spec_binary_blocktype_inv(node):
     logger.debug("spec_binary_blocktype_inv(%s)", node)
 
-    if node == []:
+    if isinstance(node, list):
+        raise Exception("Invariant")
+    elif node == tuple():
         return bytearray([0x40])
     else:
         return spec_binary_valtype_inv(node)
@@ -3741,89 +3537,12 @@ def spec_binary_memarg_inv(node):
     )
 
 
-def spec_binary_instr(raw, idx):
-    if raw[idx] not in opcodes_binary2text:
-        return idx, None  # error
-    instr_binary = raw[idx]
-    instr_text = opcodes_binary2text[instr_binary]
-    idx += 1
-    if instr_text in {"block", "loop", "if"}:  # block, loop, if
-        idx, rt = spec_binary_blocktype(raw, idx)
-        instar = []
-        if instr_text == "if":
-            instar2 = []
-            # TODO: open ended loop
-            while raw[idx] not in {0x05, 0x0B}:
-                idx, ins = spec_binary_instr(raw, idx)
-                instar += [ins]
-            if raw[idx] == 0x05:  # if with else
-                idx += 1
-                # TODO: open ended loop
-                while raw[idx] != 0x0B:
-                    idx, ins = spec_binary_instr(raw, idx)
-                    instar2 += [ins]
-                # return idx+1, ["if",rt,instar+[["else"]],instar2+[["end"]]] #+[["end"]]
-            return (
-                idx + 1,
-                ["if", rt, instar + [["else"]], instar2 + [["end"]]],
-            )  # +[["end"]]
-            # return idx+1, ["if",rt,instar+[["end"]]] #+[["end"]]
-        else:
-            # TODO: open ended loop
-            while raw[idx] != 0x0B:
-                idx, ins = spec_binary_instr(raw, idx)
-                instar += [ins]
-            return idx + 1, [instr_text, rt, instar + [["end"]]]  # +[["end"]]
-    elif instr_text in {"br", "br_if"}:  # br, br_if
-        idx, l = spec_binary_labelidx(raw, idx)
-        return idx, [instr_text, l]
-    elif instr_text == "br_table":  # br_table
-        idx, lstar = spec_binary_vec(raw, idx, spec_binary_labelidx)
-        idx, lN = spec_binary_labelidx(raw, idx)
-        return idx, ["br_table", lstar, lN]
-    elif instr_text in {"call", "call_indirect"}:  # call, call_indirect
-        if instr_text == "call":
-            idx, x = spec_binary_funcidx(raw, idx)
-        if instr_text == "call_indirect":
-            idx, x = spec_binary_typeidx(raw, idx)
-            if raw[idx] != 0x00:
-                raise MalformedModule("malformed")
-            idx += 1
-        return idx, [instr_text, x]
-    elif 0x20 <= instr_binary <= 0x22:  # get_local, etc
-        idx, x = spec_binary_localidx(raw, idx)
-        return idx, [instr_text, x]
-    elif 0x23 <= instr_binary <= 0x24:  # get_global, etc
-        idx, x = spec_binary_globalidx(raw, idx)
-        return idx, [instr_text, x]
-    elif 0x28 <= instr_binary <= 0x3E:  # i32.load, i64.store, etc
-        idx, m = spec_binary_memarg(raw, idx)
-        return idx, [instr_text, m]
-    elif 0x3F <= instr_binary <= 0x40:  # current_memory, grow_memory
-        if raw[idx] != 0x00:
-            raise MalformedModule("malformed")
-        return idx + 1, [instr_text]
-    elif 0x41 <= instr_binary <= 0x42:  # i32.const, etc
-        n = 0
-        if instr_text == "i32.const":
-            idx, n = spec_binary_iN(raw, idx, 32)
-        if instr_text == "i64.const":
-            idx, n = spec_binary_iN(raw, idx, 64)
-        return idx, [instr_text, n]
-    elif 0x43 <= instr_binary <= 0x44:  # f32.const, etc
-        z = 0
-        if instr_text == "f32.const":
-            if len(raw) <= idx + 4:
-                raise MalformedModule("malformed")
-            idx, z = spec_binary_fN(raw, idx, 32)
-        if instr_text == "f64.const":
-            if len(raw) <= idx + 8:
-                raise MalformedModule("malformed")
-            idx, z = spec_binary_fN(raw, idx, 64)
-        return idx, [instr_text, z]
-    else:
-        # otherwise no immediate
-        return idx, [instr_text]
+def spec_binary_instr(raw: bytes, idx: int) -> Tuple[int, Instruction]:
+    stream = io.BytesIO(raw)
+    stream.seek(idx)
+
+    instruction = parse_instruction(stream)
+    return stream.tell(), instruction
 
 
 def spec_binary_instr_inv(node):
@@ -3881,8 +3600,9 @@ def spec_binary_instr_inv(node):
 # 5.4.6 EXPRESSIONS
 
 
-def spec_binary_expr(raw, idx):
-    instar = []
+def spec_binary_expr(raw: bytes, idx: int) -> Tuple[int, Expression]:
+    logger.debug("spec_binary_expr(%s)", idx)
+    instar: List[Instruction] = []
 
     # TODO: open ended loop
     while raw[idx] != 0x0B:
@@ -3890,16 +3610,17 @@ def spec_binary_expr(raw, idx):
         instar += [ins]
 
     if raw[idx] != 0x0B:
-        return idx, None  # error
+        raise MalformedModule("error")
 
-    return idx + 1, instar + [["end"]]
+    tail = cast(Expression, (End(),))
+    return idx + 1, tuple(instar) + tail
 
 
-def spec_binary_expr_inv(node):
+def spec_binary_expr_inv(expr: Expression) -> bytearray:
     instar_bytes = bytearray()
 
-    for n in node:
-        instar_bytes += spec_binary_instr_inv(n)
+    for instruction in expr:
+        instar_bytes += spec_binary_instr_inv(instruction)
 
     return instar_bytes
 
@@ -3978,6 +3699,7 @@ def spec_binary_labelidx_inv(node):
 
 
 def spec_binary_sectionN(raw, idx, N, B, skip):
+    logger.debug('spec_binary_section(%s, %s, %s, %s)', idx, N, B, skip)
     if idx >= len(raw):
         return idx, []  # already at end
     elif raw[idx] != N:
@@ -4288,6 +4010,7 @@ def spec_binary_codesec(raw, idx, skip=0):
 
 
 def spec_binary_code(raw, idx):
+    logger.debug('spec_binary_code(%s)', idx)
     idx, size = spec_binary_uN(raw, idx, 32)
     idx_end = idx + size
     idx, code = spec_binary_func(raw, idx)
@@ -4301,6 +4024,7 @@ def spec_binary_code(raw, idx):
 
 
 def spec_binary_func(raw, idx):
+    logger.debug('spec_binary_func(%s)', idx)
     idx, tstarstar = spec_binary_vec(raw, idx, spec_binary_locals)
     num_locals = sum(locals_info.num for locals_info in tstarstar)
 
@@ -4308,6 +4032,7 @@ def spec_binary_func(raw, idx):
         raise MalformedModule("malformed")
 
     idx, e = spec_binary_expr(raw, idx)
+    logger.debug('AFTER EXPR: %s', idx)
     concattstarstar = [
         locals_info.valtype
         for locals_info
@@ -4323,6 +4048,7 @@ class LocalsInfo(NamedTuple):
 
 
 def spec_binary_locals(raw: bytes, idx: int) -> Tuple[int, LocalsInfo]:
+    logger.debug("spec_binary_locals(%s)", idx)
     idx, num = spec_binary_uN(raw, idx, 32)
     idx, valtype = spec_binary_valtype(raw, idx)
     return idx, LocalsInfo(num, valtype)
@@ -4471,7 +4197,7 @@ def spec_binary_module(raw):
     funcn = []
     if typeidxn and coden and len(typeidxn) == len(coden):
         for i in range(len(typeidxn)):
-            funcn += [{"type": typeidxn[i], "locals": coden[i][0], "body": coden[i][1]}]
+            funcn.append(ModuleFunction(typeidxn[i], tuple(coden[i][0]), tuple(coden[i][1])))
     mod = {
         "types": functypestar,
         "funcs": funcn,
@@ -4502,7 +4228,7 @@ def spec_binary_module_inv_to_file(mod, filename):
     f.write(spec_binary_exportsec_inv(mod["exports"]))
     f.write(spec_binary_startsec_inv(mod["start"]))
     f.write(spec_binary_elemsec_inv(mod["elem"]))
-    f.write(spec_binary_codesec_inv([(f["locals"], f["body"]) for f in mod["funcs"]]))
+    f.write(spec_binary_codesec_inv([(f.locals, f.expr) for f in mod["funcs"]]))
     f.write(spec_binary_datasec_inv(mod["data"]))
     f.close()
 
@@ -4579,9 +4305,12 @@ def module_exports(module):
     exportstar = module["exports"]
 
     if len(exportstar) != len(externtypeprimestar):
-        raise Exception("TODO: proper error message")
+        raise Exception(
+            f"Expected {len(exportstar)} exports.  Got "
+            f"{len(externtypeprimestar)}"
+        )
 
-    # TODO: this code path may not be excercised. Verify.
+    # TODO: this code path is not covered by tests
     result = []
     for i in range(len(importstar)):
         exporti = exportstar[i]
@@ -4646,7 +4375,7 @@ def type_table(store, tableaddr):
         )
     tableinst = store["tables"][tableaddr]
     max_ = tableinst["max"]
-    min_ = len(tableinst["elem"])  # TODO: is this min OK?
+    min_ = len(tableinst["elem"])
     tabletype = TableType(Limits(min_, max_), FuncRef)
     return tabletype
 
@@ -4731,7 +4460,7 @@ def type_mem(store, memaddr):
     max_ = meminst["max"]
     min_ = (
         len(meminst["data"]) // constants.PAGE_SIZE_64K
-    )  #TODO: is this min OK?
+    )
 
 
 def read_mem(store, memaddr, i):
@@ -4857,16 +4586,18 @@ def write_global(store, globaladdr, val):
 
 
 def spec_push_opd(opds, type_):
+    logger.debug('spec_push_opd(%s, %s)', len(opds), type_)
     opds.append(type_)
 
 
 def spec_pop_opd(opds, ctrls):
+    logger.debug('spec_pop_opd(%s, %s)', len(opds), len(ctrls))
     # check if underflows current block, and returns one type but if underflows
     # and unreachable, which can happen if unconditional branch, when stack is
     # typed polymorphically, operands are still pushed and popped to check if
     # code after unreachable is valid, polymorphic stack can't underflow
     if len(opds) == ctrls[-1]["height"] and ctrls[-1]["unreachable"]:
-        # TODO: remove magic values.
+        # TODO: remove magic string usage.
         return "Unknown"
     elif len(opds) == ctrls[-1]["height"]:
         raise InvalidModule("invalid")  # error
@@ -4879,11 +4610,10 @@ def spec_pop_opd(opds, ctrls):
 
 
 def spec_pop_opd_expect(opds, ctrls, expect):
+    logger.debug('spec_pop_opd_expect(%s, %s, %s)', len(opds), len(ctrls), expect)
     actual = spec_pop_opd(opds, ctrls)
-    if actual == -1:
-        raise InvalidModule("invalid")  # error
-    # in case one is unknown, the more specific one is returned
-    elif actual == "Unknown":
+
+    if actual == "Unknown":
         return expect
     elif expect == "Unknown":
         return actual
@@ -4894,21 +4624,20 @@ def spec_pop_opd_expect(opds, ctrls, expect):
 
 
 def spec_push_opds(opds, ctrls, types):
+    logger.debug('spec_push_opds(%s, %s, %s)', len(opds), len(ctrls), types)
     for t in types:
         spec_push_opd(opds, t)
-    return 0
 
 
 def spec_pop_opds_expect(opds, ctrls, types):
+    logger.debug('spec_pop_opds_expect(%s, %s, %s)', len(opds), len(ctrls), types)
     if types:
         for t in reversed(types):
             r = spec_pop_opd_expect(opds, ctrls, t)
-        return r
-    else:
-        return None
 
 
 def spec_ctrl_frame(label_types, end_types, height, unreachable):
+    logger.debug('spec_ctrl_frame(%s, %s, %s, %s)', label_types, end_types, height, unreachable)
     # args are:
     #   label_types: type of the branch's label, to type-check branches
     #   end_types: result type of the branch, currently Wasm spec allows at most one return value
@@ -4923,6 +4652,7 @@ def spec_ctrl_frame(label_types, end_types, height, unreachable):
 
 
 def spec_push_ctrl(opds, ctrls, label, out):
+    logger.debug('spec_push_ctrl(%s, %s, %s, %s)', len(opds), len(ctrls), label, out)
     frame = {
         "label_types": label,
         "end_types": out,
@@ -4933,13 +4663,13 @@ def spec_push_ctrl(opds, ctrls, label, out):
 
 
 def spec_pop_ctrl(opds, ctrls):
+    logger.debug('spec_pop_ctrl(%s, %s)', len(opds), len(ctrls))
     if len(ctrls) < 1:
         raise InvalidModule("invalid")  # error
     frame = ctrls[-1]
     # verify opd stack has right types to exit block, and pops them
     r = spec_pop_opds_expect(opds, ctrls, frame["end_types"])
-    if r == -1:
-        raise InvalidModule("invalid")  # error
+
     # make shure stack is back to original height
     if len(opds) != frame["height"]:
         raise InvalidModule("invalid")  # error
@@ -4957,268 +4687,157 @@ def spec_unreachable_(opds, ctrls):
 # 7.3.2 VALIDATION OF OPCODE SEQUENCES
 
 # validate a single opcode based on current context C, operand stack opds, and control stack ctrls
-def spec_validate_opcode(C, opds, ctrls, opcode, immediates):
-    logger.debug("spec_validate_opcode(%s, %s, %s, %s, %s)", C, opds, ctrls, opcode, immediates)
+def spec_validate_opcode(C: Context, opds: Any, ctrls: Any, instruction: Instruction) -> None:
+    logger.debug("spec_validate_opcode(%s, %s, %s, %s)", C, opds, ctrls, instruction)
     # C is the context
     # opds is the operand stack
     # ctrls is the control stack
-    opcode_binary = opcodes_text2binary[opcode]
-    if 0x00 <= opcode_binary <= 0x11:  # CONTROL INSTRUCTIONS
-        if opcode_binary == 0x00:  # unreachable
+    opcode_binary = instruction.opcode.value
+    logger.info('validating opcode: %s', instruction.opcode.text)
+
+    if instruction.opcode.is_control:  # CONTROL INSTRUCTIONS
+        if instruction.opcode is BinaryOpcode.UNREACHABLE:
             spec_unreachable_(opds, ctrls)
-        elif opcode_binary == 0x01:  # nop
+        elif instruction.opcode is BinaryOpcode.NOP:
             pass
-        elif opcode_binary <= 0x04:  # block, loop, if
-            rt = immediates
-            if rt != [] and type(rt) != list:
-                rt = [rt]  # TODO: clean this up, works but ugly
-            if opcode_binary == 0x02:  # block
-                spec_push_ctrl(opds, ctrls, rt, rt)
-            elif opcode_binary == 0x03:  # loop
-                spec_push_ctrl(opds, ctrls, [], rt)
-            else:  # if
-                spec_pop_opd_expect(opds, ctrls, ValType.i32)
-                spec_push_ctrl(opds, ctrls, rt, rt)
-        elif opcode_binary == 0x05:  # else
+        elif instruction.opcode is BinaryOpcode.BLOCK:
+            spec_push_ctrl(opds, ctrls, instruction.result_type, instruction.result_type)  # type: ignore
+        elif instruction.opcode is BinaryOpcode.LOOP:
+            spec_push_ctrl(opds, ctrls, tuple(), instruction.result_type)  # type: ignore
+        elif instruction.opcode is BinaryOpcode.IF:
+            spec_pop_opd_expect(opds, ctrls, ValType.i32)
+            spec_push_ctrl(opds, ctrls, instruction.result_type, instruction.result_type)  # type: ignore
+        elif instruction.opcode is BinaryOpcode.ELSE:
             results = spec_pop_ctrl(opds, ctrls)
-            if results != [] and type(results) != list:
-                results = [results]
             spec_push_ctrl(opds, ctrls, results, results)
-        elif opcode_binary == 0x0B:  # end
+        elif instruction.opcode is BinaryOpcode.END:
             results = spec_pop_ctrl(opds, ctrls)
             spec_push_opds(opds, ctrls, results)
-        elif opcode_binary == 0x0C:  # br
-            n = immediates
-            if n == None:
+        elif instruction.opcode is BinaryOpcode.BR:
+            if len(ctrls) <= instruction.label_idx:  # type: ignore
                 raise InvalidModule("invalid")
-            elif len(ctrls) <= n:
-                raise InvalidModule("invalid")
-            spec_pop_opds_expect(opds, ctrls, ctrls[-1 - n]["label_types"])
+            label_types = ctrls[-1 - instruction.label_idx]["label_types"]  # type: ignore
+            spec_pop_opds_expect(opds, ctrls, label_types)
             spec_unreachable_(opds, ctrls)
-        elif opcode_binary == 0x0D:  # br_if
-            n = immediates
-            if n == None:
+        elif instruction.opcode is BinaryOpcode.BR_IF:
+            if len(ctrls) <= instruction.label_idx:  # type: ignore
                 raise InvalidModule("invalid")
-            elif len(ctrls) <= n:
-                raise InvalidModule("invalid")
+
+            label_types = ctrls[-1 - instruction.label_idx]["label_types"]  # type: ignore
             spec_pop_opd_expect(opds, ctrls, ValType.i32)
-            spec_pop_opds_expect(opds, ctrls, ctrls[-1 - n]["label_types"])
-            spec_push_opds(opds, ctrls, ctrls[-1 - n]["label_types"])
-        elif opcode_binary == 0x0E:  # br_table
-            nstar = immediates[0]
-            m = immediates[1]
-            if len(ctrls) <= m:
+            spec_pop_opds_expect(opds, ctrls, label_types)
+            spec_push_opds(opds, ctrls, label_types)
+        elif instruction.opcode is BinaryOpcode.BR_TABLE:
+            if len(ctrls) <= instruction.default_idx:  # type: ignore
                 raise InvalidModule("invalid")
-            for n in nstar:
+            label_types = ctrls[-1 - instruction.default_idx]["label_types"]  # type: ignore
+            for label_idx in instruction.label_indices:  # type: ignore
                 if (
-                    len(ctrls) <= n
-                    or ctrls[-1 - n]["label_types"] != ctrls[-1 - m]["label_types"]
+                    len(ctrls) <= label_idx
+                    or ctrls[-1 - label_idx]["label_types"] != label_types
                 ):
                     raise InvalidModule("invalid")
             spec_pop_opd_expect(opds, ctrls, ValType.i32)
-            spec_pop_opds_expect(opds, ctrls, ctrls[-1 - m]["label_types"])
+            spec_pop_opds_expect(opds, ctrls, label_types)
             spec_unreachable_(opds, ctrls)
-        elif opcode_binary == 0x0F:  # return
+        elif instruction.opcode is BinaryOpcode.RETURN:
             if "return" not in C:
                 raise InvalidModule("invalid")
             t = C["return"]
             spec_pop_opds_expect(opds, ctrls, t)
             spec_unreachable_(opds, ctrls)
-        elif opcode_binary == 0x10:  # call
-            x = immediates
-            if ("funcs" not in C) or len(C["funcs"]) <= x:
+        elif instruction.opcode is BinaryOpcode.CALL:
+            if ("funcs" not in C) or len(C["funcs"]) <= instruction.func_idx:  # type: ignore
                 raise InvalidModule("invalid")
-            spec_pop_opds_expect(opds, ctrls, C["funcs"][x][0])
-            spec_push_opds(opds, ctrls, C["funcs"][x][1])
-        elif opcode_binary == 0x11:  # call_indirect
-            x = immediates
-            if ("tables" not in C) or len(C["tables"]) == 0:
+            func_type = C["funcs"][instruction.func_idx]  # type: ignore
+            spec_pop_opds_expect(opds, ctrls, func_type.params)
+            spec_push_opds(opds, ctrls, func_type.results)
+        elif instruction.opcode is BinaryOpcode.CALL_INDIRECT:
+            if "tables" not in C or len(C["tables"]) == 0:
                 raise InvalidModule("invalid")
             elif C["tables"][0][1] is not FuncRef:
                 raise InvalidModule("invalid")
-            elif len(C["types"]) <= x:
+            elif len(C["types"]) <= instruction.type_idx:  # type: ignore
                 raise InvalidModule("invalid")
+
+            func_type = C["types"][instruction.type_idx]  # type: ignore
             spec_pop_opd_expect(opds, ctrls, ValType.i32)
-            spec_pop_opds_expect(opds, ctrls, C["types"][x][0])
-            spec_push_opds(opds, ctrls, C["types"][x][1])
-    elif 0x1A <= opcode_binary <= 0x1B:  # PARAMETRIC INSTRUCTIONS
-        if opcode_binary == 0x1A:  # drop
+            spec_pop_opds_expect(opds, ctrls, func_type.params)
+            spec_push_opds(opds, ctrls, func_type.results)
+    elif instruction.opcode.is_parametric:
+        if instruction.opcode is BinaryOpcode.DROP:
             spec_pop_opd(opds, ctrls)
-        elif opcode_binary == 0x1B:  # select
+        elif instruction.opcode is BinaryOpcode.SELECT:
             spec_pop_opd_expect(opds, ctrls, ValType.i32)
             t1 = spec_pop_opd(opds, ctrls)
             t2 = spec_pop_opd_expect(opds, ctrls, t1)
             spec_push_opd(opds, t2)
-    elif 0x20 <= opcode_binary <= 0x24:  # VARIABLE INSTRUCTIONS
-        if opcode_binary == 0x20:  # get_local
-            x = immediates
-            if len(C["locals"]) <= x:
+        else:
+            raise Exception("Invariant")
+    elif instruction.opcode.is_variable:
+        if instruction.opcode is BinaryOpcode.GET_LOCAL:
+            if len(C["locals"]) <= instruction.local_idx:  # type: ignore
                 raise InvalidModule("invalid")
-            elif C["locals"][x] is ValType.i32:
-                spec_push_opd(opds, ValType.i32)
-            elif C["locals"][x] is ValType.i64:
-                spec_push_opd(opds, ValType.i64)
-            elif C["locals"][x] is ValType.f32:
-                spec_push_opd(opds, ValType.f32)
-            elif C["locals"][x] is ValType.f64:
-                spec_push_opd(opds, ValType.f64)
             else:
+                valtype = C["locals"][instruction.local_idx]  # type: ignore
+                spec_push_opd(opds, valtype)
+        elif instruction.opcode is BinaryOpcode.SET_LOCAL:
+            if len(C["locals"]) <= instruction.local_idx:  # type: ignore
                 raise InvalidModule("invalid")
-        elif opcode_binary == 0x21:  # set_local
-            x = immediates
-            if len(C["locals"]) <= x:
-                raise InvalidModule("invalid")
-            elif C["locals"][x] is ValType.i32:
-                ret = spec_pop_opd_expect(opds, ctrls, ValType.i32)
-            elif C["locals"][x] is ValType.i64:
-                ret = spec_pop_opd_expect(opds, ctrls, ValType.i64)
-            elif C["locals"][x] is ValType.f32:
-                ret = spec_pop_opd_expect(opds, ctrls, ValType.f32)
-            elif C["locals"][x] is ValType.f64:
-                ret = spec_pop_opd_expect(opds, ctrls, ValType.f64)
             else:
+                valtype = C["locals"][instruction.local_idx]  # type: ignore
+                ret = spec_pop_opd_expect(opds, ctrls, valtype)
+        elif instruction.opcode is BinaryOpcode.TEE_LOCAL:
+            if len(C["locals"]) <= instruction.local_idx:  # type: ignore
                 raise InvalidModule("invalid")
-        elif opcode_binary == 0x22:  # tee_local
-            x = immediates
-            if len(C["locals"]) <= x:
-                raise InvalidModule("invalid")
-            elif C["locals"][x] is ValType.i32:
-                spec_pop_opd_expect(opds, ctrls, ValType.i32)
-                spec_push_opd(opds, ValType.i32)
-            elif C["locals"][x] is ValType.i64:
-                spec_pop_opd_expect(opds, ctrls, ValType.i64)
-                spec_push_opd(opds, ValType.i64)
-            elif C["locals"][x] is ValType.f32:
-                spec_pop_opd_expect(opds, ctrls, ValType.f32)
-                spec_push_opd(opds, ValType.f32)
-            elif C["locals"][x] is ValType.f64:
-                spec_pop_opd_expect(opds, ctrls, ValType.f64)
-                spec_push_opd(opds, ValType.f64)
             else:
+                valtype = C["locals"][instruction.local_idx]  # type: ignore
+                spec_pop_opd_expect(opds, ctrls, valtype)
+                spec_push_opd(opds, valtype)
+        elif instruction.opcode is BinaryOpcode.GET_GLOBAL:
+            if len(C["globals"]) <= instruction.global_idx:  # type: ignore
                 raise InvalidModule("invalid")
-        elif opcode_binary == 0x23:  # get_global
-            x = immediates
-            if len(C["globals"]) <= x:
-                raise InvalidModule("invalid")
-            elif C["globals"][x][1] is ValType.i32:
-                spec_push_opd(opds, ValType.i32)
-            elif C["globals"][x][1] is ValType.i64:
-                spec_push_opd(opds, ValType.i64)
-            elif C["globals"][x][1] is ValType.f32:
-                spec_push_opd(opds, ValType.f32)
-            elif C["globals"][x][1] is ValType.f64:
-                spec_push_opd(opds, ValType.f64)
             else:
+                valtype = C["globals"][instruction.global_idx].valtype  # type: ignore
+                spec_push_opd(opds, valtype)
+        elif instruction.opcode is BinaryOpcode.SET_GLOBAL:
+            if len(C["globals"]) <= instruction.global_idx:  # type: ignore
                 raise InvalidModule("invalid")
-        elif opcode_binary == 0x24:  # set_global
-            x = immediates
-            if len(C["globals"]) <= x:
+            elif C["globals"][instruction.global_idx].mut is not Mutability.var:  # type: ignore
                 raise InvalidModule("invalid")
-            elif C["globals"][x][0] is not Mutability.var:
-                raise InvalidModule("invalid")
-            elif C["globals"][x][1] is ValType.i32:
-                ret = spec_pop_opd_expect(opds, ctrls, ValType.i32)
-            elif C["globals"][x][1] is ValType.i64:
-                ret = spec_pop_opd_expect(opds, ctrls, ValType.i64)
-            elif C["globals"][x][1] is ValType.f32:
-                ret = spec_pop_opd_expect(opds, ctrls, ValType.f32)
-            elif C["globals"][x][1] is ValType.f64:
-                ret = spec_pop_opd_expect(opds, ctrls, ValType.f64)
             else:
-                raise InvalidModule("invalid")
+                valtype = C["globals"][instruction.global_idx].valtype  # type: ignore
+                ret = spec_pop_opd_expect(opds, ctrls, valtype)
         else:
             raise Exception(f"Unexpected opcode value: {opcode_binary}")
-    elif 0x28 <= opcode_binary <= 0x40:  # MEMORY INSTRUCTIONS
-        if "mems" not in C or len(C["mems"]) == 0:
-            raise InvalidModule("invalid")
-        elif opcode_binary <= 0x35:
-            memarg = immediates
-            if opcode_binary == 0x28:  # i32.load
-                N = 32
-                t = ValType.i32
-            elif opcode_binary == 0x29:  # i64.load
-                N = 64
-                t = ValType.i64
-            elif opcode_binary == 0x2A:  # f32.load
-                N = 32
-                t = ValType.f32
-            elif opcode_binary == 0x2B:  # f64.load
-                N = 64
-                t = ValType.f64
-            elif opcode_binary <= 0x2D:  # i32.load8_s, i32.load8_u
-                N = 8
-                t = ValType.i32
-            elif opcode_binary <= 0x2F:  # i32.load16_s, i32.load16_u
-                N = 16
-                t = ValType.i32
-            elif opcode_binary <= 0x31:  # i64.load8_s, i64.load8_u
-                N = 8
-                t = ValType.i64
-            elif opcode_binary <= 0x33:  # i64.load16_s, i64.load16_u
-                N = 16
-                t = ValType.i64
-            elif opcode_binary <= 0x35:  # i64.load32_s, i64.load32_u
-                N = 32
-                t = ValType.i64
-            else:
-                raise Exception(f"Unexpected opcode value: {opcode_binary}")
+    elif instruction.opcode.is_memory:
+        if "mems" not in C:
+            raise InvalidModule("Context does not contain 'mems'")
+        elif len(C["mems"]) == 0:
+            raise InvalidModule("Context contains empty 'mems'")
+        elif instruction.opcode.is_memory_load:
+            if 2 ** instruction.memarg.align > instruction.memory_bit_size.value // 8:  # type: ignore
+                raise InvalidModule("Invalid memarg alignment")
 
-            if 2 ** memarg["align"] > N // 8:
-                raise InvalidModule("invalid")
             spec_pop_opd_expect(opds, ctrls, ValType.i32)
-            spec_push_opd(opds, t)
-        elif opcode_binary <= 0x3E:
-            memarg = immediates
-            if opcode_binary == 0x36:  # i32.store
-                N = 32
-                t = ValType.i32
-            elif opcode_binary == 0x37:  # i64.store
-                N = 64
-                t = ValType.i64
-            elif opcode_binary == 0x38:  # f32.store
-                N = 32
-                t = ValType.f32
-            elif opcode_binary == 0x39:  # f64.store
-                N = 64
-                t = ValType.f64
-            elif opcode_binary == 0x3A:  # i32.store8
-                N = 8
-                t = ValType.i32
-            elif opcode_binary == 0x3B:  # i32.store16
-                N = 16
-                t = ValType.i32
-            elif opcode_binary == 0x3C:  # i64.store8
-                N = 8
-                t = ValType.i64
-            elif opcode_binary == 0x3D:  # i64.store16
-                N = 16
-                t = ValType.i64
-            elif opcode_binary == 0x3E:  # i64.store32
-                N = 32
-                t = ValType.i64
+            spec_push_opd(opds, instruction.valtype)  # type: ignore
+        elif instruction.opcode.is_memory_store:
 
-            if 2 ** memarg["align"] > N // 8:
-                raise InvalidModule("invalid")
+            if 2 ** instruction.memarg.align > instruction.memory_bit_size.value // 8:  # type: ignore
+                raise InvalidModule("Invalid memarg alignment")
 
-            spec_pop_opd_expect(opds, ctrls, t)
+            spec_pop_opd_expect(opds, ctrls, instruction.valtype)  # type: ignore
             spec_pop_opd_expect(opds, ctrls, ValType.i32)
-        elif opcode_binary == 0x3F:  # memory.size
+        elif instruction.opcode is BinaryOpcode.MEMORY_SIZE:
             spec_push_opd(opds, ValType.i32)
-        elif opcode_binary == 0x40:  # memory.grow
+        elif instruction.opcode is BinaryOpcode.MEMORY_GROW:
             spec_pop_opd_expect(opds, ctrls, ValType.i32)
             spec_push_opd(opds, ValType.i32)
         else:
             raise Exception(f"Unexpected opcode value: {opcode_binary}")
-    elif 0x41 <= opcode_binary <= 0xBF:  # NUMERIC INSTRUCTIONS
-        if opcode_binary <= 0x44:
-            if opcode_binary == 0x41:  # i32.const
-                spec_push_opd(opds, ValType.i32)
-            elif opcode_binary == 0x42:  # i64.const
-                spec_push_opd(opds, ValType.i64)
-            elif opcode_binary == 0x43:  # f32.const
-                spec_push_opd(opds, ValType.f32)
-            else:  # f64.const
-                spec_push_opd(opds, ValType.f64)
+    elif instruction.opcode.is_numeric:
+        if instruction.opcode.is_numeric_constant:
+            spec_push_opd(opds, instruction.valtype)  # type: ignore
         elif opcode_binary <= 0x4F:
             if opcode_binary == 0x45:  # i32.eqz
                 spec_pop_opd_expect(opds, ctrls, ValType.i32)
@@ -5332,53 +4951,43 @@ def spec_validate_opcode(C, opds, ctrls, opcode, immediates):
                 raise Exception(f"Unexpected opcode value: {opcode_binary}")
         else:
             raise Exception(f"Unexpected opcode value: {opcode_binary}")
-    return 0  # success, valid so far
+    else:
+        raise Exception(f"Unexpected opcode value: {opcode_binary}")
+
+
+BLOCK_LOOP_IF = {
+    BinaryOpcode.BLOCK,
+    BinaryOpcode.LOOP,
+    BinaryOpcode.IF,
+}
 
 
 # args when called the first time:
+# TODO: tighten up type hints for `ctrls`
 def iterate_through_expression_and_validate_each_opcode(
-    expression, Context, opds, ctrls
-):
-    for node in expression:
-        if type(node[0]) != str:
-            raise InvalidModule("invalid")  # error
-        opcode = node[0]
-        # get immediate
-        immediate = None
-        if node[0] in {
-            "br",
-            "br_if",
-            "block",
-            "loop",
-            "if",
-            "call",
-            "call_indirect",
-            "get_local",
-            "set_local",
-            "tee_local",
-            "get_global",
-            "set_global",
-            "i32.const",
-            "i64.const",
-            "f32.const",
-            "f64.const",
-        } or node[0][3:8] in {".load", ".stor"}:
-            immediate = node[1]
-        elif node[0] == "br_table":
-            immediate = [node[1], node[2]]
+        expression: Expression, C: Context, opds: List[ValType], ctrls: Any
+) -> None:
+    for idx, instruction in enumerate(expression):
+        if not isinstance(instruction, BaseInstruction):
+            raise InvalidModule(
+                f"Unrecognized instruction: {repr(instruction)}"
+            )
 
         # validate
-        spec_validate_opcode(Context, opds, ctrls, opcode, immediate)
+        spec_validate_opcode(C, opds, ctrls, instruction)
+
         # recurse for block, loop, if
-        if node[0] in {"block", "loop", "if"}:
+        if instruction.opcode in BLOCK_LOOP_IF:
+            # arbitrarily use Block to make type checker happy.
+            sub_instructions = cast(Block, instruction).instructions
             iterate_through_expression_and_validate_each_opcode(
-                node[2], Context, opds, ctrls
+                sub_instructions, C, opds, ctrls
             )
-            if len(node) == 4:  # if with else
+            if instruction.opcode is BinaryOpcode.IF:
+                else_instructions = cast(If, instruction).else_instructions
                 iterate_through_expression_and_validate_each_opcode(
-                    node[3], Context, opds, ctrls
+                    else_instructions, C, opds, ctrls
                 )
-    return 0
 
 
 ##########################################################

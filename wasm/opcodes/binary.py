@@ -46,6 +46,14 @@ class BinaryOpcode(enum.Enum):
     def is_variable(self) -> bool:
         return 0x20 <= self.value <= 0x24
 
+    @property
+    def is_local(self) -> bool:
+        return 0x20 <= self.value <= 0x22
+
+    @property
+    def is_global(self) -> bool:
+        return self is self.GET_GLOBAL or self is self.SET_GLOBAL
+
     #
     # Memory: 5.4.5
     #

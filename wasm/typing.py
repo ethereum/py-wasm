@@ -3,10 +3,14 @@ from typing import (
     Any,
     Dict,
     NewType,
+    Tuple,
     Union,
 )
 
 if TYPE_CHECKING:
+    from wasm.instructions import (  # noqa: F401
+        Instruction,
+    )
     from wasm.datatypes import (  # noqa: F401
         FuncIdx,
         FuncType,
@@ -23,6 +27,10 @@ if TYPE_CHECKING:
 Store = Dict[Any, Any]
 Module = Dict[Any, Any]
 Context = Dict[Any, Any]
+Config = Dict[Any, Any]
+
+
+Expression = Tuple["Instruction", ...]
 
 
 ExportDesc = Union[

@@ -7,6 +7,9 @@ from .exports import (  # noqa: F401
 from .func_type import (  # noqa: F401
     FuncType,
 )
+from .function import (  # noqa: F401
+    ModuleFunction,
+)
 from .global_type import (  # noqa: F401
     GlobalType,
 )
@@ -16,6 +19,8 @@ from .imports import (  # noqa: F401
 from .indices import (  # noqa: F401
     FuncIdx,
     GlobalIdx,
+    LabelIdx,
+    LocalIdx,
     MemoryIdx,
     TableIdx,
     TypeIdx,
