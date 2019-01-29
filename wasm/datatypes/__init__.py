@@ -13,8 +13,10 @@ from .exports import (  # noqa: F401
 from .function import (  # noqa: F401
     Function,
     FunctionType,
+    StartFunction,
 )
 from .globals import (  # noqa: F401
+    Global,
     GlobalType,
 )
 from .imports import (  # noqa: F401
@@ -33,13 +35,18 @@ from .limits import (  # noqa: F401
     Limits,
 )
 from .memory import (  # noqa: F401
+    Memory,
     MemoryType,
+)
+from .module import (  # noqa: F401
+    Module,
 )
 from .mutability import (  # noqa: F401
     Mutability,
 )
 from .table import (  # noqa: F401
     FuncRef,
+    Table,
     TableType,
 )
 from .val_type import (  # noqa: F401

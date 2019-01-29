@@ -4,11 +4,8 @@ from typing import (
     Tuple,
 )
 
-from wasm.typing import (
-    Expression,
-)
-
 from .indices import (
+    FuncIdx,
     TypeIdx,
 )
 from .val_type import (
@@ -17,7 +14,7 @@ from .val_type import (
 
 if TYPE_CHECKING:
     from wasm.instructions import (  # noqa: F401
-        Instruction,
+        BaseInstruction,
     )
 
 
@@ -35,4 +32,11 @@ class Function(NamedTuple):
     """
     type: TypeIdx
     locals: Tuple[ValType, ...]
-    body: Expression
+    body: Tuple['BaseInstruction', ...]
+
+
+class StartFunction(NamedTuple):
+    """
+    https://webassembly.github.io/spec/core/bikeshed/index.html#syntax-start
+    """
+    func_idx: FuncIdx

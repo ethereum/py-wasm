@@ -14,3 +14,7 @@ class MemoryType(NamedTuple):
     """
     min: UInt32
     max: Optional[UInt32]
+
+
+class Memory(NamedTuple):
+    type: MemoryType
