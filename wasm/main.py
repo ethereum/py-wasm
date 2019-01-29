@@ -5,6 +5,7 @@ import math
 import struct
 from typing import (
     Any,
+    Callable,
     Dict,
     Iterable,
     List,
@@ -16,6 +17,7 @@ from typing import (
     Union,
     cast,
 )
+import uuid
 
 from wasm import (
     constants,
@@ -25,10 +27,13 @@ from wasm._utils.validation import (
 )
 from wasm.datatypes import (
     BitSize,
+    Configuration,
     DataSegment,
     ElementSegment,
     Export,
     ExportInstance,
+    Frame,
+    FrameStack,
     FuncIdx,
     Function,
     FunctionAddress,
@@ -41,6 +46,10 @@ from wasm.datatypes import (
     GlobalType,
     HostFunction,
     Import,
+    InstructionSequence,
+    Label,
+    LabelIdx,
+    LabelStack,
     Limits,
     Memory,
     MemoryAddress,
@@ -58,6 +67,7 @@ from wasm.datatypes import (
     TableType,
     TypeIdx,
     ValType,
+    ValueStack,
 )
 from wasm.exceptions import (
     Exhaustion,
@@ -69,15 +79,32 @@ from wasm.exceptions import (
 )
 from wasm.instructions import (
     BaseInstruction,
+    BinOp,
     Block,
+    Br,
+    BrIf,
+    BrTable,
+    Call,
+    CallIndirect,
+    Convert,
+    Demote,
     End,
+    Extend,
     F32Const,
     F64Const,
     GlobalOp,
     I32Const,
     I64Const,
     If,
+    LocalOp,
     Loop,
+    MemoryOp,
+    Promote,
+    Reinterpret,
+    RelOp,
+    TestOp,
+    Truncate,
+    Wrap,
 )
 from wasm.instructions.variable import (
     GlobalAction,
@@ -89,7 +116,7 @@ from wasm.parsers.instructions import (
     parse_instruction,
 )
 from wasm.typing import (
-    Config,
+    Float32,
     HostFunctionCallable,
     Store,
     TValue,
@@ -1721,192 +1748,169 @@ def spec_reinterprett1t2(t1, t2, c):
 
 
 def spec_tconst(config):
-    S = config["S"]
-    c = config["instrstar"][config["idx"]].value
+    instruction = config.instructions.current
+    value = instruction.value
 
-    logger.debug("spec_tconst(%s)", c)
+    logger.debug("spec_tconst(%s)", value)
 
-    config["operand_stack"] += [c]
-    config["idx"] += 1
+    config.value_stack.push(value)
 
 
-def spec_tunop(config):
+def spec_tunop(config: Configuration) -> None:
     logger.debug("spec_tunop()")
 
-    S = config["S"]
-    instruction = config["instrstar"][config["idx"]]
+    instruction = cast(BinOp, config.instructions.current)
     t = instruction.valtype
     op = opcode2exec[instruction.opcode][1]
-    c1 = config["operand_stack"].pop()
+    c1 = config.value_stack.pop()
     c = op(t.bit_size.value, c1)
 
-    config["operand_stack"].append(c)
-    config["idx"] += 1
+    config.value_stack.push(c)
 
 
-def spec_tbinop(config):
+def spec_tbinop(config: Configuration) -> None:
     logger.debug("spec_tbinop()")
 
-    S = config["S"]
-    instruction = config["instrstar"][config["idx"]]
+    instruction = cast(BinOp, config.instructions.current)
     t = instruction.valtype
     op = opcode2exec[instruction.opcode][1]
-    c2 = config["operand_stack"].pop()
-    c1 = config["operand_stack"].pop()
+    c2, c1 = config.value_stack.pop2()
     c = op(t.bit_size.value, c1, c2)
 
-    config["operand_stack"].append(c)
-    config["idx"] += 1
+    config.value_stack.push(c)
 
 
-def spec_ttestop(config):
+def spec_ttestop(config: Configuration) -> None:
     logger.debug("spec_ttestop()")
 
-    S = config["S"]
-    instruction = config["instrstar"][config["idx"]]
+    instruction = cast(TestOp, config.instructions.current)
     t = instruction.valtype
     op = opcode2exec[instruction.opcode][1]
-    c1 = config["operand_stack"].pop()
+    c1 = config.value_stack.pop()
     c = op(t.bit_size.value, c1)
 
-    config["operand_stack"].append(c)
-    config["idx"] += 1
+    config.value_stack.push(c)
 
 
-def spec_trelop(config):
+def spec_trelop(config: Configuration) -> None:
     logger.debug("spec_trelop()")
 
-    S = config["S"]
-    instruction = config["instrstar"][config["idx"]]
+    instruction = cast(RelOp, config.instructions.current)
     t = instruction.valtype
     op = opcode2exec[instruction.opcode][1]
-    c2 = config["operand_stack"].pop()
-    c1 = config["operand_stack"].pop()
+    c2, c1 = config.value_stack.pop2()
     c = op(t.bit_size.value, c1, c2)
 
-    config["operand_stack"].append(c)
-    config["idx"] += 1
+    config.value_stack.push(c)
 
 
-def spec_t2cvtopt1(config):
+T_t2cvt = Union[Wrap, Truncate, Extend, Demote, Promote, Convert, Reinterpret]
+
+
+def spec_t2cvtopt1(config: Configuration) -> None:
     logger.debug("spec_t2cvtopt1()")
 
-    S = config["S"]
-    instruction = config["instrstar"][config["idx"]]
+    instruction = cast(T_t2cvt, config.instructions.current)
     t2 = instruction.valtype
     t1 = instruction.result
     op = opcode2exec[instruction.opcode][1]
-    c1 = config["operand_stack"].pop()
+    c1 = config.value_stack.pop()
 
     if instruction.opcode.is_reinterpret:
         c2 = op(t1, t2, c1)
     else:
         c2 = op(t1.bit_size.value, t2.bit_size.value, c1)
 
-    config["operand_stack"].append(c2)
-    config["idx"] += 1
+    config.value_stack.push(c2)
 
 
 # 4.4.2 PARAMETRIC INSTRUCTIONS
 
 
-def spec_drop(config):
+def spec_drop(config: Configuration) -> None:
     logger.debug("spec_drop()")
 
-    config["operand_stack"].pop()
-    config["idx"] += 1
+    config.value_stack.pop()
 
 
-def spec_select(config):
+def spec_select(config: Configuration) -> None:
     logger.debug("spec_select()")
 
-    operand_stack = config["operand_stack"]
-    c = operand_stack.pop()
-    val1 = operand_stack.pop()
-    val2 = operand_stack.pop()
-    if not c:
-        operand_stack.append(val1)
+    c, val1, val2 = config.value_stack.pop3()
+
+    if c:
+        config.value_stack.push(val2)
     else:
-        operand_stack.append(val2)
-    config["idx"] += 1
+        config.value_stack.push(val1)
 
 
 # 4.4.3 VARIABLE INSTRUCTIONS
 
 
-def spec_get_local(config):
+def spec_get_local(config: Configuration) -> None:
     logger.debug("spec_get_local()")
 
-    S = config["S"]
-    F = config["F"]
-    instruction = config["instrstar"][config["idx"]]
-    val = F[-1]["locals"][instruction.local_idx]
-    config["operand_stack"].append(val)
-    config["idx"] += 1
+    instruction = cast(LocalOp, config.instructions.current)
+    val = config.frame.locals[instruction.local_idx]
+    config.value_stack.push(val)
 
 
-def spec_set_local(config):
+def spec_set_local(config: Configuration) -> None:
     logger.debug("spec_set_local()")
 
-    F = config["F"]
-    instruction = config["instrstar"][config["idx"]]
-    val = config["operand_stack"].pop()
-    F[-1]["locals"][instruction.local_idx] = val
-    config["idx"] += 1
+    instruction = cast(LocalOp, config.instructions.current)
+    val = config.value_stack.pop()
+    config.frame.locals[instruction.local_idx] = val
 
 
-def spec_tee_local(config):
+def spec_tee_local(config: Configuration) -> None:
     logger.debug("spec_tee_local()")
 
-    operand_stack = config["operand_stack"]
-    val = operand_stack.pop()
-    operand_stack.append(val)
-    operand_stack.append(val)
+    val = config.value_stack.pop()
+    config.value_stack.push(val)
+    config.value_stack.push(val)
     spec_set_local(config)
 
 
-def spec_get_global(config):
+def spec_get_global(config: Configuration) -> None:
     logger.debug("spec_get_global()")
 
-    S = config["S"]
-    F = config["F"]
-    instruction = config["instrstar"][config["idx"]]
-    a = F[-1]["module"].global_addrs[instruction.global_idx]
+    S = config.store
+    instruction = cast(GlobalOp, config.instructions.current)
+    a = config.frame.module.global_addrs[instruction.global_idx]
     glob = S["globals"][a]
-    config["operand_stack"].append(glob.value)
-    config["idx"] += 1
+    config.value_stack.push(glob.value)
 
 
 def spec_set_global(config):
     logger.debug("spec_set_global()")
 
-    S = config["S"]
-    F = config["F"]
-    instruction = config["instrstar"][config["idx"]]
-    a = F[-1]["module"].global_addrs[instruction.global_idx]
+    S = config.store
+    instruction = cast(GlobalOp, config.instructions.current)
+    a = config.frame.module.global_addrs[instruction.global_idx]
     glob = S["globals"][a]
-    val = config["operand_stack"].pop()
+    if glob.mut is not Mutability.var:
+        raise Exception("Attempt to set immutable global")
+    val = config.value_stack.pop()
     S["globals"][a] = GlobalInstance(glob.valtype, val, glob.mut)
-    config["idx"] += 1
 
 
 # 4.4.4 MEMORY INSTRUCTIONS
 
 # this is for both t.load and t.loadN_sx
-def spec_tload(config):
+def spec_tload(config: Configuration) -> None:
     logger.debug("spec_tload()")
 
-    S = config["S"]
-    F = config["F"]
-    instruction = config["instrstar"][config["idx"]]
+    S = config.store
+    instruction = cast(MemoryOp, config.instructions.current)
     memarg = instruction.memarg
     t = instruction.valtype
     # 3
-    a = F[-1]["module"].memory_addrs[0]
+    a = config.frame.module.memory_addrs[0]
     # 5
     mem = S["mems"][a]
     # 7
-    i = config["operand_stack"].pop()
+    i = config.value_stack.pop()
     # 8
     ea = i + memarg.offset
     # 9
@@ -1917,7 +1921,8 @@ def spec_tload(config):
     if ea + N // 8 > len(mem.data):
         raise Trap("trap")
     # 11
-    bstar = mem.data[ea : ea + N // 8]
+    # TODO: remove type ignore.  replace with formal memory read API.
+    bstar = mem.data[ea : ea + N // 8]  # type: ignore
     # 12
     if sxflag:
         n = spec_bytest_inv(t, bstar)
@@ -1925,27 +1930,25 @@ def spec_tload(config):
     else:
         c = spec_bytest_inv(t, bstar)
     # 13
-    config["operand_stack"].append(c)
+    config.value_stack.push(c)
     logger.debug("loaded %s from memory locations %s to %s", c, ea, ea + N // 8)
-    config["idx"] += 1
 
 
-def spec_tstore(config):
+def spec_tstore(config: Configuration) -> None:
     logger.debug("spec_tstore()")
 
-    S = config["S"]
-    F = config["F"]
-    instruction = config["instrstar"][config["idx"]]
+    S = config.store
+    instruction = cast(MemoryOp, config.instructions.current)
     memarg = instruction.memarg
     t = instruction.valtype
     # 3
-    a = F[-1]["module"].memory_addrs[0]
+    a = config.frame.module.memory_addrs[0]
     # 5
     mem = S["mems"][a]
     # 7
-    c = config["operand_stack"].pop()
+    c = config.value_stack.pop()
     # 9
-    i = config["operand_stack"].pop()
+    i = config.value_stack.pop()
     # 10
     ea = i + memarg.offset
     # 11
@@ -1958,43 +1961,40 @@ def spec_tstore(config):
     if Nflag:
         M = t.bit_size.value
         c = spec_wrapMN(M, N, c)
-        bstar = spec_bytest(t, c)
+        bstar = spec_bytest(t, c)  # type: ignore
     else:
-        bstar = spec_bytest(t, c)
+        bstar = spec_bytest(t, c)  # type: ignore
     # 15
-    mem.data[ea : ea + N // 8] = bstar[: N // 8]
+    # TODO: remove type ignore in favor of formal memory writing API
+    mem.data[ea : ea + N // 8] = bstar[: N // 8]  # type: ignore
     logger.debug("stored %s to memory locations %s to %s", bstar[:N//8], ea, ea + N // 8)
-    config["idx"] += 1
 
 
-def spec_memorysize(config):
+def spec_memorysize(config: Configuration) -> None:
     logger.debug("spec_memorysize()")
 
-    S = config["S"]
-    F = config["F"]
-    a = F[-1]["module"].memory_addrs[0]
+    S = config.store
+    a = config.frame.module.memory_addrs[0]
     mem = S["mems"][a]
-    sz = len(mem.data) // constants.PAGE_SIZE_64K
-    config["operand_stack"].append(sz)
-    config["idx"] += 1
+    sz = UInt32(len(mem.data) // constants.PAGE_SIZE_64K)
+    config.value_stack.push(sz)
 
 
-def spec_memorygrow(config):
+def spec_memorygrow(config: Configuration) -> None:
     logger.debug("spec_memorygrow()")
 
-    S = config["S"]
-    F = config["F"]
-    a = F[-1]["module"].memory_addrs[0]
+    S = config.store
+    a = config.frame.module.memory_addrs[0]
     mem = S["mems"][a]
-    sz = len(mem.data) // constants.PAGE_SIZE_64K
-    n = config["operand_stack"].pop()
-    spec_growmem(mem, n)
+    sz = UInt32(len(mem.data) // constants.PAGE_SIZE_64K)
+    n = config.value_stack.pop()
+    spec_growmem(mem, n)  # type: ignore
     if sz + n == len(mem.data) // constants.PAGE_SIZE_64K:  # success
-        config["operand_stack"].append(sz)
+        config.value_stack.push(sz)
     else:
         # TODO: this potentially ends up leaving the memory in an invalid state
-        config["operand_stack"].append(constants.INT32_NEGATIVE_ONE)  # put -1 on top of stack
-    config["idx"] += 1
+        # because it was *grown* above.
+        config.value_stack.push(constants.INT32_NEGATIVE_ONE)  # put -1 on top of stack
 
 
 # 4.4.5 CONTROL INSTRUCTIONS
@@ -2012,8 +2012,6 @@ def spec_memorygrow(config):
 def spec_nop(config):
     logger.debug("spec_nop()")
 
-    config["idx"] += 1
-
 
 def spec_unreachable(config):
     logger.debug("spec_unreachable()")
@@ -2024,137 +2022,121 @@ def spec_unreachable(config):
 def spec_block(config):
     logger.debug("spec_block()")
 
-    instrstar = config["instrstar"]
-    idx = config["idx"]
-    block = instrstar[idx]
-    operand_stack = config["operand_stack"]
-    control_stack = config["control_stack"]
+    block = cast(Block, config.instructions.current)
     # 1
-    n = len(block.result_type)
     # 2
-    continuation = [instrstar, idx + 1]
-    L = {
-        "arity": n,
-        "height": len(operand_stack),
-        "continuation": continuation,
-        "end": continuation,
-    }
+    L = Label(
+        arity=len(block.result_type),
+        height=len(config.value_stack),
+        instructions=InstructionSequence(block.instructions),
+        is_loop=False,
+        frame_id=config.frame.id,
+    )
+
     # 3
-    spec_enter_block(config, block.instructions, L)
-    # control_stack.append(L)
-    # config["instrstar"] = instrstar[idx][2]
-    # config["idx"] = 0
+    spec_enter_block(config, L)
 
 
-def spec_loop(config):
+def spec_loop(config: Configuration) -> None:
     logger.debug("spec_loop()")
 
-    instrstar = config["instrstar"]
-    idx = config["idx"]
-    instruction = instrstar[idx]
-    operand_stack = config["operand_stack"]
-    control_stack = config["control_stack"]
+    instruction = cast(Loop, config.instructions.current)
     # 1
-    continuation = [instruction.instructions, 0]
-    end = [instrstar, idx + 1]
-    L = {
-        "arity": 0,
-        "height": len(operand_stack),
-        "continuation": continuation,
-        "end": end,
-        "loop_flag": 1,
-    }
+    L = Label(
+        arity=0,
+        height=len(config.value_stack),
+        instructions=InstructionSequence(instruction.instructions),
+        is_loop=True,
+        frame_id=config.frame.id,
+    )
     # 2
-    spec_enter_block(config, instruction.instructions, L)
-    # control_stack.append(L)
-    # config["instrstar"] = instrstar[idx][2]
-    # config["idx"] = 0
+    spec_enter_block(config, L)
 
 
-def spec_if(config):
+def spec_if(config: Configuration) -> None:
     logger.debug("spec_if()")
 
-    instrstar = config["instrstar"]
-    idx = config["idx"]
-    operand_stack = config["operand_stack"]
-    control_stack = config["control_stack"]
     # 2
-    c = operand_stack.pop()
+    c = config.value_stack.pop()
+    logger.debug('IF: %s', c)
     # 3
-    instruction = instrstar[idx]
+    instruction = cast(If, config.instructions.current)
     result_type = instruction.result_type
 
     n = len(result_type)
     # 4
-    continuation = [instrstar, idx + 1]
-    L = {
-        "arity": n,
-        "height": len(operand_stack),
-        "continuation": continuation,
-        "end": continuation,
-    }
-    # 5
     if c:
-        spec_enter_block(config, instruction.instructions, L)
-    # 6
+        L = Label(
+            arity=n,
+            height=len(config.value_stack),
+            instructions=InstructionSequence(instruction.instructions),
+            is_loop=False,
+            frame_id=config.frame.id,
+        )
     else:
-        spec_enter_block(config, instruction.else_instructions, L)
+        L = Label(
+            arity=n,
+            height=len(config.value_stack),
+            instructions=InstructionSequence(instruction.else_instructions),
+            is_loop=False,
+            frame_id=config.frame.id,
+        )
+
+    spec_enter_block(config, L)
 
 
-def spec_br(config, label_idx=None):
-    logger.debug('spec_br()')
+def spec_br(config: Configuration, label_idx: LabelIdx=None) -> None:
+    logger.debug('spec_br(%s)', label_idx)
 
-    operand_stack = config["operand_stack"]
-    control_stack = config["control_stack"]
+    instruction = cast(Union[Br, BrIf], config.instructions.current)
 
-    if label_idx == None:
-        label_idx = config["instrstar"][config["idx"]].label_idx
+    if label_idx is None:
+        label_idx = instruction.label_idx
+
     # 2
-    L = control_stack[-1 * (label_idx + 1)]
+    L = config.label_stack.get_by_label_idx(label_idx)
     # 3
-    n = L["arity"]
     # 5
-    valn = []
-    if n > 0:
-        valn = operand_stack[-1 * n :]
     # 6
-    del operand_stack[L["height"] :]
-    if (
-        "loop_flag" in L
-    ):  # branching to loop starts at beginning of loop, so don't delete
-        if label_idx > 0:
-            del control_stack[-1 * label_idx :]
-        config["idx"] = 0
+    valn = [config.value_stack.pop() for _ in range(L.arity)]
+    while len(config.value_stack) > L.height:
+        config.value_stack.pop()
+
+    if L.is_loop:
+        for _ in range(label_idx):
+            config.label_stack.pop()
+        # TODO: remove runtime check
+        assert config.label is L
+        config.instructions.seek(0)
     else:
-        del control_stack[-1 * (label_idx + 1) :]
+        for _ in range(label_idx + 1):
+            config.label_stack.pop()
     # 7
-    operand_stack += valn
+    for value in valn:
+        config.value_stack.push(value)
     # 8
-    config["instrstar"], config["idx"] = L["continuation"]
 
 
-def spec_br_if(config):
+def spec_br_if(config: Configuration) -> None:
     logger.debug('spec_br_if()')
 
-    instruction = config["instrstar"][config["idx"]]
+    instruction = cast(BrIf, config.instructions.current)
     # 2
-    c = config["operand_stack"].pop()
+    c = config.value_stack.pop()
     # 3
-    if c != 0:
+    if c:
         spec_br(config, instruction.label_idx)
     # 4
-    else:
-        config["idx"] += 1
 
 
 def spec_br_table(config):
     logger.debug('spec_br_table()')
 
-    instruction = config["instrstar"][config["idx"]]
+    instruction = cast(BrTable, config.instructions.current)
     lstar = instruction.label_indices
     lN = instruction.default_idx
     # 2
-    i = config["operand_stack"].pop()
+    i = config.value_stack.pop()
     # 3
     if i < len(lstar):
         li = lstar[i]
@@ -2164,55 +2146,53 @@ def spec_br_table(config):
         spec_br(config, lN)
 
 
-def spec_return(config):
+def spec_return(config: Configuration) -> None:
     logger.debug('spec_return()')
 
-    operand_stack = config["operand_stack"]
     # 1
-    F = config["F"][-1]
     # 2
-    n = F["arity"]
+    n = config.frame.arity
     # 4
-    valn = []
-    if n > 0:
-        valn = operand_stack[-1 * n :]
-        # 6
-        del operand_stack[F["height"] :]
+    # 6
+    valn = list(reversed([
+        config.value_stack.pop()
+        for _ in range(n)
+    ]))
+    while len(config.value_stack) > config.frame.height:
+        logger.info('POPPING')
+        config.value_stack.pop()
     # 8
-    config["F"].pop()
+    config.frame_stack.pop()
     # 9
-    operand_stack += valn
-    config["instrstar"], config["idx"], config["control_stack"] = F["continuation"]
+    for value in valn:
+        config.value_stack.push(value)
 
 
-def spec_call(config: Config) -> None:
+def spec_call(config: Configuration) -> None:
     logger.debug('spec_call()')
 
-    operand_stack = config["operand_stack"]
-    instruction = config["instrstar"][config["idx"]]
+    instruction = cast(Call, config.instructions.current)
     # 1
-    F = config["F"][-1]
     # 3
-    a = F["module"].func_addrs[instruction.func_idx]
+    addr = config.frame.module.func_addrs[instruction.func_idx]
     # 4
-    ret = spec_invoke_function_address(config, a)
+    spec_invoke_function_address(config, addr)
 
 
-def spec_call_indirect(config):
+def spec_call_indirect(config: Configuration) -> None:
     logger.debug('spec_call_indirect()')
 
-    S = config["S"]
+    S = config.store
     # 1
-    F = config["F"][-1]
     # 3
-    ta = F["module"].table_addrs[0]
+    ta = config.frame.module.table_addrs[0]
     # 5
     tab = S["tables"][ta]
     # 7
-    instruction = config["instrstar"][config["idx"]]
-    ftexpect = F["module"].types[instruction.type_idx]
+    instruction = cast(CallIndirect, config.instructions.current)
+    ftexpect = config.frame.module.types[instruction.type_idx]
     # 9
-    i = config["operand_stack"].pop()
+    i = config.value_stack.pop()
     # 10
     if len(tab.elem) <= i:
         raise Trap("trap")
@@ -2220,64 +2200,61 @@ def spec_call_indirect(config):
     if tab.elem[i] is None:
         raise Trap("trap")
     # 12
-    a = tab.elem[i]
+    addr = tab.elem[i]
     # 14
-    f = S["funcs"][a]
+    f = S["funcs"][addr]
     # 15
     ftactual = f.type
     # 16
     if ftexpect != ftactual:
         raise Trap("trap")
     # 17
-    ret = spec_invoke_function_address(config, a)
+    spec_invoke_function_address(config, addr)
 
 
 # 4.4.6 BLOCKS
 
 
-def spec_enter_block(config, instrstar, L):
+def spec_enter_block(config: Configuration, L: Label) -> None:
     logger.debug('spec_enter_block()')
 
     # 1
-    config["control_stack"].append(L)
     # 2
-    logger.info('INSTRUCTIONS: %d -> %s', len(instrstar), instrstar)
-    config["instrstar"] = instrstar
-    config["idx"] = 0
+    config.label_stack.push(L)
 
 
 def spec_exit_block(config):
     logger.debug('spec_exit_block()')
 
     # 4
-    L = config["control_stack"].pop()
     # 6
-    config["instrstar"], config["idx"] = L["end"]
+    config.label_stack.pop()
 
 
 # 4.4.7 FUNCTION CALLS
 
-# this is called by spac_call() and spec_call_indirect()
-def spec_invoke_function_address(config, a=None):
-    logger.debug('spec_invoke_function_address(%s)', a)
+def spec_invoke_function_address(config: Configuration,
+                                 func_addr: FunctionAddress = None,
+                                 ) -> None:
+    logger.debug('spec_invoke_function_address(%s)', func_addr)
 
-    # a is address
-    S = config["S"]
-    F = config["F"]
-    if len(F) > 1024:
+    S = config.store
+    if len(config.frame_stack) > 1024:
         # TODO: this is not part of spec, but this is required to pass tests.
         # Tests pass with limit 10000, maybe more
         raise Exhaustion("Function length greater than 1024")
-    instrstar = config["instrstar"]
-    idx = config["idx"]
-    operand_stack = config["operand_stack"]
-    control_stack = config["control_stack"]
 
-    if a == None:
-        a = instrstar[idx].func_addr
+    if func_addr is None:
+        if isinstance(config.instructions.current, InvokeInstruction):
+            func_addr = config.instructions.current.func_addr
+        else:
+            raise TypeError(
+                "No function address was provided and cannot get address from "
+                "instruction."
+            )
 
     # 2
-    f = S["funcs"][a]
+    f = S["funcs"][func_addr]
     # 3
     t1n, t2m = f.type
     if isinstance(f, FunctionInstance):
@@ -2286,94 +2263,90 @@ def spec_invoke_function_address(config, a=None):
         # 6
         instrstarend = f.code.body
         # 8
-        valn = []
-        if len(t1n) > 0:
-            valn = operand_stack[-1 * len(t1n) :]
-            del operand_stack[-1 * len(t1n) :]
+        valn = list(reversed([
+            config.value_stack.pop()
+            for _ in range(len(t1n))
+        ]))
         # 9
-        val0star = []
+        val0star: List[TValue] = []
         for valtype in tstar:
             if valtype.is_integer_type:
-                val0star += [0]
+                val0star.append(UInt32(0))
             elif valtype.is_float_type:
-                val0star += [0.0]
+                val0star.append(Float32(0.0))
             else:
                 raise Exception(f"Invariant: unkown type '{valtype}'")
         # 10 & 11
-        F += [
-            {
-                "module": f.module,
-                "locals": valn + val0star,
-                "arity": len(t2m),
-                "height": len(operand_stack),
-                "continuation": [instrstar, idx + 1, control_stack],
-            }
-        ]
-        # 12
-        blockinstrstarendend = [Block(t2m, tuple(instrstarend)), End()]
-        config["instrstar"] = blockinstrstarendend
-        config["idx"] = 0
-        config["control_stack"] = []
+        blockinstrstarendend = InstructionSequence(
+            cast(
+                Tuple[BaseInstruction, ...],
+                (Block(t2m, tuple(instrstarend)), End()),
+            ),
+        )
+        F = Frame(
+            id=uuid.uuid4(),
+            module=f.module,
+            locals=valn + val0star,
+            instructions=blockinstrstarendend,
+            arity=len(t2m),
+            height=len(config.value_stack),
+        )
+        config.frame_stack.push(F)
     elif isinstance(f, HostFunction):
-        valn = []
-        if len(t1n) > 0:
-            valn = operand_stack[-1 * len(t1n) :]
-            del operand_stack[-1 * len(t1n) :]
-        S, ret = f.hostcode(S, valn)
-
-        operand_stack += ret
-        config["idx"] += 1
+        valn = [config.value_stack.pop() for _ in range(len(t1n))]
+        _, ret = f.hostcode(S, valn)
+        if len(ret) > 1:
+            raise Exception("Invariant")
+        elif ret:
+            config.value_stack.push(ret[0])
     else:
         raise Exception("Invariant: unreachable code path")
 
 
 # this is unused for now
 # this is called when end of function reached without return or trap aborting it
-def spec_return_from_func(config):
+def spec_return_from_func(config: Configuration) -> None:
+    # TODO: this is no longer used
     logger.debug('spec_return_from_func()')
 
     # 1
-    F = config["F"][-1]
     # 2,3,4,7 not needed since we have separate operand stack
     # 6
-    config["F"].pop()
+    config.frame_stack.pop()
     # 8
-    config["instrstar"], config["idx"], config["control_stack"] = F["continuation"]
 
 
-def spec_end(config):
+def spec_end(config: Configuration) -> None:
     logger.debug('spec_end()')
-    logger.debug('control_stack: %s', len(config["control_stack"]))
-    logger.debug('F: %s', len(config["F"]))
-    if config["F"]:
-        logger.debug("F[-1]: %s", config["F"][-1].keys())
 
-    if len(config["control_stack"]) >= 1:
+    if config.has_active_label:
+        logger.debug('popping label stack')
         spec_exit_block(config)
+    elif len(config.frame_stack) >= 1:
+        logger.debug('popping frame stack')
+        # continuation for case of init elem or data or global
+        config.frame_stack.pop()
     else:
-        if (
-            len(config["F"]) >= 1 and "continuation" in config["F"][-1]
-        ):  # continuation for case of init elem or data or global
-            spec_return_from_func(config)
-        else:
-            # TODO: remove magic string
-            return "done"
+        raise Exception("Invariant?")
 
 
 # 4.4.8 EXPRESSIONS
 
 
 class InvokeOp:
-    pass
+    text = 'invoke'
 
 
 class InvokeInstruction(NamedTuple):
-    opcode = InvokeOp  # type: ignore
     func_addr: FuncIdx
+
+    @property
+    def opcode(self) -> Type[InvokeOp]:
+        return InvokeOp
 
 
 # Map each opcode to the function(s) to invoke when it is encountered. For opcodes with two functions, the second function is called by the first function.
-opcode2exec = {
+opcode2exec: Dict[Union[Type[InvokeOp], BinaryOpcode], Tuple[Callable, ...]] = {
     BinaryOpcode.UNREACHABLE: (spec_unreachable,),
     BinaryOpcode.NOP: (spec_nop,),
     BinaryOpcode.BLOCK: (spec_block,),  # blocktype in* end
@@ -2569,21 +2542,26 @@ def instrstarend_loop(config):
 def spec_expr(config):
     logger.debug('spec_expr()')
 
-    config["idx"] = 0
-    while 1:
-        # idx<len(instrs) since instrstar[-1]=="end" which changes instrstar
-        instruction = config["instrstar"][config["idx"]]
-        logic_fn = opcode2exec[instruction.opcode][0]
-        ret = logic_fn(config)
 
-        if ret:
-            return config["operand_stack"]
-        else:
-            pass
-            # TODO: log at DEBUG2
-            #logger.debug('operand_stack: %s', config["operand_stack"])
-            # TODO: log at DEBUG3
-            #logger.debug('control_stack: %s', config["control_stack"])
+    while config.is_executable:
+        try:
+            instruction = next(config.instructions)
+        except StopIteration:
+            break
+        #logger.debug('INSTRUCTION: %s', instruction.opcode.text)
+        #logger.debug('LOCALS: %s', config.frame.locals)
+        #logger.debug('NUM-VALUES: %d', len(config.value_stack))
+        #logger.debug('NUM-LABELS: %d', len(config.label_stack))
+        #logger.debug('NUM-FRAMES: %d', len(config.frame_stack))
+        #logger.debug('VALUES: %s', tuple(config.value_stack))
+
+        logic_fn = opcode2exec[instruction.opcode][0]
+        logic_fn(config)
+
+    if len(config.value_stack) > 1:
+        raise Exception("Invariant?")
+    else:
+        return tuple(config.value_stack)
 
 
 #############
@@ -2854,6 +2832,10 @@ def spec_allocmodule(S: Store,
 
 
 def spec_instantiate(S, module, externvaln):
+    """
+    4.5.4
+    - https://webassembly.github.io/spec/core/bikeshed/index.html#instantiation%E2%91%A1
+    """
     logger.debug('spec_instantiate()')
 
     # 1
@@ -2881,39 +2863,52 @@ def spec_instantiate(S, module, externvaln):
         ),
         exports=(),
     )
-    Fim = {"module": moduleinstim, "locals": [], "arity": 1, "height": 0}
-    framestack = []
-    framestack += [Fim]
+    # TODO: figure out why previous frame stack had an arity?
+
     for globali in module.globals:
-        config = {
-            "S": S,
-            "F": framestack,
-            "instrstar": globali.init,
-            "idx": 0,
-            "operand_stack": [],
-            "control_stack": [],
-        }
+        F = Frame(
+            id=uuid.uuid4(),
+            module=moduleinstim,
+            locals=[],
+            instructions=InstructionSequence(globali.init),
+            arity=1,
+            height=0,
+        )
+        frame_stack = FrameStack()
+        frame_stack.push(F)
+        config = Configuration(
+            store=S,
+            frame_stack=frame_stack,
+            value_stack=ValueStack(),
+            label_stack=LabelStack(),
+        )
         ret = spec_expr(config)[0]
         valstar += [ret]
-    framestack.pop()
+
     # 6
     S, moduleinst = spec_allocmodule(S, module, externvaln, valstar)
     # 7
-    F = {"module": moduleinst, "locals": []}
     # 8
-    framestack += [F]
     # 9
     tableinst = []
     eo = []
     for elemi in module.elem:
-        config = {
-            "S": S,
-            "F": framestack,
-            "instrstar": elemi.offset,
-            "idx": 0,
-            "operand_stack": [],
-            "control_stack": [],
-        }
+        F = Frame(
+            id=uuid.uuid4(),
+            module=moduleinst,
+            locals=[],
+            instructions=InstructionSequence(elemi.offset),
+            arity=0,
+            height=0,
+        )
+        frame_stack = FrameStack()
+        frame_stack.push(F)
+        config = Configuration(
+            store=S,
+            frame_stack=frame_stack,
+            value_stack=ValueStack(),
+            label_stack=LabelStack()
+        )
         eovali = spec_expr(config)[0]
         eoi = eovali
         eo += [eoi]
@@ -2928,16 +2923,24 @@ def spec_instantiate(S, module, externvaln):
     meminst = []
     do = []
     for datai in module.data:
-        config = {
-            "S": S,
-            "F": framestack,
-            "instrstar": datai.offset,
-            "idx": 0,
-            "operand_stack": [],
-            "control_stack": [],
-        }
-        dovali = spec_expr(config)[0]
-        doi = dovali
+        F = Frame(
+            id=uuid.uuid4(),
+            module=moduleinst,
+            locals=[],
+            instructions=InstructionSequence(datai.offset),
+            arity=0,
+            height=0,
+        )
+        frame_stack = FrameStack()
+        frame_stack.push(F)
+        config = Configuration(
+            store=S,
+            frame_stack=frame_stack,
+            value_stack=ValueStack(),
+            label_stack=LabelStack(),
+        )
+        dovali = spec_expr(config)
+        doi = dovali[0]
         do += [doi]
         memidxi = datai.mem_idx
         memaddri = moduleinst.memory_addrs[memidxi]
@@ -2948,7 +2951,6 @@ def spec_instantiate(S, module, externvaln):
             raise Unlinkable("unlinkable")
     # 11
     # 12
-    framestack.pop()
     # 13
     for i, elemi in enumerate(module.elem):
         for j, funcidxij in enumerate(elemi.init):
@@ -2965,7 +2967,7 @@ def spec_instantiate(S, module, externvaln):
     else:
         ret = None
 
-    return S, F, ret
+    return S, moduleinst, ret
 
 
 # 4.5.5 INVOCATION
@@ -2989,26 +2991,35 @@ def spec_invoke(S, funcaddr, valn):
         if vali[0][:3] != ti.value:
             raise Exception("argument type mismatch")
     # 6
-    operand_stack = []
+    value_stack = ValueStack()
     for ti, vali in zip(t1n, valn):
         arg = vali[1]
 
-        operand_stack += [arg]
+        value_stack.push(arg)
+
     # 7
     if isinstance(funcinst, FunctionInstance):
-        config = {
-            "S": S,
-            "F": [],
-            "instrstar": (InvokeInstruction(funcaddr), End()),
-            "idx": 0,
-            "operand_stack": operand_stack,
-            "control_stack": [],
-        }
+        frame_stack = FrameStack()
+        F = Frame(
+            id=uuid.uuid4(),
+            module=ModuleInstance((), (), (), (), (), ()),
+            locals=[],
+            instructions=InstructionSequence((InvokeInstruction(funcaddr), End())),
+            arity=0,  # should this be 1 (or derived from the function type)?
+            height=0,
+        )
+        frame_stack.push(F)
+        config = Configuration(
+            store=S,
+            frame_stack=frame_stack,
+            value_stack=value_stack,
+            label_stack=LabelStack(),
+        )
         valresm = spec_expr(config)
         assert valresm is not None
         return valresm
     elif isinstance(funcinst, HostFunction):
-        S, valresm = funcinst.hostcode(S, operand_stack)
+        S, valresm = funcinst.hostcode(S, value_stack)
         assert valresm is not None
         return valresm
     else:
@@ -4104,13 +4115,16 @@ def validate_module(module):
     spec_validate_module(module)
 
 
-def instantiate_module(store, module, externvalstar):
+# TODO: tighten type hint for `externvalstar`
+def instantiate_module(store: Store,
+                       module: Module,
+                       externvalstar: Tuple[Any, ...],
+                       ) -> Tuple[Store, ModuleInstance, TValue]:
     # TODO: handle spec deviation if necessary
     # we deviate from the spec by also returning the return value
     ret = spec_instantiate(store, module, externvalstar)
 
-    store, F, startret = ret
-    modinst = F["module"]
+    store, modinst, startret = ret
     return store, modinst, startret
 
 
