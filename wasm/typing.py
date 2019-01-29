@@ -13,7 +13,7 @@ if TYPE_CHECKING:
     )
     from wasm.datatypes import (  # noqa: F401
         FuncIdx,
-        FuncType,
+        FunctionType,
         GlobalIdx,
         GlobalType,
         MemoryIdx,
@@ -50,7 +50,7 @@ ImportDesc = Union[
 
 
 ExternType = Union[
-    'FuncType',
+    'FunctionType',
     'TableType',
     'MemoryType',
     'GlobalType',

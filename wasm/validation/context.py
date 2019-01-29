@@ -4,7 +4,7 @@ from typing import (
 )
 
 from wasm.datatypes import (
-    FuncType,
+    FunctionType,
     GlobalType,
     MemoryType,
     TableType,
@@ -18,8 +18,8 @@ from wasm.exceptions import (
 class Context:
     def __init__(self,
                  *,
-                 types: Tuple[FuncType, ...],
-                 funcs: Tuple[FuncType, ...],
+                 types: Tuple[FunctionType, ...],
+                 funcs: Tuple[FunctionType, ...],
                  tables: Tuple[TableType, ...],
                  mems: Tuple[MemoryType, ...],
                  globals: Tuple[GlobalType, ...],
@@ -40,8 +40,8 @@ class Context:
 
     def prime(self,
               *,
-              types: Tuple[FuncType, ...] = None,
-              funcs: Tuple[FuncType, ...] = None,
+              types: Tuple[FunctionType, ...] = None,
+              funcs: Tuple[FunctionType, ...] = None,
               tables: Tuple[TableType, ...] = None,
               mems: Tuple[MemoryType, ...] = None,
               globals: Tuple[GlobalType, ...] = None,
@@ -71,7 +71,7 @@ class Context:
     def has_type(self, idx: int) -> bool:
         return idx < len(self.types)
 
-    def get_type(self, idx: int) -> FuncType:
+    def get_type(self, idx: int) -> FunctionType:
         return self.types[idx]
 
     #
@@ -86,7 +86,7 @@ class Context:
     def has_func(self, idx: int) -> bool:
         return idx < len(self.funcs)
 
-    def get_func(self, idx: int) -> FuncType:
+    def get_func(self, idx: int) -> FunctionType:
         return self.funcs[idx]
 
     #

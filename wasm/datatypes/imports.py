@@ -6,16 +6,16 @@ from wasm.typing import (
     ImportDesc,
 )
 
-from .global_type import (
+from .globals import (
     GlobalType,
 )
 from .indices import (
     TypeIdx,
 )
-from .memory_type import (
+from .memory import (
     MemoryType,
 )
-from .table_type import (
+from .table import (
     TableType,
 )
 

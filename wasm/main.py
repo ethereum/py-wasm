@@ -28,14 +28,14 @@ from wasm.datatypes import (
     Export,
     FuncIdx,
     FuncRef,
-    FuncType,
+    Function,
+    FunctionType,
     GlobalIdx,
     GlobalType,
     Import,
     Limits,
     MemoryIdx,
     MemoryType,
-    ModuleFunction,
     Mutability,
     TableIdx,
     TableType,
@@ -158,8 +158,8 @@ def spec_expon_inv(expon):
 # 2.3.8 EXTERNAL TYPES
 
 
-def spec_funcs(imports: Iterable[ExternType]) -> List[FuncType]:
-    return [item for item in imports if isinstance(item, FuncType)]
+def spec_funcs(imports: Iterable[ExternType]) -> List[FunctionType]:
+    return [item for item in imports if isinstance(item, FunctionType)]
 
 
 def spec_tables(imports: Iterable[ExternType]) -> List[TableType]:
@@ -234,7 +234,7 @@ def spec_validate_limit(limits: Limits, upper_bound: int) -> None:
 # 3.2.2 FUNCTION TYPES
 
 
-def spec_validate_functype(ft: FuncType) -> None:
+def spec_validate_functype(ft: FunctionType) -> None:
     if len(ft.results) > 1:
         raise InvalidModule(
             f"Function types may only have one result.  Got {len(ft.results)}"
@@ -337,13 +337,13 @@ def spec_validate_const_expr(context: Context, expr: Expression) -> Mutability:
 # 3.4.1 FUNCTIONS
 
 
-def spec_validate_func(context: Context, func: ModuleFunction) -> Tuple[ValType, ...]:
+def spec_validate_func(context: Context, func: Function) -> Tuple[ValType, ...]:
     if func.type >= len(context.types):
         raise InvalidModule(
-            f"ModuleFunction type index out of range: {func.type} >= {len(context.types)}"
+            f"Function type index out of range: {func.type} >= {len(context.types)}"
         )
 
-    func_type: FuncType = context.types[func.type]
+    func_type: FunctionType = context.types[func.type]
 
     t1 = func_type.params
     t2 = func_type.results
@@ -358,7 +358,7 @@ def spec_validate_func(context: Context, func: ModuleFunction) -> Tuple[ValType,
     instrstar: Tuple[Instruction, ...] = cast(Tuple[Instruction, ...], (
         Block(
             t2,
-            cast(Tuple[BaseInstruction, ...], func.expr),
+            cast(Tuple[BaseInstruction, ...], func.body),
         ),
     ))
     ft = spec_validate_expr(func_context, instrstar)
@@ -459,7 +459,7 @@ def spec_validate_start(context: Context, start: Any) -> None:
     context.validate_func_idx(func_idx)
     func_type = context.get_func(func_idx)
 
-    if func_type != FuncType((), ()):
+    if func_type != FunctionType((), ()):
         raise InvalidModule(
             "Start function may not have arguments or a result type.  Got "
             f"{func_type}"
@@ -469,7 +469,7 @@ def spec_validate_start(context: Context, start: Any) -> None:
 # 3.4.8 EXPORTS
 
 
-TExportValue = Union[FuncType, TableType, MemoryType, GlobalType]
+TExportValue = Union[FunctionType, TableType, MemoryType, GlobalType]
 
 
 def spec_validate_export(context: Context, export: Export) -> TExportValue:
@@ -501,7 +501,7 @@ def spec_validate_exportdesc(context: Context,
 # 3.4.9 IMPORTS
 
 
-TImport = Union[FuncType, TableType, MemoryType, GlobalType]
+TImport = Union[FunctionType, TableType, MemoryType, GlobalType]
 
 
 # TODO: the return type of this function should probably be changed.
@@ -535,7 +535,7 @@ def spec_validate_importdesc(context: Context, descriptor: ImportDesc) -> TImpor
 
 def spec_validate_module(mod: Module) -> List[List[ExternType]]:
     # mod is the module to validate
-    ftstar: List[FuncType] = []
+    ftstar: List[FunctionType] = []
 
     for func in mod["funcs"]:
         if len(mod["types"]) <= func.type:
@@ -2268,7 +2268,7 @@ def spec_invoke_function_address(config, a=None):
         # 5
         tstar = f["code"].locals
         # 6
-        instrstarend = f["code"].expr
+        instrstarend = f["code"].body
         # 8
         valn = []
         if len(t1n) > 0:
@@ -2637,7 +2637,7 @@ def spec_externtype_matching(externtype1, externtype2):
         raise Unlinkable(
             f"Mismatch in extern types: {type(externtype1)} != {type(externtype2)}"
         )
-    elif isinstance(externtype1, FuncType):
+    elif isinstance(externtype1, FunctionType):
         if externtype1 == externtype2:
             return "<="
         else:
@@ -2671,7 +2671,7 @@ def spec_externtype_matching(externtype1, externtype2):
 # 4.5.3 ALLOCATION
 
 
-def spec_allocfunc(S: Store, func: ModuleFunction, moduleinst: Module) -> Tuple[Store, FuncIdx]:
+def spec_allocfunc(S: Store, func: Function, moduleinst: Module) -> Tuple[Store, FuncIdx]:
     logger.debug('spec_allocfunc()')
 
     funcaddr = FuncIdx(len(S["funcs"]))
@@ -2683,7 +2683,7 @@ def spec_allocfunc(S: Store, func: ModuleFunction, moduleinst: Module) -> Tuple[
 
 # TODO: tighten `Any` type for `hostfunc`
 def spec_allochostfunc(S: Store,
-                       functype: FuncType,
+                       functype: FunctionType,
                        hostfunc: Any,
                        ) -> Tuple[Store, FuncIdx]:
     logger.debug('spec_allochostfunc()')
@@ -3195,16 +3195,16 @@ def spec_binary_blocktype_inv(node):
 # 5.3.3 FUNCTION TYPES
 
 
-def spec_binary_functype(raw: bytes, idx: int) -> Tuple[int, FuncType]:
+def spec_binary_functype(raw: bytes, idx: int) -> Tuple[int, FunctionType]:
     if raw[idx] != 0x60:
         raise MalformedModule("malformed")
     idx += 1
     idx, t1star = spec_binary_vec(raw, idx, spec_binary_valtype)
     idx, t2star = spec_binary_vec(raw, idx, spec_binary_valtype)
-    return idx, FuncType(tuple(t1star), tuple(t2star))
+    return idx, FunctionType(tuple(t1star), tuple(t2star))
 
 
-def spec_binary_functype_inv(func_type: FuncType) -> bytearray:
+def spec_binary_functype_inv(func_type: FunctionType) -> bytearray:
     # TODO: this code path isn't excercised in the test suite.
     return (
         bytearray([0x60])
@@ -3989,7 +3989,7 @@ def spec_binary_module(raw):
     funcn = []
     if typeidxn and coden and len(typeidxn) == len(coden):
         for i in range(len(typeidxn)):
-            funcn.append(ModuleFunction(typeidxn[i], tuple(coden[i][0]), tuple(coden[i][1])))
+            funcn.append(Function(typeidxn[i], tuple(coden[i][0]), tuple(coden[i][1])))
     mod = {
         "types": functypestar,
         "funcs": funcn,
