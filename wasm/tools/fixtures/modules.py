@@ -5,7 +5,7 @@ from wasm.datatypes import (
     Export,
     FuncIdx,
     FuncRef,
-    FuncType,
+    FunctionType,
     GlobalIdx,
     GlobalType,
     Limits,
@@ -49,13 +49,13 @@ def instantiate_spectest_module(store):
         logger.debug('print: %s', arg)
         return store, []
 
-    wasm.alloc_func(store, FuncType((ValType.i32,), ()), spectest__print_i32)
-    wasm.alloc_func(store, FuncType((ValType.i64,), ()), spectest__print_i64)
-    wasm.alloc_func(store, FuncType((ValType.f32,), ()), spectest__print_f32)
-    wasm.alloc_func(store, FuncType((ValType.f64,), ()), spectest__print_f64)
-    wasm.alloc_func(store, FuncType((ValType.i32, ValType.f32), ()), spectest__print_i32_f32)
-    wasm.alloc_func(store, FuncType((ValType.f64, ValType.f64), ()), spectest__print_f64_f64)
-    wasm.alloc_func(store, FuncType((), ()), spectest__print)
+    wasm.alloc_func(store, FunctionType((ValType.i32,), ()), spectest__print_i32)
+    wasm.alloc_func(store, FunctionType((ValType.i64,), ()), spectest__print_i64)
+    wasm.alloc_func(store, FunctionType((ValType.f32,), ()), spectest__print_f32)
+    wasm.alloc_func(store, FunctionType((ValType.f64,), ()), spectest__print_f64)
+    wasm.alloc_func(store, FunctionType((ValType.i32, ValType.f32), ()), spectest__print_i32_f32)
+    wasm.alloc_func(store, FunctionType((ValType.f64, ValType.f64), ()), spectest__print_f64_f64)
+    wasm.alloc_func(store, FunctionType((), ()), spectest__print)
 
     # min:1,max:2 required by import.wast:
     wasm.alloc_mem(store, MemoryType(1, 2))
@@ -70,13 +70,13 @@ def instantiate_spectest_module(store):
     )  # max was 30, changed to 20 for import.wast
     moduleinst = {
         "types": [
-            FuncType((ValType.i32,), ()),
-            FuncType((ValType.i64,), ()),
-            FuncType((ValType.f32,), ()),
-            FuncType((ValType.f64,), ()),
-            FuncType((ValType.i32, ValType.f32), ()),
-            FuncType((ValType.f64, ValType.f64), ()),
-            FuncType((), ()),
+            FunctionType((ValType.i32,), ()),
+            FunctionType((ValType.i64,), ()),
+            FunctionType((ValType.f32,), ()),
+            FunctionType((ValType.f64,), ()),
+            FunctionType((ValType.i32, ValType.f32), ()),
+            FunctionType((ValType.f64, ValType.f64), ()),
+            FunctionType((), ()),
         ],
         "funcaddrs": [FuncIdx(idx) for idx in range(7)],
         "tableaddrs": [TableIdx(0)],
@@ -123,26 +123,26 @@ def instantiate_test_module(store):
     def test__func_i64_i64(store, arg):
         pass
 
-    wasm.alloc_func(store, FuncType((), ()), test__func)
-    wasm.alloc_func(store, FuncType((ValType.i32,), ()), test__func_i32)
-    wasm.alloc_func(store, FuncType((ValType.f32,), ()), test__func_f32)
-    wasm.alloc_func(store, FuncType((), (ValType.i32,)), test__func__i32)
-    wasm.alloc_func(store, FuncType((), (ValType.f32,)), test__func__f32)
-    wasm.alloc_func(store, FuncType((ValType.i32,), (ValType.i32,)), test__func_i32_i32)
-    wasm.alloc_func(store, FuncType((ValType.i64,), (ValType.i64,)), test__func_i64_i64)
+    wasm.alloc_func(store, FunctionType((), ()), test__func)
+    wasm.alloc_func(store, FunctionType((ValType.i32,), ()), test__func_i32)
+    wasm.alloc_func(store, FunctionType((ValType.f32,), ()), test__func_f32)
+    wasm.alloc_func(store, FunctionType((), (ValType.i32,)), test__func__i32)
+    wasm.alloc_func(store, FunctionType((), (ValType.f32,)), test__func__f32)
+    wasm.alloc_func(store, FunctionType((ValType.i32,), (ValType.i32,)), test__func_i32_i32)
+    wasm.alloc_func(store, FunctionType((ValType.i64,), (ValType.i64,)), test__func_i64_i64)
     wasm.alloc_mem(store, MemoryType(1, None))
     wasm.alloc_global(store, GlobalType(Mutability.const, ValType.i32), 666)
     wasm.alloc_global(store, GlobalType(Mutability.const, ValType.f32), 0.0)
     wasm.alloc_table(store, TableType(Limits(10, None), FuncRef))
     moduleinst = {
         "types": [
-            FuncType((), ()),
-            FuncType((ValType.i32,), ()),
-            FuncType((ValType.f32,), ()),
-            FuncType((), (ValType.i32,)),
-            FuncType((), (ValType.f32,)),
-            FuncType((ValType.i32,), (ValType.i32,)),
-            FuncType((ValType.i64,), (ValType.i64,)),
+            FunctionType((), ()),
+            FunctionType((ValType.i32,), ()),
+            FunctionType((ValType.f32,), ()),
+            FunctionType((), (ValType.i32,)),
+            FunctionType((), (ValType.f32,)),
+            FunctionType((ValType.i32,), (ValType.i32,)),
+            FunctionType((ValType.i64,), (ValType.i64,)),
         ],
         "funcaddrs": [FuncIdx(idx) for idx in range(7)],
         "tableaddrs": [TableIdx(0)],

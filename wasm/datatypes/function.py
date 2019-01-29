@@ -4,6 +4,10 @@ from typing import (
     Tuple,
 )
 
+from wasm.typing import (
+    Expression,
+)
+
 from .indices import (
     TypeIdx,
 )
@@ -17,10 +21,18 @@ if TYPE_CHECKING:
     )
 
 
-class ModuleFunction(NamedTuple):
+class FunctionType(NamedTuple):
+    """
+    https://webassembly.github.io/spec/core/bikeshed/index.html#function-types%E2%91%A0
+    """
+    params: Tuple[ValType, ...]
+    results: Tuple[ValType, ...]
+
+
+class Function(NamedTuple):
     """
     https://webassembly.github.io/spec/core/bikeshed/index.html#functions%E2%91%A0
     """
     type: TypeIdx
     locals: Tuple[ValType, ...]
-    expr: Tuple['Instruction', ...]
+    body: Expression
