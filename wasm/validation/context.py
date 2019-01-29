@@ -1,6 +1,6 @@
 from typing import (
-    Optional,
     Tuple,
+    Union,
 )
 
 from wasm.datatypes import (
@@ -25,7 +25,9 @@ class Context:
                  globals: Tuple[GlobalType, ...],
                  locals: Tuple[ValType, ...],
                  labels: Tuple[ValType, ...],
-                 returns: Optional[Tuple[ValType, ...]],
+                 # `returns` may be `None`, but the argument must be
+                 # explicitely supplied.
+                 returns: Union[None, Tuple[ValType, ...]],
                  ) -> None:
         self.types = types
         self.funcs = funcs
@@ -45,7 +47,7 @@ class Context:
               globals: Tuple[GlobalType, ...] = None,
               locals: Tuple[ValType, ...] = None,
               labels: Tuple[ValType, ...] = None,
-              returns: Optional[Tuple[ValType, ...]] = None) -> 'Context':
+              returns: Tuple[ValType, ...] = None) -> 'Context':
         return type(self)(
             types=types or self.types,
             funcs=funcs or self.funcs,
