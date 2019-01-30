@@ -12,6 +12,9 @@ from .val_type import (
 )
 
 if TYPE_CHECKING:
+    from wasm.typing import (  # noqa: F401
+        TValue,
+    )
     from wasm.instructions import (  # noqa: F401
         BaseInstruction,
     )
@@ -28,3 +31,11 @@ class GlobalType(NamedTuple):
 class Global(NamedTuple):
     type: GlobalType
     init: Tuple['BaseInstruction', ...]
+
+
+class GlobalInstance(NamedTuple):
+    # The `valtype` is not part of the spec, but it is useful for inspection.
+    valtype: ValType
+
+    value: 'TValue'
+    mut: Mutability

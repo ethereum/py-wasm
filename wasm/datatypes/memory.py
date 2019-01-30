@@ -18,3 +18,8 @@ class MemoryType(NamedTuple):
 
 class Memory(NamedTuple):
     type: MemoryType
+
+
+class MemoryInstance(NamedTuple):
+    data: bytearray
+    max: Optional[UInt32]

@@ -3,6 +3,12 @@ from typing import (
     Union,
 )
 
+from .addresses import (
+    FunctionAddress,
+    GlobalAddress,
+    MemoryAddress,
+    TableAddress,
+)
 from .indices import (
     FuncIdx,
     GlobalIdx,
@@ -61,3 +67,24 @@ class Export(NamedTuple):
             return self.desc
         else:
             raise TypeError(f"Export descriptor of type: {type(self.desc)}")
+
+
+class ExportInstance(NamedTuple):
+    name: str
+    value: Union[FunctionAddress, TableAddress, MemoryAddress, GlobalAddress]
+
+    @property
+    def is_function(self):
+        return isinstance(self.value, FunctionAddress)
+
+    @property
+    def is_global(self):
+        return isinstance(self.value, GlobalAddress)
+
+    @property
+    def is_memory(self):
+        return isinstance(self.value, MemoryAddress)
+
+    @property
+    def is_table(self):
+        return isinstance(self.value, TableAddress)
