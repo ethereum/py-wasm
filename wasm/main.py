@@ -93,11 +93,7 @@ from wasm.instructions import (
     Demote,
     End,
     Extend,
-    F32Const,
-    F64Const,
     GlobalOp,
-    I32Const,
-    I64Const,
     If,
     LocalOp,
     Loop,
@@ -108,9 +104,6 @@ from wasm.instructions import (
     TestOp,
     Truncate,
     Wrap,
-)
-from wasm.instructions.variable import (
-    GlobalAction,
 )
 from wasm.opcodes import (
     BinaryOpcode,
@@ -127,6 +120,8 @@ from wasm.typing import (
 )
 from wasm.validation import (
     Context,
+    validate_constant_expression,
+    validate_expression,
     validate_function_type,
     validate_memory,
     validate_memory_type,
@@ -294,50 +289,6 @@ def spec_globals_exports(exports: Iterable[TExportAddress]) -> Tuple[GlobalAddre
 Expression = Tuple[BaseInstruction, ...]
 
 
-def spec_validate_expr(context: Context, expr: Expression) -> Tuple[ValType, ...]:
-    opd_stack: List[ValType] = []
-    ctrl_stack: List[Dict[Any, Any]] = []
-
-    iterate_through_expression_and_validate_each_opcode(
-        expr, context, opd_stack, ctrl_stack
-    )  # call to the algorithm in the appendix
-
-    if len(opd_stack) > 1:
-        raise InvalidModule("invalid")
-    else:
-        return tuple(opd_stack)
-
-
-def spec_validate_const_instr(context: Context, instruction: BaseInstruction) -> Mutability:
-    if isinstance(instruction, GlobalOp):
-        if instruction.action is not GlobalAction.get:
-            raise InvalidModule(f"Must be a get_local instruction.  Got {instruction}")
-
-        global_ = context.get_global(instruction.global_idx)
-
-        if global_.mut is not Mutability.const:
-            raise InvalidModule(f"Retrieved global type is mutable")
-    elif not isinstance(instruction, (I32Const, I64Const, F32Const, F64Const, GlobalOp)):
-        raise InvalidModule(
-            f"Instruction is not a const: Got {instruction}"
-        )
-
-    return Mutability.const
-
-
-def spec_validate_const_expr(context: Context, expr: Expression) -> Mutability:
-    # expr is in AST form
-    for e in expr[:-1]:
-        spec_validate_const_instr(context, e)
-
-    if not isinstance(expr[-1], End):
-        raise InvalidModule(
-            f"Expression must terminate with an `End` instruction: Got {expr[-1]}"
-        )
-
-    return Mutability.const
-
-
 #############
 # 3.4 MODULES
 #############
@@ -355,23 +306,23 @@ def spec_validate_func(context: Context, func: Function) -> Tuple[ValType, ...]:
 
     t1 = func_type.params
     t2 = func_type.results
-    func_context = context.prime(
+    function_context = context.prime(
         locals=tuple(t1 + func.locals),
         labels=t2,
         returns=t2,
     )
     # validate body using algorithm in appendix
-    # TODO: resolve this comment:
-    # - "spec didn't nest func body in a block, but algorithm in appendix gives errors otherwise"
     instrstar = cast(Tuple[BaseInstruction, ...], (
         Block(
             t2,
             func.body,
         ),
     ))
-    ft = spec_validate_expr(func_context, instrstar)
 
-    return ft
+    validate_expression(instrstar, function_context)
+    result_type: Tuple[ValType, ...] = tuple(function_context.operand_stack)
+
+    return result_type
 
 
 # 3.4.2 TABLES
@@ -383,19 +334,25 @@ def spec_validate_func(context: Context, func: Function) -> Tuple[ValType, ...]:
 # 3.4.4 GLOBALS
 
 
-def spec_validate_global(C, global_):
+def spec_validate_global(context: Context, global_: Global) -> GlobalType:
     # validate expr, but wrap it in a block first since empty control stack gives errors
     # but first wrap in block with appropriate return type
-    instrstar = (
+    instrstar = cast(Tuple[BaseInstruction, ...], (
         Block(
             (global_.type.valtype,),
             global_.init,
         ),
-    )
-    ret = spec_validate_expr(C, instrstar)
+    ))
+
+    global_context = context.prime()
+    validate_expression(instrstar, global_context)
+    ret = tuple(global_context.operand_stack)
+
     if ret != (global_.type.valtype,):
         raise InvalidModule("invalid")
-    ret = spec_validate_const_expr(C, global_.init)
+
+    validate_constant_expression(global_.init, context.prime())
+    # TODO: validation functions should not have return values
     return global_.type
 
 
@@ -416,12 +373,16 @@ def spec_validate_elem(context: Context, element_segment: ElementSegment) -> Non
             element_segment.offset,
         ),
     ))
-    ret = spec_validate_expr(context, instrstar)
+
+    elem_context = context.prime()
+    validate_expression(instrstar, elem_context)
+    ret = tuple(elem_context.operand_stack)
+
     if ret != (ValType.i32,):
         raise InvalidModule("invalid")
-    spec_validate_const_expr(context, element_segment.offset)
+    validate_constant_expression(element_segment.offset, context.prime())
     for y in element_segment.init:
-        context.validate_func_idx(y)
+        context.validate_function_idx(y)
 
 
 # 3.4.6 DATA SEGMENTS
@@ -436,20 +397,24 @@ def spec_validate_data(context: Context, data_segment: DataSegment) -> None:
             data_segment.offset,
         ),
     ))
-    ret = spec_validate_expr(context, instrstar)
+
+    data_context = context.prime()
+    validate_expression(instrstar, data_context)
+    ret = tuple(data_context.operand_stack)
+
     if tuple(ret) != (ValType.i32,):
         raise InvalidModule(
             f"Invalid data segment.  Return type must be '(i32,)'.  Got {ret}"
         )
-    spec_validate_const_expr(context, data_segment.offset)
+    validate_constant_expression(data_segment.offset, context.prime())
 
 
 # 3.4.7 START FUNCTION
 
 
 def spec_validate_start(context: Context, start: StartFunction) -> None:
-    context.validate_func_idx(start.func_idx)
-    func_type = context.get_func(start.func_idx)
+    context.validate_function_idx(start.func_idx)
+    func_type = context.get_function(start.func_idx)
 
     if func_type != FunctionType((), ()):
         raise InvalidModule(
@@ -472,8 +437,8 @@ def spec_validate_export(context: Context, export: Export) -> TExportValue:
 def spec_validate_exportdesc(context: Context,
                              idx: TExportDesc) -> TExportValue:
     if isinstance(idx, FuncIdx):
-        context.validate_func_idx(idx)
-        return context.get_func(idx)
+        context.validate_function_idx(idx)
+        return context.get_function(idx)
     elif isinstance(idx, TableIdx):
         context.validate_table_idx(idx)
         return context.get_table(idx)
@@ -561,7 +526,7 @@ def spec_validate_module(module: Module) -> List[List[ExternType]]:
     # let C and Cprime be contexts
     context = Context(
         types=module.types,
-        funcs=iftstar + tuple(ftstar),
+        functions=iftstar + tuple(ftstar),
         tables=ittstar + ttstar,
         mems=imtstar + mtstar,
         globals=igtstar + gtstar,
@@ -572,7 +537,7 @@ def spec_validate_module(module: Module) -> List[List[ExternType]]:
     )
     context_p = Context(
         types=(),
-        funcs=(),
+        functions=(),
         tables=(),
         mems=(),
         globals=tuple(igtstar),
@@ -585,10 +550,10 @@ def spec_validate_module(module: Module) -> List[List[ExternType]]:
     etstar: List[ExternType] = []
     for export in module.exports:
         if export.is_function:
-            if len(context.funcs) <= export.desc:
+            if len(context.functions) <= export.desc:
                 # this was not explicit in spec
                 raise InvalidModule("invalid")
-            etstar.append(context.funcs[export.desc])
+            etstar.append(context.functions[export.desc])
         elif export.is_table:
             if len(context.tables) <= export.desc:
                 # this was not explicit in spec
@@ -4272,429 +4237,7 @@ def write_global(store: Store, globaladdr: GlobalAddress, val: TValue) -> Store:
 #   a control stack in the appendix. Here we use the appendix method
 
 
-def spec_push_opd(opds, type_):
-    logger.debug('spec_push_opd(%s, %s)', len(opds), type_)
-    opds.append(type_)
-
-
-def spec_pop_opd(opds, ctrls):
-    logger.debug('spec_pop_opd(%s, %s)', len(opds), len(ctrls))
-    # check if underflows current block, and returns one type but if underflows
-    # and unreachable, which can happen if unconditional branch, when stack is
-    # typed polymorphically, operands are still pushed and popped to check if
-    # code after unreachable is valid, polymorphic stack can't underflow
-    if len(opds) == ctrls[-1]["height"] and ctrls[-1]["unreachable"]:
-        # TODO: remove magic string usage.
-        return "Unknown"
-    elif len(opds) == ctrls[-1]["height"]:
-        raise InvalidModule("invalid")  # error
-    elif len(opds) == 0:
-        raise InvalidModule("invalid")  # error, not in spec
-    else:
-        to_return = opds[-1]
-        del opds[-1]
-        return to_return
-
-
-def spec_pop_opd_expect(opds, ctrls, expect):
-    logger.debug('spec_pop_opd_expect(%s, %s, %s)', len(opds), len(ctrls), expect)
-    actual = spec_pop_opd(opds, ctrls)
-
-    if actual == "Unknown":
-        return expect
-    elif expect == "Unknown":
-        return actual
-    elif actual != expect:
-        raise InvalidModule("invalid")  # error
-    else:
-        return actual
-
-
-def spec_push_opds(opds, ctrls, types):
-    logger.debug('spec_push_opds(%s, %s, %s)', len(opds), len(ctrls), types)
-    for t in types:
-        spec_push_opd(opds, t)
-
-
-def spec_pop_opds_expect(opds, ctrls, types):
-    logger.debug('spec_pop_opds_expect(%s, %s, %s)', len(opds), len(ctrls), types)
-    if types:
-        for t in reversed(types):
-            spec_pop_opd_expect(opds, ctrls, t)
-
-
-def spec_ctrl_frame(label_types, end_types, height, unreachable):
-    logger.debug('spec_ctrl_frame(%s, %s, %s, %s)', label_types, end_types, height, unreachable)
-    # args are:
-    #   label_types: type of the branch's label, to type-check branches
-    #
-    #   end_types: result type of the branch, currently Wasm spec allows at
-    #              most one return value
-    #
-    #   height: height of opd_stack at start of block, to check that operands
-    #           do not underflow current block
-    #
-    #   unreachable: whether remainder of block is unreachable, to handle
-    #                stack-polymorphic typing after branches
-    return {
-        "label_types": label_types,
-        "end_types": end_types,
-        "height": height,
-        "unreachable": unreachable,
-    }
-
-
-def spec_push_ctrl(opds, ctrls, label, out):
-    logger.debug('spec_push_ctrl(%s, %s, %s, %s)', len(opds), len(ctrls), label, out)
-    frame = {
-        "label_types": label,
-        "end_types": out,
-        "height": len(opds),
-        "unreachable": False,
-    }
-    ctrls.append(frame)
-
-
-def spec_pop_ctrl(opds, ctrls):
-    logger.debug('spec_pop_ctrl(%s, %s)', len(opds), len(ctrls))
-    if len(ctrls) < 1:
-        raise InvalidModule("invalid")  # error
-    frame = ctrls[-1]
-    # verify opd stack has right types to exit block, and pops them
-    spec_pop_opds_expect(opds, ctrls, frame["end_types"])
-
-    # make shure stack is back to original height
-    if len(opds) != frame["height"]:
-        raise InvalidModule("invalid")  # error
-    del ctrls[-1]
-    return frame["end_types"]
-
-
-# extra underscore since spec_unreachable() is used in chapter 4
-def spec_unreachable_(opds, ctrls):
-    # purge from operand stack, allows stack-polymorphic logic in pop_opd() take effect
-    del opds[ctrls[-1]["height"]:]
-    ctrls[-1]["unreachable"] = True
-
-
 # 7.3.2 VALIDATION OF OPCODE SEQUENCES
-
-# validate a single opcode based on current context C, operand stack opds, and control stack ctrls
-def spec_validate_opcode(context: Context,
-                         opds: Any,
-                         ctrls: Any,
-                         instruction: BaseInstruction) -> None:
-    logger.debug("spec_validate_opcode(%s, %s, %s, %s)", context, opds, ctrls, instruction)
-    # C is the context
-    # opds is the operand stack
-    # ctrls is the control stack
-    opcode_binary = instruction.opcode.value
-    logger.info('validating opcode: %s', instruction.opcode.text)
-
-    if instruction.opcode.is_control:  # CONTROL INSTRUCTIONS
-        if instruction.opcode is BinaryOpcode.UNREACHABLE:
-            spec_unreachable_(opds, ctrls)
-        elif instruction.opcode is BinaryOpcode.NOP:
-            pass
-        elif instruction.opcode is BinaryOpcode.BLOCK:
-            spec_push_ctrl(
-                opds,
-                ctrls,
-                instruction.result_type,  # type: ignore
-                instruction.result_type,  # type: ignore
-            )
-        elif instruction.opcode is BinaryOpcode.LOOP:
-            spec_push_ctrl(opds, ctrls, tuple(), instruction.result_type)  # type: ignore
-        elif instruction.opcode is BinaryOpcode.IF:
-            spec_pop_opd_expect(opds, ctrls, ValType.i32)
-            spec_push_ctrl(
-                opds,
-                ctrls,
-                instruction.result_type,  # type: ignore
-                instruction.result_type,  # type: ignore
-            )
-        elif instruction.opcode is BinaryOpcode.ELSE:
-            results = spec_pop_ctrl(opds, ctrls)
-            spec_push_ctrl(opds, ctrls, results, results)
-        elif instruction.opcode is BinaryOpcode.END:
-            results = spec_pop_ctrl(opds, ctrls)
-            spec_push_opds(opds, ctrls, results)
-        elif instruction.opcode is BinaryOpcode.BR:
-            if len(ctrls) <= instruction.label_idx:  # type: ignore
-                raise InvalidModule("invalid")
-            label_types = ctrls[-1 - instruction.label_idx]["label_types"]  # type: ignore
-            spec_pop_opds_expect(opds, ctrls, label_types)
-            spec_unreachable_(opds, ctrls)
-        elif instruction.opcode is BinaryOpcode.BR_IF:
-            if len(ctrls) <= instruction.label_idx:  # type: ignore
-                raise InvalidModule("invalid")
-
-            label_types = ctrls[-1 - instruction.label_idx]["label_types"]  # type: ignore
-            spec_pop_opd_expect(opds, ctrls, ValType.i32)
-            spec_pop_opds_expect(opds, ctrls, label_types)
-            spec_push_opds(opds, ctrls, label_types)
-        elif instruction.opcode is BinaryOpcode.BR_TABLE:
-            if len(ctrls) <= instruction.default_idx:  # type: ignore
-                raise InvalidModule("invalid")
-            label_types = ctrls[-1 - instruction.default_idx]["label_types"]  # type: ignore
-            for label_idx in instruction.label_indices:  # type: ignore
-                if len(ctrls) <= label_idx:
-                    raise InvalidModule("invalid")
-                elif ctrls[-1 - label_idx]["label_types"] != label_types:
-                    raise InvalidModule("invalid")
-
-            spec_pop_opd_expect(opds, ctrls, ValType.i32)
-            spec_pop_opds_expect(opds, ctrls, label_types)
-            spec_unreachable_(opds, ctrls)
-        elif instruction.opcode is BinaryOpcode.RETURN:
-            result_type = context.returns
-            spec_pop_opds_expect(opds, ctrls, result_type)
-            spec_unreachable_(opds, ctrls)
-        elif instruction.opcode is BinaryOpcode.CALL:
-            context.validate_func_idx(instruction.func_idx)  # type: ignore
-
-            func_type = context.get_func(instruction.func_idx)  # type: ignore
-            spec_pop_opds_expect(opds, ctrls, func_type.params)
-            spec_push_opds(opds, ctrls, func_type.results)
-        elif instruction.opcode is BinaryOpcode.CALL_INDIRECT:
-            context.validate_table_idx(0)
-            table_type = context.get_table(0)
-
-            if table_type.elem_type is not FunctionAddress:
-                raise InvalidModule("invalid")
-
-            context.validate_type_idx(instruction.type_idx)  # type: ignore
-            func_type = context.get_type(instruction.type_idx)  # type: ignore
-
-            spec_pop_opd_expect(opds, ctrls, ValType.i32)
-            spec_pop_opds_expect(opds, ctrls, func_type.params)
-            spec_push_opds(opds, ctrls, func_type.results)
-    elif instruction.opcode.is_parametric:
-        if instruction.opcode is BinaryOpcode.DROP:
-            spec_pop_opd(opds, ctrls)
-        elif instruction.opcode is BinaryOpcode.SELECT:
-            spec_pop_opd_expect(opds, ctrls, ValType.i32)
-            t1 = spec_pop_opd(opds, ctrls)
-            t2 = spec_pop_opd_expect(opds, ctrls, t1)
-            spec_push_opd(opds, t2)
-        else:
-            raise Exception("Invariant")
-    elif instruction.opcode.is_variable:
-        if instruction.opcode is BinaryOpcode.GET_LOCAL:
-            context.validate_local_idx(instruction.local_idx)  # type: ignore
-            valtype = context.get_local(instruction.local_idx)  # type: ignore
-            spec_push_opd(opds, valtype)
-        elif instruction.opcode is BinaryOpcode.SET_LOCAL:
-            context.validate_local_idx(instruction.local_idx)  # type: ignore
-            valtype = context.get_local(instruction.local_idx)  # type: ignore
-            spec_pop_opd_expect(opds, ctrls, valtype)
-        elif instruction.opcode is BinaryOpcode.TEE_LOCAL:
-            context.validate_local_idx(instruction.local_idx)  # type: ignore
-            valtype = context.get_local(instruction.local_idx)  # type: ignore
-            spec_pop_opd_expect(opds, ctrls, valtype)
-            spec_push_opd(opds, valtype)
-        elif instruction.opcode is BinaryOpcode.GET_GLOBAL:
-            context.validate_global_idx(instruction.global_idx)  # type: ignore
-            global_ = context.get_global(instruction.global_idx)  # type: ignore
-            spec_push_opd(opds, global_.valtype)
-        elif instruction.opcode is BinaryOpcode.SET_GLOBAL:
-            context.validate_global_idx(instruction.global_idx)  # type: ignore
-            global_ = context.get_global(instruction.global_idx)  # type: ignore
-
-            if global_.mut is not Mutability.var:  # type: ignore
-                raise InvalidModule("invalid")
-
-            spec_pop_opd_expect(opds, ctrls, global_.valtype)
-        else:
-            raise Exception(f"Unexpected opcode value: {opcode_binary}")
-    elif instruction.opcode.is_memory:
-        context.validate_mem_idx(0)
-
-        if instruction.opcode.is_memory_load:
-            align_max = instruction.memory_bit_size.value // 8  # type: ignore
-            if 2 ** instruction.memarg.align > align_max:  # type: ignore
-                raise InvalidModule("Invalid memarg alignment")
-
-            spec_pop_opd_expect(opds, ctrls, ValType.i32)
-            spec_push_opd(opds, instruction.valtype)  # type: ignore
-        elif instruction.opcode.is_memory_store:
-
-            align_max = instruction.memory_bit_size.value // 8  # type: ignore
-            if 2 ** instruction.memarg.align > align_max:  # type: ignore
-                raise InvalidModule("Invalid memarg alignment")
-
-            spec_pop_opd_expect(opds, ctrls, instruction.valtype)  # type: ignore
-            spec_pop_opd_expect(opds, ctrls, ValType.i32)
-        elif instruction.opcode is BinaryOpcode.MEMORY_SIZE:
-            spec_push_opd(opds, ValType.i32)
-        elif instruction.opcode is BinaryOpcode.MEMORY_GROW:
-            spec_pop_opd_expect(opds, ctrls, ValType.i32)
-            spec_push_opd(opds, ValType.i32)
-        else:
-            raise Exception(f"Unexpected opcode value: {opcode_binary}")
-    elif instruction.opcode.is_numeric:
-        if instruction.opcode.is_numeric_constant:
-            spec_push_opd(opds, instruction.valtype)  # type: ignore
-        elif opcode_binary <= 0x4F:
-            if opcode_binary == 0x45:  # i32.eqz
-                spec_pop_opd_expect(opds, ctrls, ValType.i32)
-                spec_push_opd(opds, ValType.i32)
-            else:
-                # i32.eq, i32.ne, i32.lt_s, i32.lt_u, i32.gt_s, i32.gt_u,
-                # i32.le_s, i32.le_u, i32.ge_s, i32.ge_u
-                spec_pop_opd_expect(opds, ctrls, ValType.i32)
-                spec_pop_opd_expect(opds, ctrls, ValType.i32)
-                spec_push_opd(opds, ValType.i32)
-        elif opcode_binary <= 0x5A:
-            if opcode_binary == 0x50:  # i64.eqz
-                spec_pop_opd_expect(opds, ctrls, ValType.i64)
-                spec_push_opd(opds, ValType.i32)
-            else:
-                # i64.eq, i64.ne, i64.lt_s, i64.lt_u, i64.gt_s, i64.gt_u,
-                # i64.le_s, i64.le_u, i64.ge_s, i64.ge_u
-                spec_pop_opd_expect(opds, ctrls, ValType.i64)
-                spec_pop_opd_expect(opds, ctrls, ValType.i64)
-                spec_push_opd(opds, ValType.i32)
-        elif opcode_binary <= 0x60:  # f32.eq, f32.ne, f32.lt, f32.gt, f32.le, f32.ge
-            spec_pop_opd_expect(opds, ctrls, ValType.f32)
-            spec_pop_opd_expect(opds, ctrls, ValType.f32)
-            spec_push_opd(opds, ValType.i32)
-        elif opcode_binary <= 0x66:  # f64.eq, f64.ne, f64.lt, f64.gt, f64.le, f64.ge
-            spec_pop_opd_expect(opds, ctrls, ValType.f64)
-            spec_pop_opd_expect(opds, ctrls, ValType.f64)
-            spec_push_opd(opds, ValType.i32)
-        elif opcode_binary <= 0x78:
-            if opcode_binary <= 0x69:  # i32.clz, i32.ctz, i32.popcnt
-                spec_pop_opd_expect(opds, ctrls, ValType.i32)
-                spec_push_opd(opds, ValType.i32)
-            else:
-                # i32.add, i32.sub, i32.mul, i32.div_s, i32.div_u, i32.rem_s,
-                # i32.rem_u, i32.and, i32.or, i32.xor, i32.shl, i32.shr_s,
-                # i32.shr_u, i32.rotl, i32.rotr
-                spec_pop_opd_expect(opds, ctrls, ValType.i32)
-                spec_pop_opd_expect(opds, ctrls, ValType.i32)
-                spec_push_opd(opds, ValType.i32)
-        elif opcode_binary <= 0x8A:
-            if opcode_binary <= 0x7B:  # i64.clz, i64.ctz, i64.popcnt
-                spec_pop_opd_expect(opds, ctrls, ValType.i64)
-                spec_push_opd(opds, ValType.i64)
-            else:
-                # i64.add, i64.sub, i64.mul, i64.div_s, i64.div_u, i64.rem_s,
-                # i64.rem_u, i64.and, i64.or, i64.xor, i64.shl, i64.shr_s,
-                # i64.shr_u, i64.rotl, i64.rotr
-                spec_pop_opd_expect(opds, ctrls, ValType.i64)
-                spec_pop_opd_expect(opds, ctrls, ValType.i64)
-                spec_push_opd(opds, ValType.i64)
-        elif opcode_binary <= 0x98:
-            if (
-                opcode_binary <= 0x91
-            ):  # f32.abs, f32.neg, f32.ceil, f32.floor, f32.trunc, f32.nearest, f32.sqrt,
-                spec_pop_opd_expect(opds, ctrls, ValType.f32)
-                spec_push_opd(opds, ValType.f32)
-            else:  # f32.add, f32.sub, f32.mul, f32.div, f32.min, f32.max, f32.copysign
-                spec_pop_opd_expect(opds, ctrls, ValType.f32)
-                spec_pop_opd_expect(opds, ctrls, ValType.f32)
-                spec_push_opd(opds, ValType.f32)
-        elif opcode_binary <= 0xA6:
-            if (
-                opcode_binary <= 0x9F
-            ):  # f64.abs, f64.neg, f64.ceil, f64.floor, f64.trunc, f64.nearest, f64.sqrt,
-                spec_pop_opd_expect(opds, ctrls, ValType.f64)
-                spec_push_opd(opds, ValType.f64)
-            else:  # f64.add, f64.sub, f64.mul, f64.div, f64.min, f64.max, f64.copysign
-                spec_pop_opd_expect(opds, ctrls, ValType.f64)
-                spec_pop_opd_expect(opds, ctrls, ValType.f64)
-                spec_push_opd(opds, ValType.f64)
-        elif opcode_binary <= 0xBF:
-            if opcode_binary == 0xA7:  # i32.wrap/i64
-                spec_pop_opd_expect(opds, ctrls, ValType.i64)
-                spec_push_opd(opds, ValType.i32)
-            elif opcode_binary <= 0xA9:  # i32.trunc_s/f32, i32.trunc_u/f32
-                spec_pop_opd_expect(opds, ctrls, ValType.f32)
-                spec_push_opd(opds, ValType.i32)
-            elif opcode_binary <= 0xAB:  # i32.trunc_s/f64, i32.trunc_u/f64
-                spec_pop_opd_expect(opds, ctrls, ValType.f64)
-                spec_push_opd(opds, ValType.i32)
-            elif opcode_binary <= 0xAD:  # i64.extend_s/i32, i64.extend_u/i32
-                spec_pop_opd_expect(opds, ctrls, ValType.i32)
-                spec_push_opd(opds, ValType.i64)
-            elif opcode_binary <= 0xAF:  # i64.trunc_s/f32, i64.trunc_u/f32
-                spec_pop_opd_expect(opds, ctrls, ValType.f32)
-                spec_push_opd(opds, ValType.i64)
-            elif opcode_binary <= 0xB1:  # i64.trunc_s/f64, i64.trunc_u/f64
-                spec_pop_opd_expect(opds, ctrls, ValType.f64)
-                spec_push_opd(opds, ValType.i64)
-            elif opcode_binary <= 0xB3:  # f32.convert_s/i32, f32.convert_u/i32
-                spec_pop_opd_expect(opds, ctrls, ValType.i32)
-                spec_push_opd(opds, ValType.f32)
-            elif opcode_binary <= 0xB5:  # f32.convert_s/i64, f32.convert_u/i64
-                spec_pop_opd_expect(opds, ctrls, ValType.i64)
-                spec_push_opd(opds, ValType.f32)
-            elif opcode_binary <= 0xB6:  # f32.demote/f64
-                spec_pop_opd_expect(opds, ctrls, ValType.f64)
-                spec_push_opd(opds, ValType.f32)
-            elif opcode_binary <= 0xB8:  # f64.convert_s/i32, f64.convert_u/i32
-                spec_pop_opd_expect(opds, ctrls, ValType.i32)
-                spec_push_opd(opds, ValType.f64)
-            elif opcode_binary <= 0xBA:  # f64.convert_s/i64, f64.convert_u/i64
-                spec_pop_opd_expect(opds, ctrls, ValType.i64)
-                spec_push_opd(opds, ValType.f64)
-            elif opcode_binary == 0xBB:  # f64.promote/f32
-                spec_pop_opd_expect(opds, ctrls, ValType.f32)
-                spec_push_opd(opds, ValType.f64)
-            elif opcode_binary == 0xBC:  # i32.reinterpret/f32
-                spec_pop_opd_expect(opds, ctrls, ValType.f32)
-                spec_push_opd(opds, ValType.i32)
-            elif opcode_binary == 0xBD:  # i64.reinterpret/f64
-                spec_pop_opd_expect(opds, ctrls, ValType.f64)
-                spec_push_opd(opds, ValType.i64)
-            elif opcode_binary == 0xBE:  # f32.reinterpret/i32
-                spec_pop_opd_expect(opds, ctrls, ValType.i32)
-                spec_push_opd(opds, ValType.f32)
-            elif opcode_binary == 0xBF:  # f64.reinterpret/i64
-                spec_pop_opd_expect(opds, ctrls, ValType.i64)
-                spec_push_opd(opds, ValType.f64)
-            else:
-                raise Exception(f"Unexpected opcode value: {opcode_binary}")
-        else:
-            raise Exception(f"Unexpected opcode value: {opcode_binary}")
-    else:
-        raise Exception(f"Unexpected opcode value: {opcode_binary}")
-
-
-BLOCK_LOOP_IF = {
-    BinaryOpcode.BLOCK,
-    BinaryOpcode.LOOP,
-    BinaryOpcode.IF,
-}
-
-
-# args when called the first time:
-# TODO: tighten up type hints for `ctrls`
-def iterate_through_expression_and_validate_each_opcode(
-        expression: Expression, context: Context, opds: List[ValType], ctrls: Any
-) -> None:
-    for idx, instruction in enumerate(expression):
-        if not isinstance(instruction, BaseInstruction):
-            raise InvalidModule(
-                f"Unrecognized instruction: {repr(instruction)}"
-            )
-
-        # validate
-        spec_validate_opcode(context, opds, ctrls, instruction)
-
-        # recurse for block, loop, if
-        if instruction.opcode in BLOCK_LOOP_IF:
-            # arbitrarily use Block to make type checker happy.
-            sub_instructions = cast(Block, instruction).instructions
-            iterate_through_expression_and_validate_each_opcode(
-                sub_instructions, context, opds, ctrls
-            )
-            if instruction.opcode is BinaryOpcode.IF:
-                else_instructions = cast(If, instruction).else_instructions
-                iterate_through_expression_and_validate_each_opcode(
-                    else_instructions, context, opds, ctrls
-                )
 
 
 ##########################################################
@@ -4753,4 +4296,3 @@ def instantiate_wasm_invoke_func(filename, funcname, args):
 
     if type(ret) == list and len(ret) > 0:
         ret = ret[0]
-    return ret

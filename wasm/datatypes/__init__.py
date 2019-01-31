@@ -68,6 +68,7 @@ from .stack import (  # noqa: F401
     FrameStack,
     Label,
     LabelStack,
+    BaseStack,
     ValueStack,
 )
 from .store import (  # noqa: F401
