@@ -12,12 +12,12 @@ from wasm.datatypes import (
     MemoryType,
     ModuleInstance,
     Mutability,
+    Store,
     TableAddress,
     TableType,
     ValType,
 )
 from wasm.typing import (
-    Store,
     UInt32,
 )
 

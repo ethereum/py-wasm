@@ -17,6 +17,7 @@ from _pytest.outcomes import (
 import wasm
 from wasm.datatypes import (
     ModuleInstance,
+    Store,
 )
 from wasm.exceptions import (
     Exhaustion,
@@ -24,9 +25,6 @@ from wasm.exceptions import (
     MalformedModule,
     Trap,
     Unlinkable,
-)
-from wasm.typing import (
-    Store,
 )
 
 from .datatypes import (
@@ -156,10 +154,10 @@ def run_opcode_action_invoke(action, store, module, all_modules, registered_modu
         if type_.is_float_type:
             logger.info("Floating point not yet supported: %s", action)
             raise FloatingPointNotImplemented("Floating point not yet implemented")
-        args += [[type_.value + ".const", value]]
+        args.append((type_, value))
 
     # invoke func
-    _, ret = wasm.invoke_func(store, funcaddr, args)
+    _, ret = wasm.invoke_func(store, funcaddr, tuple(args))
 
     return ret
 
@@ -170,7 +168,7 @@ def run_opcode_action_get(action, store, module, all_modules, registered_modules
     for export in module.exports:
         if export.name == action.field:
             globaladdr = export.value
-            value = store["globals"][globaladdr].value
+            value = store.globals[globaladdr].value
             return [value]
     else:
         raise Exception(f"No export found for name: '{action.field}")

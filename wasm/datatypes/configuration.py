@@ -2,10 +2,6 @@ from typing import (
     NamedTuple,
 )
 
-from wasm.typing import (
-    Store,
-)
-
 from .instructions import (
     InstructionSequence,
 )
@@ -15,6 +11,9 @@ from .stack import (
     Label,
     LabelStack,
     ValueStack,
+)
+from .store import (
+    Store,
 )
 
 

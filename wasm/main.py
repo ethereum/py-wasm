@@ -2,6 +2,7 @@ import io
 import itertools
 import logging
 import math
+import os
 import struct
 from typing import (
     Any,
@@ -51,6 +52,7 @@ from wasm.datatypes import (
     LabelIdx,
     LabelStack,
     Limits,
+    LocalIdx,
     Memory,
     MemoryAddress,
     MemoryIdx,
@@ -60,6 +62,7 @@ from wasm.datatypes import (
     ModuleInstance,
     Mutability,
     StartFunction,
+    Store,
     Table,
     TableAddress,
     TableIdx,
@@ -118,7 +121,6 @@ from wasm.parsers.instructions import (
 from wasm.typing import (
     Float32,
     HostFunctionCallable,
-    Store,
     TValue,
     UInt8,
     UInt32,
@@ -136,19 +138,15 @@ logger = logging.getLogger('wasm.spec')
 ###############
 ###############
 
-# Chapter 2 defines the abstract syntax, which is used throughout the implementation. Not much is needed from this section, since most abstrct syntax is nested lists and dictionaries
+# Chapter 2 defines the abstract syntax, which is used throughout the
+# implementation. Not much is needed from this section, since most abstrct
+# syntax is nested lists and dictionaries
 
 # 2.2.3 FLOATING-POINT
 
-# functions in this sectio are not currently used since we decided to use native Python floats, and struct.pack()/unpack() to encode/decode, but we may use these later to pass the rest of the NaN tests
-
-
-def spec_fN(N, f):
-    fNmag = spec_fNmag(N, f)
-    if f >= 0:
-        return fNmag
-    else:
-        return -1 * fNmag
+# functions in this sectio are not currently used since we decided to use
+# native Python floats, and struct.pack()/unpack() to encode/decode, but we may
+# use these later to pass the rest of the NaN tests
 
 
 def spec_signif(N):
@@ -163,14 +161,14 @@ def spec_signif(N):
 
 
 def spec_signif_inv(signif):
-    logging.debug("spec_signif_inv(%s)", N)
+    logging.debug("spec_signif_inv(%s)", signif)
 
     if signif == 23:
         return 32
     elif signif == 52:
         return 64
     else:
-        raise Exception(f"Invariant: got '{N}' | expected one of 32/64")
+        raise Exception(f"Invariant: got '{signif}' | expected one of 32/64")
 
 
 def spec_expon(N):
@@ -456,7 +454,6 @@ def spec_validate_elem(context: Context, element_segment: ElementSegment) -> Non
     context.validate_table_idx(element_segment.table_idx)
     table_type = context.get_table(element_segment.table_idx)
 
-    limits = table_type.limits
     elem_type = table_type.elem_type
     if elem_type is not FunctionAddress:
         raise InvalidModule("invalid")
@@ -571,7 +568,7 @@ def spec_validate_importdesc(context: Context, descriptor: TImportDesc) -> TImpo
         # TODO: confirm compliance with spec.  This comment indicates a
         # validation step being ignore that causes a spec test to fail when
         # enabled.
-        # if global_type[0] != "const": raise InvalidModule("invalid") #TODO: this was in the spec, but tests fail linking.wast: $Mg exports a mutable global, seems not to parse in wabt
+        # if global_type[0] != "const": raise InvalidModule("invalid") #TODO: this was in the spec, but tests fail linking.wast: $Mg exports a mutable global, seems not to parse in wabt  # noqa: E501
         return descriptor
     else:
         raise InvalidModule("invalid")
@@ -851,7 +848,7 @@ def spec_fbitsN_inv(N, bits):
     # will use struct.unpack() so need bytearray
     bytes_ = bytearray()
     for i in range(len(bits) // 8):
-        bytes_ += bytearray([int(bits[8 * i : 8 * (i + 1)], 2)])
+        bytes_ += bytearray([int(bits[8 * i:8 * (i + 1)], 2)])
     if N == 32:
         z = struct.unpack(">f", bytes_)[0]
     elif N == 64:
@@ -917,7 +914,7 @@ def spec_bytesiN(N, i):
     # convert bits to bytes
     bytes_ = bytearray()
     for byteIdx in range(0, len(bits), 8):
-        bytes_ += bytearray([int(bits[byteIdx : byteIdx + 8], 2)])
+        bytes_ += bytearray([int(bits[byteIdx:byteIdx + 8], 2)])
     return bytes_
 
 
@@ -1107,7 +1104,7 @@ def spec_ishr_sN(N, i1, i2):
     k = i2 % N
     d0d1Nmkm1d2k = spec_ibitsN(N, i1)
     d0 = d0d1Nmkm1d2k[0]
-    d1Nmkm1 = d0d1Nmkm1d2k[1 : N - k]
+    d1Nmkm1 = d0d1Nmkm1d2k[1:N - k]
     return spec_ibitsN_inv(N, d0 * (k + 1) + d1Nmkm1)
 
 
@@ -1127,7 +1124,7 @@ def spec_irotrN(N, i1, i2):
     k = i2 % N
     d1Nmkd2k = spec_ibitsN(N, i1)
     d1Nmk = d1Nmkd2k[: N - k]
-    d2k = d1Nmkd2k[N - k :]
+    d2k = d1Nmkd2k[N - k:]
     return spec_ibitsN_inv(N, d2k + d1Nmk)
 
 
@@ -1878,7 +1875,7 @@ def spec_get_global(config: Configuration) -> None:
     S = config.store
     instruction = cast(GlobalOp, config.instructions.current)
     a = config.frame.module.global_addrs[instruction.global_idx]
-    glob = S["globals"][a]
+    glob = S.globals[a]
     config.value_stack.push(glob.value)
 
 
@@ -1888,11 +1885,11 @@ def spec_set_global(config):
     S = config.store
     instruction = cast(GlobalOp, config.instructions.current)
     a = config.frame.module.global_addrs[instruction.global_idx]
-    glob = S["globals"][a]
+    glob = S.globals[a]
     if glob.mut is not Mutability.var:
         raise Exception("Attempt to set immutable global")
     val = config.value_stack.pop()
-    S["globals"][a] = GlobalInstance(glob.valtype, val, glob.mut)
+    S.globals[a] = GlobalInstance(glob.valtype, val, glob.mut)
 
 
 # 4.4.4 MEMORY INSTRUCTIONS
@@ -1908,7 +1905,7 @@ def spec_tload(config: Configuration) -> None:
     # 3
     a = config.frame.module.memory_addrs[0]
     # 5
-    mem = S["mems"][a]
+    mem = S.mems[a]
     # 7
     i = config.value_stack.pop()
     # 8
@@ -1922,7 +1919,7 @@ def spec_tload(config: Configuration) -> None:
         raise Trap("trap")
     # 11
     # TODO: remove type ignore.  replace with formal memory read API.
-    bstar = mem.data[ea : ea + N // 8]  # type: ignore
+    bstar = mem.data[ea:ea + N // 8]  # type: ignore
     # 12
     if sxflag:
         n = spec_bytest_inv(t, bstar)
@@ -1944,7 +1941,7 @@ def spec_tstore(config: Configuration) -> None:
     # 3
     a = config.frame.module.memory_addrs[0]
     # 5
-    mem = S["mems"][a]
+    mem = S.mems[a]
     # 7
     c = config.value_stack.pop()
     # 9
@@ -1966,8 +1963,8 @@ def spec_tstore(config: Configuration) -> None:
         bstar = spec_bytest(t, c)  # type: ignore
     # 15
     # TODO: remove type ignore in favor of formal memory writing API
-    mem.data[ea : ea + N // 8] = bstar[: N // 8]  # type: ignore
-    logger.debug("stored %s to memory locations %s to %s", bstar[:N//8], ea, ea + N // 8)
+    mem.data[ea:ea + N // 8] = bstar[: N // 8]  # type: ignore
+    logger.debug("stored %s to memory locations %s to %s", bstar[:N // 8], ea, ea + N // 8)
 
 
 def spec_memorysize(config: Configuration) -> None:
@@ -1975,7 +1972,7 @@ def spec_memorysize(config: Configuration) -> None:
 
     S = config.store
     a = config.frame.module.memory_addrs[0]
-    mem = S["mems"][a]
+    mem = S.mems[a]
     sz = UInt32(len(mem.data) // constants.PAGE_SIZE_64K)
     config.value_stack.push(sz)
 
@@ -1985,7 +1982,7 @@ def spec_memorygrow(config: Configuration) -> None:
 
     S = config.store
     a = config.frame.module.memory_addrs[0]
-    mem = S["mems"][a]
+    mem = S.mems[a]
     sz = UInt32(len(mem.data) // constants.PAGE_SIZE_64K)
     n = config.value_stack.pop()
     spec_growmem(mem, n)  # type: ignore
@@ -2003,9 +2000,15 @@ def spec_memorygrow(config: Configuration) -> None:
 """
  This implementation deviates from the spec as follows.
    - Three stacks are maintained, operands, control-flow labels, and function-call frames.
-     Operand_stack holds only values, control_stack holds only labels. The function-call frames are mainted implicitly in Python function calls -- this will be changed, putting function call frames into the label stack or into their own stack.
-   - `config` inculdes store S, frame F, instr_list, idx into this instr_list, operand_stack, and control_stack.
-   - Each label L has extra value for height of operand stack when it started, continuation when it is branched to, and end when it's last instruction is called.
+     Operand_stack holds only values, control_stack holds only labels. The
+     function-call frames are mainted implicitly in Python function calls --
+     this will be changed, putting function call frames into the label stack or
+     into their own stack.
+   - `config` inculdes store S, frame F, instr_list, idx into this instr_list,
+     operand_stack, and control_stack.
+   - Each label L has extra value for height of operand stack when it started,
+     continuation when it is branched to, and end when it's last instruction is
+     called.
 """
 
 
@@ -2085,7 +2088,7 @@ def spec_if(config: Configuration) -> None:
     spec_enter_block(config, L)
 
 
-def spec_br(config: Configuration, label_idx: LabelIdx=None) -> None:
+def spec_br(config: Configuration, label_idx: LabelIdx = None) -> None:
     logger.debug('spec_br(%s)', label_idx)
 
     instruction = cast(Union[Br, BrIf], config.instructions.current)
@@ -2187,12 +2190,12 @@ def spec_call_indirect(config: Configuration) -> None:
     # 3
     ta = config.frame.module.table_addrs[0]
     # 5
-    tab = S["tables"][ta]
+    tab = S.tables[ta]
     # 7
     instruction = cast(CallIndirect, config.instructions.current)
     ftexpect = config.frame.module.types[instruction.type_idx]
     # 9
-    i = config.value_stack.pop()
+    i = int(config.value_stack.pop())
     # 10
     if len(tab.elem) <= i:
         raise Trap("trap")
@@ -2201,8 +2204,10 @@ def spec_call_indirect(config: Configuration) -> None:
         raise Trap("trap")
     # 12
     addr = tab.elem[i]
+    if addr is None:
+        raise Exception("Invalid: TODO")
     # 14
-    f = S["funcs"][addr]
+    f = S.funcs[addr]
     # 15
     ftactual = f.type
     # 16
@@ -2254,7 +2259,7 @@ def spec_invoke_function_address(config: Configuration,
             )
 
     # 2
-    f = S["funcs"][func_addr]
+    f = S.funcs[func_addr]
     # 3
     t1n, t2m = f.type
     if isinstance(f, FunctionInstance):
@@ -2338,14 +2343,16 @@ class InvokeOp:
 
 
 class InvokeInstruction(NamedTuple):
-    func_addr: FuncIdx
+    func_addr: FunctionAddress
 
     @property
     def opcode(self) -> Type[InvokeOp]:
         return InvokeOp
 
 
-# Map each opcode to the function(s) to invoke when it is encountered. For opcodes with two functions, the second function is called by the first function.
+# Map each opcode to the function(s) to invoke when it is encountered. For
+# opcodes with two functions, the second function is called by the first
+# function.
 opcode2exec: Dict[Union[Type[InvokeOp], BinaryOpcode], Tuple[Callable, ...]] = {
     BinaryOpcode.UNREACHABLE: (spec_unreachable,),
     BinaryOpcode.NOP: (spec_nop,),
@@ -2527,6 +2534,8 @@ opcode2exec: Dict[Union[Type[InvokeOp], BinaryOpcode], Tuple[Callable, ...]] = {
 # this is the main loop over instr* end
 # this is not in the spec
 def instrstarend_loop(config):
+    # TODO: not covered in test suite
+    assert False
     logger.debug('instrstarend_loop()')
 
     # TODO: try to refactor to make this loop have a defined exit condition.
@@ -2542,18 +2551,17 @@ def instrstarend_loop(config):
 def spec_expr(config):
     logger.debug('spec_expr()')
 
-
     while config.is_executable:
         try:
             instruction = next(config.instructions)
         except StopIteration:
             break
-        #logger.debug('INSTRUCTION: %s', instruction.opcode.text)
-        #logger.debug('LOCALS: %s', config.frame.locals)
-        #logger.debug('NUM-VALUES: %d', len(config.value_stack))
-        #logger.debug('NUM-LABELS: %d', len(config.label_stack))
-        #logger.debug('NUM-FRAMES: %d', len(config.frame_stack))
-        #logger.debug('VALUES: %s', tuple(config.value_stack))
+        # logger.debug('INSTRUCTION: %s', instruction.opcode.text)
+        # logger.debug('LOCALS: %s', config.frame.locals)
+        # logger.debug('NUM-VALUES: %d', len(config.value_stack))
+        # logger.debug('NUM-LABELS: %d', len(config.label_stack))
+        # logger.debug('NUM-FRAMES: %d', len(config.frame_stack))
+        # logger.debug('VALUES: %s', tuple(config.value_stack))
 
         logic_fn = opcode2exec[instruction.opcode][0]
         logic_fn(config)
@@ -2576,30 +2584,30 @@ def spec_external_typing(S: Store,
     logger.debug('spec_external_typing(%s)', extern_desc)
 
     if isinstance(extern_desc, FunctionAddress):
-        if len(S["funcs"]) < extern_desc:
+        if len(S.funcs) < extern_desc:
             raise Unlinkable("unlinkable")
-        funcinst = S["funcs"][extern_desc]
+        funcinst = S.funcs[extern_desc]
         return funcinst.type
     elif isinstance(extern_desc, TableAddress):
-        if len(S["tables"]) < extern_desc:
+        if len(S.tables) < extern_desc:
             raise Unlinkable("unlinkable")
-        tableinst = S["tables"][extern_desc]
+        tableinst = S.tables[extern_desc]
         return TableType(
             limits=Limits(UInt32(len(tableinst.elem)), tableinst.max),
             elem_type=FunctionAddress,
         )
     elif isinstance(extern_desc, MemoryAddress):
-        if len(S["mems"]) < extern_desc:
+        if len(S.mems) < extern_desc:
             raise Unlinkable("unlinkable")
-        meminst = S["mems"][extern_desc]
+        meminst = S.mems[extern_desc]
         return MemoryType(
             UInt32(len(meminst.data) // constants.PAGE_SIZE_64K),
             meminst.max,
         )
     elif isinstance(extern_desc, GlobalAddress):
-        if len(S["globals"]) < extern_desc:
+        if len(S.globals) < extern_desc:
             raise Unlinkable("unlinkable")
-        globalinst = S["globals"][extern_desc]
+        globalinst = S.globals[extern_desc]
         return GlobalType(
             globalinst.mut,
             globalinst.valtype,
@@ -2665,13 +2673,16 @@ def spec_externtype_matching(externtype1, externtype2):
 # 4.5.3 ALLOCATION
 
 
-def spec_allocfunc(S: Store, func: Function, module: ModuleInstance) -> Tuple[Store, FunctionAddress]:
+def spec_allocfunc(S: Store,
+                   func: Function,
+                   module: ModuleInstance,
+                   ) -> Tuple[Store, FunctionAddress]:
     logger.debug('spec_allocfunc()')
 
-    funcaddr = FunctionAddress(len(S["funcs"]))
+    funcaddr = FunctionAddress(len(S.funcs))
     func_type = module.types[func.type]
     funcinst = FunctionInstance(func_type, module, func)
-    S["funcs"].append(funcinst)
+    S.funcs.append(funcinst)
     return S, funcaddr
 
 
@@ -2681,33 +2692,33 @@ def spec_allochostfunc(S: Store,
                        ) -> Tuple[Store, FunctionAddress]:
     logger.debug('spec_allochostfunc()')
 
-    funcaddr = FunctionAddress(len(S["funcs"]))
+    funcaddr = FunctionAddress(len(S.funcs))
     funcinst = HostFunction(functype, hostfunc)
-    S["funcs"].append(funcinst)
+    S.funcs.append(funcinst)
     return S, funcaddr
 
 
 def spec_alloctable(S: Store, table_type: TableType) -> Tuple[Store, TableAddress]:
     logger.debug('spec_alloctable()')
 
-    tableaddr = TableAddress(len(S["tables"]))
+    tableaddr = TableAddress(len(S.tables))
     tableinst = TableInstance(
         elem=[None] * table_type.limits.min,
         max=table_type.limits.max,
     )
-    S["tables"].append(tableinst)
+    S.tables.append(tableinst)
     return S, tableaddr
 
 
 def spec_allocmem(S: Store, memory_type: MemoryType) -> Tuple[Store, MemoryAddress]:
     logger.debug('spec_allocmem()')
 
-    memaddr = MemoryAddress(len(S["mems"]))
+    memaddr = MemoryAddress(len(S.mems))
     meminst = MemoryInstance(
         data=bytearray(memory_type.min * constants.PAGE_SIZE_64K),
         max=memory_type.max,
     )
-    S["mems"].append(meminst)
+    S.mems.append(meminst)
     return S, memaddr
 
 
@@ -2716,9 +2727,9 @@ def spec_allocglobal(S: Store,
                      val: TValue) -> Tuple[Store, GlobalAddress]:
     logger.debug('spec_allocglobal()')
 
-    globaladdr = GlobalAddress(len(S["globals"]))
+    globaladdr = GlobalAddress(len(S.globals))
     globalinst = GlobalInstance(global_type.valtype, val, global_type.mut)
-    S["globals"].append(globalinst)
+    S.globals.append(globalinst)
     return S, globaladdr
 
 
@@ -2771,7 +2782,7 @@ def spec_allocmodule(S: Store,
                      ) -> Tuple[Store, ModuleInstance]:
     logger.debug('spec_allocmodule()')
 
-    next_function_address = len(S["funcs"])
+    next_function_address = len(S.funcs)
 
     funcaddrstar = tuple(
         FunctionAddress(addr)
@@ -2914,7 +2925,7 @@ def spec_instantiate(S, module, externvaln):
         eo += [eoi]
         tableidxi = elemi.table_idx
         tableaddri = moduleinst.table_addrs[tableidxi]
-        tableinsti = S["tables"][tableaddri]
+        tableinsti = S.tables[tableaddri]
         tableinst += [tableinsti]
         eendi = eoi + len(elemi.init)
         if eendi > len(tableinsti.elem):
@@ -2944,7 +2955,7 @@ def spec_instantiate(S, module, externvaln):
         do += [doi]
         memidxi = datai.mem_idx
         memaddri = moduleinst.memory_addrs[memidxi]
-        meminsti = S["mems"][memaddri]
+        meminsti = S.mems[memaddri]
         meminst += [meminsti]
         dendi = doi + len(datai.init)
         if dendi > len(meminsti.data):
@@ -2973,28 +2984,30 @@ def spec_instantiate(S, module, externvaln):
 # 4.5.5 INVOCATION
 
 # valn looks like [["i32.const",3],["i32.const",199], ...]
-def spec_invoke(S, funcaddr, valn):
+def spec_invoke(S: Store,
+                funcaddr: FunctionAddress,
+                valn: Tuple[Tuple[ValType, TValue], ...],
+                ) -> Tuple[TValue, ...]:
     logger.debug('spec_invoke()')
 
     # 1
-    if len(S["funcs"]) < funcaddr or funcaddr < 0:
+    if len(S.funcs) < funcaddr or funcaddr < 0:
         raise Exception("bad address")
     # 2
-    funcinst = S["funcs"][funcaddr]
+    funcinst = S.funcs[funcaddr]
     # 5
     t1n, t2m = funcinst.type
     # 4
     if len(valn) != len(t1n):
         raise Exception("wrong number of arguments")
     # 5
-    for ti, vali in zip(t1n, valn):
-        if vali[0][:3] != ti.value:
+    for ti, (valt, val) in zip(t1n, valn):
+        if ti is not valt:
             raise Exception("argument type mismatch")
+
     # 6
     value_stack = ValueStack()
-    for ti, vali in zip(t1n, valn):
-        arg = vali[1]
-
+    for _, arg in valn:
         value_stack.push(arg)
 
     # 7
@@ -3004,7 +3017,10 @@ def spec_invoke(S, funcaddr, valn):
             id=uuid.uuid4(),
             module=ModuleInstance((), (), (), (), (), ()),
             locals=[],
-            instructions=InstructionSequence((InvokeInstruction(funcaddr), End())),
+            instructions=InstructionSequence(cast(
+                Tuple[BaseInstruction, ...],
+                (InvokeInstruction(funcaddr), End()),
+            )),
             arity=0,  # should this be 1 (or derived from the function type)?
             height=0,
         )
@@ -3032,7 +3048,11 @@ def spec_invoke(S, funcaddr, valn):
 ###################
 ###################
 
-# Chapter 5 defines a binary syntax over the abstract syntax. The implementation is a recursive-descent parser which takes a `.wasm` file and builds an abstract syntax tree out of nested Python lists and dicts. Also implemented are inverses (up to a canonical form) which write an abstract syntax tree back to a `.wasm` file.
+# Chapter 5 defines a binary syntax over the abstract syntax. The
+# implementation is a recursive-descent parser which takes a `.wasm` file and
+# builds an abstract syntax tree out of nested Python lists and dicts. Also
+# implemented are inverses (up to a canonical form) which write an abstract
+# syntax tree back to a `.wasm` file.
 
 # 5.1.3 VECTORS
 
@@ -3207,7 +3227,7 @@ def spec_binary_valtype(raw: bytes, idx: int) -> Tuple[int, ValType]:
         valtype = ValType.from_byte(UInt8(raw[idx]))
     except KeyError as err:
         raise MalformedModule(
-            "Invalid byte while parsing valtype.  Got '{hex(raw[idx]}: {str(err)}"
+            f"Invalid byte while parsing valtype.  Got '{hex(raw[idx])}: {str(err)}"
         )
     else:
         return idx + 1, valtype
@@ -3255,9 +3275,15 @@ def spec_binary_functype(raw: bytes, idx: int) -> Tuple[int, FunctionType]:
 def spec_binary_functype_inv(func_type: FunctionType) -> bytearray:
     # TODO: this code path isn't excercised in the test suite.
     return (
-        bytearray([0x60])
-        + spec_binary_vec_inv(func_type.params, spec_binary_valtype_inv)
-        + spec_binary_vec_inv(func_type.results, spec_binary_valtype_inv)
+        bytearray(
+            [0x60]
+        ) + spec_binary_vec_inv(
+            func_type.params,
+            spec_binary_valtype_inv,
+        ) + spec_binary_vec_inv(
+            func_type.results,
+            spec_binary_valtype_inv,
+        )
     )
 
 
@@ -3284,9 +3310,15 @@ def spec_binary_limits_inv(limits: Limits) -> bytearray:
         return bytearray([0x00]) + spec_binary_uN_inv(limits.min, 32)
     else:
         return (
-            bytearray([0x01])
-            + spec_binary_uN_inv(limits.min, 32)
-            + spec_binary_uN_inv(limits.max, 32)
+            bytearray(
+                [0x01]
+            ) + spec_binary_uN_inv(
+                limits.min,
+                32,
+            ) + spec_binary_uN_inv(
+                limits.max,
+                32,
+            )
         )
 
 
@@ -3320,7 +3352,11 @@ def spec_binary_elemtype(raw: bytes, idx: int) -> Tuple[int, Type[FunctionAddres
 
 
 def spec_binary_tabletype_inv(table_type: TableType) -> bytearray:
-    return spec_binary_elemtype_inv(table_type.elem_type) + spec_binary_limits_inv(table_type.limits)
+    return spec_binary_elemtype_inv(
+        table_type.elem_type,
+    ) + spec_binary_limits_inv(
+        table_type.limits,
+    )
 
 
 def spec_binary_elemtype_inv(elem_type: Type[FunctionAddress]) -> bytearray:
@@ -3341,7 +3377,7 @@ def spec_binary_mut(raw: bytes, idx: int) -> Tuple[int, Mutability]:
         mut = Mutability.from_byte(UInt8(raw[idx]))
     except ValueError as err:
         raise MalformedModule(
-            "Invalid byte while parsing mut.  Got '{hex(raw[idx]}: {str(err)}"
+            f"Invalid byte while parsing mut.  Got '{hex(raw[idx])}: {str(err)}"
         )
     else:
         return idx + 1, mut
@@ -3349,8 +3385,11 @@ def spec_binary_mut(raw: bytes, idx: int) -> Tuple[int, Mutability]:
 
 def spec_binary_globaltype_inv(global_type: GlobalType) -> bytearray:
     return (
-        spec_binary_valtype_inv(global_type.valtype) +
-        spec_binary_mut_inv(global_type.mut)
+        spec_binary_valtype_inv(
+            global_type.valtype
+        ) + spec_binary_mut_inv(
+            global_type.mut
+        )
     )
 
 
@@ -3385,58 +3424,6 @@ def spec_binary_instr(raw: bytes, idx: int) -> Tuple[int, BaseInstruction]:
     return stream.tell(), instruction
 
 
-def spec_binary_instr_inv(node):
-    logger.debug("spec_binary_instr_inv(%s)", node)
-
-    if type(node[0]) == str:
-        instr_bytes += bytearray([opcodes_text2binary[node[0]]])
-    # the rest is for immediates
-    elif node[0] in {"block", "loop", "if"}:  # block, loop, if
-        instr_bytes += spec_binary_blocktype_inv(node[1])
-        instar_bytes = bytearray()
-        for n in node[2][:-1]:
-            instar_bytes += spec_binary_instr_inv(n)
-        if len(node) == 4:  # if with else
-            instar_bytes += bytearray([0x05])
-            for n in node[3][:-1]:
-                instar_bytes += spec_binary_instr_inv(n)
-        instar_bytes += bytes([0x0B])
-        instr_bytes += instar_bytes
-    elif node[0] in {"br", "br_if"}:  # br, br_if
-        instr_bytes += spec_binary_labelidx_inv(node[1])
-    elif node[0] == "br_table":  # br_table
-        instr_bytes += spec_binary_vec_inv(node[1], spec_binary_labelidx_inv)
-        instr_bytes += spec_binary_labelidx_inv(node[2])
-    elif node[0] == "call":  # call
-        instr_bytes += spec_binary_funcidx_inv(node[1])
-    elif node[0] == "call_indirect":  # call_indirect
-        instr_bytes += spec_binary_typeidx_inv(node[1])
-        instr_bytes += bytearray([0x00])
-    elif (
-        0x20 <= opcodes_text2binary[node[0]] <= 0x24
-    ):  # get_local, set_local, tee_local
-        instr_bytes += spec_binary_localidx_inv(node[1])
-    elif 0x20 <= opcodes_text2binary[node[0]] <= 0x24:  # get_global, set_global
-        instr_bytes += spec_binary_globalidx_inv(node[1])
-    elif (
-        0x28 <= opcodes_text2binary[node[0]] <= 0x3E
-    ):  # i32.load, i32.load8_s, i64.store, etc
-        instr_bytes += spec_binary_memarg_inv(node[1])
-    elif 0x3F <= opcodes_text2binary[node[0]] <= 0x40:  # memory.size, memory.grow
-        instr_bytes += bytearray([0x00])
-    elif node[0] == "i32.const":  # i32.const
-        instr_bytes += spec_binary_iN_inv(node[1], 32)
-    elif node[0] == "i64.const":  # i64.const
-        instr_bytes += spec_binary_iN_inv(node[1], 64)
-    elif node[0] == "f32.const":  # i64.const
-        instr_bytes += spec_binary_fN_inv(node[1], 32)
-    elif node[0] == "f64.const":  # i64.const
-        instr_bytes += spec_binary_fN_inv(node[1], 64)
-    else:
-        raise Exception("Invariant: unreachable code path")
-    return instr_bytes
-
-
 # 5.4.6 EXPRESSIONS
 
 
@@ -3454,15 +3441,6 @@ def spec_binary_expr(raw: bytes, idx: int) -> Tuple[int, Tuple[BaseInstruction, 
 
     tail = cast(Tuple[BaseInstruction, ...], (End(),))
     return idx + 1, tuple(instar) + tail
-
-
-def spec_binary_expr_inv(expr: Expression) -> bytearray:
-    instar_bytes = bytearray()
-
-    for instruction in expr:
-        instar_bytes += spec_binary_instr_inv(instruction)
-
-    return instar_bytes
 
 
 #############
@@ -3517,22 +3495,22 @@ def spec_binary_globalidx_inv(global_idx: GlobalIdx) -> bytearray:
     return spec_binary_uN_inv(global_idx, 32)
 
 
-def spec_binary_localidx(raw, idx):
-    idx, x = spec_binary_uN(raw, idx, 32)
-    return idx, x
+def spec_binary_localidx(raw: bytes, idx: int) -> Tuple[int, LocalIdx]:
+    idx, local_idx = spec_binary_uN(raw, idx, 32)
+    return idx, local_idx
 
 
-def spec_binary_localidx_inv(node):
-    return spec_binary_uN_inv(node, 32)
+def spec_binary_localidx_inv(local_idx: LocalIdx) -> bytearray:
+    return spec_binary_uN_inv(local_idx, 32)
 
 
-def spec_binary_labelidx(raw, idx):
-    idx, l = spec_binary_uN(raw, idx, 32)
-    return idx, l
+def spec_binary_labelidx(raw: bytes, idx: int) -> Tuple[int, LabelIdx]:
+    idx, label_idx = spec_binary_uN(raw, idx, 32)
+    return idx, label_idx
 
 
-def spec_binary_labelidx_inv(node):
-    return spec_binary_uN_inv(node, 32)
+def spec_binary_labelidx_inv(label_idx: LabelIdx) -> bytearray:
+    return spec_binary_uN_inv(label_idx, 32)
 
 
 # 5.5.2 SECTIONS
@@ -3564,7 +3542,7 @@ def spec_binary_sectionN(raw, idx, N, B, skip):
 
 
 def spec_binary_sectionN_inv(cont, Binv, N):
-    if cont == None or cont == []:
+    if cont is None or cont == []:
         return bytearray([])
     N_bytes = bytearray([N])
     cont_bytes = bytearray()
@@ -3580,7 +3558,6 @@ def spec_binary_sectionN_inv(cont, Binv, N):
 
 
 def spec_binary_customsec(raw, idx, skip):
-    customsecstar = []
     idx, customsec = spec_binary_sectionN(raw, idx, 0, spec_binary_custom, skip)
     return idx, customsec
 
@@ -3648,9 +3625,13 @@ def spec_binary_importsec_inv(node):
 
 def spec_binary_import_inv(import_: Import) -> bytearray:
     return (
-        spec_binary_name_inv(import_.module)
-        + spec_binary_name_inv(import_.name)
-        + spec_binary_importdesc_inv(import_.desc)
+        spec_binary_name_inv(
+            import_.module
+        ) + spec_binary_name_inv(
+            import_.name,
+        ) + spec_binary_importdesc_inv(
+            import_.desc
+        )
     )
 
 
@@ -3731,17 +3712,6 @@ def spec_binary_global(raw: bytes, idx: int) -> Tuple[int, Global]:
     idx, global_type = spec_binary_globaltype(raw, idx)
     idx, init = spec_binary_expr(raw, idx)
     return idx, Global(global_type, init)
-
-
-def spec_binary_globalsec_inv(node):
-    return spec_binary_sectionN_inv(node, spec_binary_global_inv, 6)
-
-
-def spec_binary_global_inv(global_: Global) -> bytearray:
-    return (
-        spec_binary_globaltype_inv(global_.type) +
-        spec_binary_expr_inv(global_.init)
-    )
 
 
 # 5.5.10 EXPORT SECTION
@@ -3829,18 +3799,6 @@ def spec_binary_elem(raw: bytes, idx: int) -> Tuple[int, ElementSegment]:
     return idx, ElementSegment(table_idx, offset, init)
 
 
-def spec_binary_elemsec_inv(node):
-    return spec_binary_sectionN_inv(node, spec_binary_elem_inv, 9)
-
-
-def spec_binary_elem_inv(element_type: ElementSegment) -> bytearray:
-    return (
-        spec_binary_tableidx_inv(element_type.table_idx)
-        + spec_binary_expr_inv(element_type.offset)
-        + spec_binary_vec_inv(element_type.init, spec_binary_funcidx_inv)
-    )
-
-
 # 5.5.13 CODE SECTION
 
 
@@ -3893,30 +3851,6 @@ def spec_binary_locals(raw: bytes, idx: int) -> Tuple[int, LocalsInfo]:
     return idx, LocalsInfo(num, valtype)
 
 
-def spec_binary_codesec_inv(node):
-    return spec_binary_sectionN_inv(node, spec_binary_code_inv, 10)
-
-
-def spec_binary_code_inv(node):
-    func_bytes = spec_binary_func_inv(node)
-    return spec_binary_uN_inv(len(func_bytes), 32) + func_bytes
-
-
-def spec_binary_func_inv(node):
-    # group locals into chunks
-    locals_ = []
-    prev_valtype = ""
-    for valtype in node[0]:
-        if valtype == prev_valtype:
-            locals_[-1][0] += 1
-        else:
-            locals_ += [[1, valtype]]
-            prev_valtype = valtype
-    locals_bytes = spec_binary_vec_inv(locals_, spec_binary_locals_inv)
-    expr_bytes = spec_binary_expr_inv(node[1])
-    return locals_bytes + expr_bytes
-
-
 def spec_binary_locals_inv(node):
     return spec_binary_uN_inv(node[0], 32) + spec_binary_valtype_inv(node[1])
 
@@ -3935,29 +3869,17 @@ def spec_binary_data(raw: bytes, idx: int) -> Tuple[int, DataSegment]:
     return idx, DataSegment(mem_idx, expression, init)
 
 
-def spec_binary_datasec_inv(node):
-    return spec_binary_sectionN_inv(node, spec_binary_data_inv, 11)
-
-
-def spec_binary_data_inv(data: DataSegment) -> bytearray:
-    return (
-        spec_binary_memidx_inv(data.mem_idx)
-        + spec_binary_expr_inv(data.offset)
-        + spec_binary_vec_inv(data.init, spec_binary_byte_inv)
-    )
-
-
 # 5.5.15 MODULES
 
 
 def spec_binary_module(raw: bytes) -> Module:
     idx = 0
     magic = [0x00, 0x61, 0x73, 0x6D]
-    if magic != [x for x in raw[idx : idx + 4]]:
+    if magic != [x for x in raw[idx:idx + 4]]:
         raise MalformedModule("malformed")
     idx += 4
     version = [0x01, 0x00, 0x00, 0x00]
-    if version != [x for x in raw[idx : idx + 4]]:
+    if version != [x for x in raw[idx:idx + 4]]:
         raise MalformedModule("malformed")
     idx += 4
 
@@ -4059,26 +3981,6 @@ def spec_binary_module(raw: bytes) -> Module:
     return module
 
 
-def spec_binary_module_inv_to_file(module: Module, filename: str) -> None:
-    f = open(filename, "wb")
-    magic = bytes([0x00, 0x61, 0x73, 0x6D])
-    version = bytes([0x01, 0x00, 0x00, 0x00])
-    f.write(magic)
-    f.write(version)
-    f.write(spec_binary_typesec_inv(module.types))
-    f.write(spec_binary_importsec_inv(module.imports))
-    f.write(spec_binary_funcsec_inv([elem.type for elem in module.funcs]))
-    f.write(spec_binary_tablesec_inv(module.tables))
-    f.write(spec_binary_memsec_inv(module.mems))
-    f.write(spec_binary_globalsec_inv(module.globals))
-    f.write(spec_binary_exportsec_inv(module.exports))
-    f.write(spec_binary_startsec_inv(module.start))
-    f.write(spec_binary_elemsec_inv(module.elem))
-    f.write(spec_binary_codesec_inv([(f.locals, f.body) for f in module.funcs]))
-    f.write(spec_binary_datasec_inv(module.data))
-    f.close()
-
-
 ##############
 ##############
 # 7 APPENDIX #
@@ -4097,7 +3999,7 @@ def spec_binary_module_inv_to_file(module: Module, filename: str) -> None:
 
 
 def init_store():
-    return {"funcs": [], "mems": [], "tables": [], "globals": []}
+    return Store([], [], [], [])
 
 
 # 7.1.2 MODULES
@@ -4143,29 +4045,7 @@ def module_imports(module):
     result = []
     for importi, externtypei in zip(importstar, externtypestar):
         # This code path appears to be missing test coverage.
-        resutli = [importi.module, importi.name, externtypei]
-        result += resulti
-    return result
-
-
-def module_exports(module):
-    ret = spec_validate_module(mod)
-
-    externtypestar, extertypeprimestar = ret
-    exportstar = module.exports
-
-    if len(exportstar) != len(externtypeprimestar):
-        raise Exception(
-            f"Expected {len(exportstar)} exports.  Got "
-            f"{len(externtypeprimestar)}"
-        )
-
-    # TODO: this code path is not covered by tests
-    result = []
-    for i in range(len(importstar)):
-        exporti = exportstar[i]
-        externtypeprimei = externtypeprimestar[i]
-        resulti = [exporti["name"], externtypeprimei]
+        resulti = [importi.module, importi.name, externtypei]
         result += resulti
     return result
 
@@ -4193,14 +4073,14 @@ def alloc_func(store, functype, hostfunc):
     return store, funcaddr
 
 
-def type_func(store, funcaddr):
-    if len(store["funcs"]) <= funcaddr:
+def type_func(store: Store, funcaddr: FunctionAddress) -> FunctionType:
+    if len(store.funcs) <= funcaddr:
         raise ValidationError(
             f"Function address outside of allowed range: {funcaddr} > "
-            f"{len(store['funcs'])}"
+            f"{len(store.funcs)}"
         )
-    functype = store["funcs"][funcaddr]
-    return functype
+    func = store.funcs[funcaddr]
+    return func.type
 
 
 def invoke_func(store, funcaddr, valstar):
@@ -4217,12 +4097,12 @@ def alloc_table(store, tabletype):
 
 
 def type_table(store, tableaddr):
-    if len(store["tables"]) <= tableaddr:
+    if len(store.tables) <= tableaddr:
         raise ValidationError(
             f"Table address outside of allowed range: {tableaddr} > "
-            f"{len(store['tables'])}"
+            f"{len(store.tables)}"
         )
-    tableinst = store["tables"][tableaddr]
+    tableinst = store.tables[tableaddr]
     max_ = tableinst.max
     min_ = len(tableinst.elem)
     tabletype = TableType(Limits(min_, max_), FunctionAddress)
@@ -4230,16 +4110,16 @@ def type_table(store, tableaddr):
 
 
 def read_table(store, tableaddr, i):
-    if len(store["tables"]) <= tableaddr:
+    if len(store.tables) <= tableaddr:
         raise ValidationError(
             f"Table address outside of allowed range: {tableaddr} > "
-            f"{len(store['tables'])}"
+            f"{len(store.tables)}"
         )
     if type(i) != int or i < 0:
         raise ValidationError(
             f"Invalid table index.  Must be positive integer.  Got {repr(i)}"
         )
-    ti = store["tables"][tableaddr]
+    ti = store.tables[tableaddr]
     if i >= len(ti.elem):
         raise ValidationError(
             f"Index out of range for table.  {i} >= {len(ti['elem'])}"
@@ -4248,16 +4128,16 @@ def read_table(store, tableaddr, i):
 
 
 def write_table(store, tableaddr, i, funcaddr):
-    if len(store["tables"]) <= tableaddr:
+    if len(store.tables) <= tableaddr:
         raise ValidationError(
             f"Table address outside of allowed range: {tableaddr} > "
-            f"{len(store['tables'])}"
+            f"{len(store.table)}"
         )
     if type(i) != int or i < 0:
         raise ValidationError(
             f"Invalid table index.  Must be positive integer.  Got {repr(i)}"
         )
-    ti = store["tables"][tableaddr]
+    ti = store.tables[tableaddr]
     if i >= len(ti.elem):
         raise ValidationError(
             f"Index out of range for table.  {i} >= {len(ti['elem'])}"
@@ -4267,26 +4147,26 @@ def write_table(store, tableaddr, i, funcaddr):
 
 
 def size_table(store, tableaddr):
-    if len(store["tables"]) <= tableaddr:
+    if len(store.tables) <= tableaddr:
         raise ValidationError(
             f"Table address outside of allowed range: {tableaddr} > "
-            f"{len(store['tables'])}"
+            f"{len(store.tables)}"
         )
-    return len(store["tables"][tableaddr].elem)
+    return len(store.tables[tableaddr].elem)
 
 
-def grow_table(store, tableaddr, n):
-    if len(store["tables"]) <= tableaddr:
+def grow_table(store: Store, tableaddr: TableAddress, n: int) -> Store:
+    if len(store.tables) <= tableaddr:
         raise ValidationError(
             f"Table address outside of allowed range: {tableaddr} > "
-            f"{len(store['tables'])}"
+            f"{len(store.tables)}"
         )
     elif type(n) != int or n < 0:
         raise ValidationError(
-            f"Invalid table index.  Must be positive integer.  Got {repr(i)}"
+            f"Invalid table index.  Must be positive integer.  Got {repr(n)}"
         )
 
-    spec_growtable(store["tabless"][tableaddr], n)
+    spec_growtable(store.tables[tableaddr], n)
 
     return store
 
@@ -4300,30 +4180,31 @@ def alloc_mem(store, memtype):
 
 
 def type_mem(store, memaddr):
-    if len(store["mems"]) <= memaddr:
+    if len(store.mems) <= memaddr:
         raise ValidationError(
             f"Memory address outside of allowed range: {memaddr} > "
-            f"{len(store['mems'])}"
+            f"{len(store.mems)}"
         )
-    meminst = store["mems"][memaddr]
+    meminst = store.mems[memaddr]
     max_ = meminst.max
     min_ = (
         len(meminst.data) // constants.PAGE_SIZE_64K
     )
+    return MemoryType(min_, max_)
 
 
 def read_mem(store, memaddr, i):
-    if len(store["mems"]) <= memaddr:
+    if len(store.mems) <= memaddr:
         raise ValidationError(
             f"Memory address outside of allowed range: {memaddr} > "
-            f"{len(store['mems'])}"
+            f"{len(store.mems)}"
         )
     elif type(i) != int or i < 0:
         raise ValidationError(
             f"Invalid memory index.  Must be positive integer.  Got {repr(i)}"
         )
 
-    mi = store["mems"][memaddr]
+    mi = store.mems[memaddr]
 
     if i >= len(mi.data):
         raise ValidationError(
@@ -4334,17 +4215,17 @@ def read_mem(store, memaddr, i):
 
 
 def write_mem(store, memaddr, i, byte):
-    if len(store["mems"]) <= memaddr:
+    if len(store.mems) <= memaddr:
         raise ValidationError(
             f"Memory address outside of allowed range: {memaddr} > "
-            f"{len(store['mems'])}"
+            f"{len(store.mems)}"
         )
     elif type(i) != int or i < 0:
         raise ValidationError(
             f"Invalid memory index.  Must be positive integer.  Got {repr(i)}"
         )
 
-    mi = store["mems"][memaddr]
+    mi = store.mems[memaddr]
     if i >= len(mi.data):
         raise ValidationError(
             f"Memory index out of bounds.  {i} >= {len(mi['data'])}"
@@ -4354,26 +4235,26 @@ def write_mem(store, memaddr, i, byte):
 
 
 def size_mem(store, memaddr):
-    if len(store["mems"]) <= memaddr:
+    if len(store.mems) <= memaddr:
         raise ValidationError(
             f"Memory address outside of allowed range: {memaddr} > "
-            f"{len(store['mems'])}"
+            f"{len(store.mems)}"
         )
-    return len(store["mems"][memaddr]) // constants.PAGE_SIZE_64K
+    return len(store.mems[memaddr]) // constants.PAGE_SIZE_64K
 
 
 def grow_mem(store, memaddr, n):
-    if len(store["mems"]) <= memaddr:
+    if len(store.mems) <= memaddr:
         raise ValidationError(
             f"Memory address outside of allowed range: {memaddr} > "
-            f"{len(store['mems'])}"
+            f"{len(store.mems)}"
         )
     elif type(n) != int or n < 0:
         raise ValidationError(
-            f"Invalid memory index.  Must be positive integer.  Got {repr(i)}"
+            f"Invalid memory index.  Must be positive integer.  Got {repr(n)}"
         )
 
-    spec_growmem(store["mems"][memaddr], n)
+    spec_growmem(store.mems[memaddr], n)
 
     return store
 
@@ -4386,37 +4267,40 @@ def alloc_global(store, globaltype, val):
 
 
 def type_global(store: Store, globaladdr: GlobalAddress) -> GlobalType:
-    if len(store["globals"]) <= globaladdr:
+    if len(store.globals) <= globaladdr:
         raise ValidationError(
             f"Globals address outside of allowed range: {globaladdr} > "
-            f"{len(store['globals'])}"
+            f"{len(store.mems)}"
         )
-    globalinst = store["globals"][globaladdr]
+    globalinst = store.globals[globaladdr]
     return GlobalType(globalinst.mut, globalinst.valtype)
 
 
 def read_global(store: Store, globaladdr: GlobalAddress) -> TValue:
-    if len(store["globals"]) <= globaladdr:
+    if len(store.globals) <= globaladdr:
         raise ValidationError(
             f"Globals address outside of allowed range: {globaladdr} > "
-            f"{len(store['globals'])}"
+            f"{len(store.mems)}"
         )
-    gi = store["globals"][globaladdr]
+    gi = store.globals[globaladdr]
     return gi.value
 
 
 # arg must look like ["i32.const",5]
 def write_global(store: Store, globaladdr: GlobalAddress, val: TValue) -> Store:
-    if len(store["globals"]) <= globaladdr:
+    if len(store.globals) <= globaladdr:
         raise ValidationError(
             f"Globals address outside of allowed range: {globaladdr} > "
-            f"{len(store['globals'])}"
+            f"{len(store.mems)}"
         )
     # TODO: type check; handle val without type
-    gi = store["globals"][globaladdr]
+    gi = store.globals[globaladdr]
     if gi.mut is not Mutability.var:
-        raise ValidationError("Attempt to write to an immutable global variable at address '{globaladdr}'")
-    store["globals"][globaladdr] = GlobalInstance(gi.valtype, val, gi.mut)
+        raise ValidationError(
+            "Attempt to write to an immutable global variable at address "
+            f"'{globaladdr}'"
+        )
+    store.globals[globaladdr] = GlobalInstance(gi.valtype, val, gi.mut)
     return store
 
 
@@ -4428,8 +4312,13 @@ def write_global(store: Store, globaladdr: GlobalAddress, val: TValue) -> Store:
 
 # Conventions:
 #   the spec makes opds and ctrls global variables, but we pass them around as arguments
-#   the control stack is a python list, which allows fast appending but not prepending. So the spec's index 0 corresponds to python list idx -1, and eg spec idx 3 corresponds to our python list idx -1-3 ie -4
-#   the spec offers two ways to keep track of labels, using C.labels in ch 3 or a control stack in the appendix. Here we use the appendix method
+#
+#   the control stack is a python list, which allows fast appending but not
+#   prepending. So the spec's index 0 corresponds to python list idx -1, and eg
+#   spec idx 3 corresponds to our python list idx -1-3 ie -4
+#
+#   the spec offers two ways to keep track of labels, using C.labels in ch 3 or
+#   a control stack in the appendix. Here we use the appendix method
 
 
 def spec_push_opd(opds, type_):
@@ -4480,16 +4369,22 @@ def spec_pop_opds_expect(opds, ctrls, types):
     logger.debug('spec_pop_opds_expect(%s, %s, %s)', len(opds), len(ctrls), types)
     if types:
         for t in reversed(types):
-            r = spec_pop_opd_expect(opds, ctrls, t)
+            spec_pop_opd_expect(opds, ctrls, t)
 
 
 def spec_ctrl_frame(label_types, end_types, height, unreachable):
     logger.debug('spec_ctrl_frame(%s, %s, %s, %s)', label_types, end_types, height, unreachable)
     # args are:
     #   label_types: type of the branch's label, to type-check branches
-    #   end_types: result type of the branch, currently Wasm spec allows at most one return value
-    #   height: height of opd_stack at start of block, to check that operands do not underflow current block
-    #   unreachable: whether remainder of block is unreachable, to handle stack-polymorphic typing after branches
+    #
+    #   end_types: result type of the branch, currently Wasm spec allows at
+    #              most one return value
+    #
+    #   height: height of opd_stack at start of block, to check that operands
+    #           do not underflow current block
+    #
+    #   unreachable: whether remainder of block is unreachable, to handle
+    #                stack-polymorphic typing after branches
     return {
         "label_types": label_types,
         "end_types": end_types,
@@ -4515,7 +4410,7 @@ def spec_pop_ctrl(opds, ctrls):
         raise InvalidModule("invalid")  # error
     frame = ctrls[-1]
     # verify opd stack has right types to exit block, and pops them
-    r = spec_pop_opds_expect(opds, ctrls, frame["end_types"])
+    spec_pop_opds_expect(opds, ctrls, frame["end_types"])
 
     # make shure stack is back to original height
     if len(opds) != frame["height"]:
@@ -4527,14 +4422,17 @@ def spec_pop_ctrl(opds, ctrls):
 # extra underscore since spec_unreachable() is used in chapter 4
 def spec_unreachable_(opds, ctrls):
     # purge from operand stack, allows stack-polymorphic logic in pop_opd() take effect
-    del opds[ctrls[-1]["height"] :]
+    del opds[ctrls[-1]["height"]:]
     ctrls[-1]["unreachable"] = True
 
 
 # 7.3.2 VALIDATION OF OPCODE SEQUENCES
 
 # validate a single opcode based on current context C, operand stack opds, and control stack ctrls
-def spec_validate_opcode(context: Context, opds: Any, ctrls: Any, instruction: BaseInstruction) -> None:
+def spec_validate_opcode(context: Context,
+                         opds: Any,
+                         ctrls: Any,
+                         instruction: BaseInstruction) -> None:
     logger.debug("spec_validate_opcode(%s, %s, %s, %s)", context, opds, ctrls, instruction)
     # C is the context
     # opds is the operand stack
@@ -4548,12 +4446,22 @@ def spec_validate_opcode(context: Context, opds: Any, ctrls: Any, instruction: B
         elif instruction.opcode is BinaryOpcode.NOP:
             pass
         elif instruction.opcode is BinaryOpcode.BLOCK:
-            spec_push_ctrl(opds, ctrls, instruction.result_type, instruction.result_type)  # type: ignore
+            spec_push_ctrl(
+                opds,
+                ctrls,
+                instruction.result_type,  # type: ignore
+                instruction.result_type,  # type: ignore
+            )
         elif instruction.opcode is BinaryOpcode.LOOP:
             spec_push_ctrl(opds, ctrls, tuple(), instruction.result_type)  # type: ignore
         elif instruction.opcode is BinaryOpcode.IF:
             spec_pop_opd_expect(opds, ctrls, ValType.i32)
-            spec_push_ctrl(opds, ctrls, instruction.result_type, instruction.result_type)  # type: ignore
+            spec_push_ctrl(
+                opds,
+                ctrls,
+                instruction.result_type,  # type: ignore
+                instruction.result_type,  # type: ignore
+            )
         elif instruction.opcode is BinaryOpcode.ELSE:
             results = spec_pop_ctrl(opds, ctrls)
             spec_push_ctrl(opds, ctrls, results, results)
@@ -4579,11 +4487,11 @@ def spec_validate_opcode(context: Context, opds: Any, ctrls: Any, instruction: B
                 raise InvalidModule("invalid")
             label_types = ctrls[-1 - instruction.default_idx]["label_types"]  # type: ignore
             for label_idx in instruction.label_indices:  # type: ignore
-                if (
-                    len(ctrls) <= label_idx
-                    or ctrls[-1 - label_idx]["label_types"] != label_types
-                ):
+                if len(ctrls) <= label_idx:
                     raise InvalidModule("invalid")
+                elif ctrls[-1 - label_idx]["label_types"] != label_types:
+                    raise InvalidModule("invalid")
+
             spec_pop_opd_expect(opds, ctrls, ValType.i32)
             spec_pop_opds_expect(opds, ctrls, label_types)
             spec_unreachable_(opds, ctrls)
@@ -4652,14 +4560,16 @@ def spec_validate_opcode(context: Context, opds: Any, ctrls: Any, instruction: B
         context.validate_mem_idx(0)
 
         if instruction.opcode.is_memory_load:
-            if 2 ** instruction.memarg.align > instruction.memory_bit_size.value // 8:  # type: ignore
+            align_max = instruction.memory_bit_size.value // 8  # type: ignore
+            if 2 ** instruction.memarg.align > align_max:  # type: ignore
                 raise InvalidModule("Invalid memarg alignment")
 
             spec_pop_opd_expect(opds, ctrls, ValType.i32)
             spec_push_opd(opds, instruction.valtype)  # type: ignore
         elif instruction.opcode.is_memory_store:
 
-            if 2 ** instruction.memarg.align > instruction.memory_bit_size.value // 8:  # type: ignore
+            align_max = instruction.memory_bit_size.value // 8  # type: ignore
+            if 2 ** instruction.memarg.align > align_max:  # type: ignore
                 raise InvalidModule("Invalid memarg alignment")
 
             spec_pop_opd_expect(opds, ctrls, instruction.valtype)  # type: ignore
@@ -4678,7 +4588,9 @@ def spec_validate_opcode(context: Context, opds: Any, ctrls: Any, instruction: B
             if opcode_binary == 0x45:  # i32.eqz
                 spec_pop_opd_expect(opds, ctrls, ValType.i32)
                 spec_push_opd(opds, ValType.i32)
-            else:  # i32.eq, i32.ne, i32.lt_s, i32.lt_u, i32.gt_s, i32.gt_u, i32.le_s, i32.le_u, i32.ge_s, i32.ge_u
+            else:
+                # i32.eq, i32.ne, i32.lt_s, i32.lt_u, i32.gt_s, i32.gt_u,
+                # i32.le_s, i32.le_u, i32.ge_s, i32.ge_u
                 spec_pop_opd_expect(opds, ctrls, ValType.i32)
                 spec_pop_opd_expect(opds, ctrls, ValType.i32)
                 spec_push_opd(opds, ValType.i32)
@@ -4686,7 +4598,9 @@ def spec_validate_opcode(context: Context, opds: Any, ctrls: Any, instruction: B
             if opcode_binary == 0x50:  # i64.eqz
                 spec_pop_opd_expect(opds, ctrls, ValType.i64)
                 spec_push_opd(opds, ValType.i32)
-            else:  # i64.eq, i64.ne, i64.lt_s, i64.lt_u, i64.gt_s, i64.gt_u, i64.le_s, i64.le_u, i64.ge_s, i64.ge_u
+            else:
+                # i64.eq, i64.ne, i64.lt_s, i64.lt_u, i64.gt_s, i64.gt_u,
+                # i64.le_s, i64.le_u, i64.ge_s, i64.ge_u
                 spec_pop_opd_expect(opds, ctrls, ValType.i64)
                 spec_pop_opd_expect(opds, ctrls, ValType.i64)
                 spec_push_opd(opds, ValType.i32)
@@ -4702,7 +4616,10 @@ def spec_validate_opcode(context: Context, opds: Any, ctrls: Any, instruction: B
             if opcode_binary <= 0x69:  # i32.clz, i32.ctz, i32.popcnt
                 spec_pop_opd_expect(opds, ctrls, ValType.i32)
                 spec_push_opd(opds, ValType.i32)
-            else:  # i32.add, i32.sub, i32.mul, i32.div_s, i32.div_u, i32.rem_s, i32.rem_u, i32.and, i32.or, i32.xor, i32.shl, i32.shr_s, i32.shr_u, i32.rotl, i32.rotr
+            else:
+                # i32.add, i32.sub, i32.mul, i32.div_s, i32.div_u, i32.rem_s,
+                # i32.rem_u, i32.and, i32.or, i32.xor, i32.shl, i32.shr_s,
+                # i32.shr_u, i32.rotl, i32.rotr
                 spec_pop_opd_expect(opds, ctrls, ValType.i32)
                 spec_pop_opd_expect(opds, ctrls, ValType.i32)
                 spec_push_opd(opds, ValType.i32)
@@ -4710,7 +4627,10 @@ def spec_validate_opcode(context: Context, opds: Any, ctrls: Any, instruction: B
             if opcode_binary <= 0x7B:  # i64.clz, i64.ctz, i64.popcnt
                 spec_pop_opd_expect(opds, ctrls, ValType.i64)
                 spec_push_opd(opds, ValType.i64)
-            else:  # i64.add, i64.sub, i64.mul, i64.div_s, i64.div_u, i64.rem_s, i64.rem_u, i64.and, i64.or, i64.xor, i64.shl, i64.shr_s, i64.shr_u, i64.rotl, i64.rotr
+            else:
+                # i64.add, i64.sub, i64.mul, i64.div_s, i64.div_u, i64.rem_s,
+                # i64.rem_u, i64.and, i64.or, i64.xor, i64.shl, i64.shr_s,
+                # i64.shr_u, i64.rotl, i64.rotr
                 spec_pop_opd_expect(opds, ctrls, ValType.i64)
                 spec_pop_opd_expect(opds, ctrls, ValType.i64)
                 spec_push_opd(opds, ValType.i64)
@@ -4832,6 +4752,7 @@ def iterate_through_expression_and_validate_each_opcode(
 
 
 def instantiate_wasm_invoke_start(filename):
+    # TODO: function not covered by test suite.
     if not os.path.exists(filename):
         raise ValidationError(f"Unable to open file: {filename}")
 
@@ -4851,6 +4772,7 @@ def instantiate_wasm_invoke_start(filename):
 
 
 def instantiate_wasm_invoke_func(filename, funcname, args):
+    # TODO: function not covered by test suite.
     # TODO: DRY: this preamble is the same as the
     # `instantiate_wasm_invoke_start` preamble.
     if not os.path.exists(filename):
