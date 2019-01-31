@@ -9,7 +9,6 @@ from typing import (
 )
 
 Store = Dict[Any, Any]
-Config = Dict[Any, Any]
 HostFunctionCallable = Callable[[Store, List[Any]], Tuple[Store, Any]]
 
 

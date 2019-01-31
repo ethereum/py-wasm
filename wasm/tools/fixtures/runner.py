@@ -6,7 +6,6 @@ from pathlib import (
 )
 from typing import (
     Any,
-    Dict,
     List,
 )
 
@@ -59,7 +58,7 @@ def instantiate_module_from_wasm_file(
         file_path: Path,
         store: Store,
         registered_modules: List[ModuleInstance, ]
-) -> Dict[Any, Any]:
+) -> ModuleInstance:
     logger.debug("Loading wasm module from file: %s", file_path.name)
 
     if file_path.suffix != ".wasm":
@@ -90,7 +89,7 @@ def instantiate_module_from_wasm_file(
                 raise Unlinkable("Unlinkable module: export name not found")
 
             externvalstar += [externval]
-        _, moduleinst, _ = wasm.instantiate_module(store, module, externvalstar)
+        _, moduleinst, _ = wasm.instantiate_module(store, module, tuple(externvalstar))
     return moduleinst
 
 

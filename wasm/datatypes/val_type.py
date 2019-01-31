@@ -15,6 +15,12 @@ class ValType(enum.Enum):
     f32 = 'f32'
     f64 = 'f64'
 
+    def __str__(self) -> str:
+        return self.value
+
+    def __repr__(self) -> str:
+        return str(self)
+
     @classmethod
     def from_byte(cls, byte: UInt8) -> 'ValType':
         if byte == 0x7f:

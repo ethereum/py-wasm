@@ -7,6 +7,9 @@ from .addresses import (  # noqa: F401
 from .bit_size import (  # noqa: F401
     BitSize,
 )
+from .configuration import (  # noqa: F401
+    Configuration,
+)
 from .data_segment import (  # noqa: F401
     DataSegment,
 )
@@ -41,6 +44,9 @@ from .indices import (  # noqa: F401
     TableIdx,
     TypeIdx,
 )
+from .instructions import (  # noqa: F401
+    InstructionSequence,
+)
 from .limits import (  # noqa: F401
     Limits,
 )
@@ -56,6 +62,13 @@ from .module import (  # noqa: F401
 )
 from .mutability import (  # noqa: F401
     Mutability,
+)
+from .stack import (  # noqa: F401
+    Frame,
+    FrameStack,
+    Label,
+    LabelStack,
+    ValueStack,
 )
 from .table import (  # noqa: F401
     Table,

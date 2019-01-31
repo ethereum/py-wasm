@@ -29,6 +29,12 @@ class FunctionType(NamedTuple):
     params: Tuple[ValType, ...]
     results: Tuple[ValType, ...]
 
+    def __str__(self) -> str:
+        return f"FunctionType(params={self.params}, results={self.results})"
+
+    def __repr__(self) -> str:
+        return str(self)
+
 
 class Function(NamedTuple):
     """
