@@ -1,6 +1,6 @@
 import pytest
 
-from wasm.datatypes.stack import (
+from wasm.stack import (
     BaseStack,
 )
 
@@ -38,6 +38,18 @@ def test_stack_pop2(stack):
     assert stack.pop2() == ('b', 'a')
 
 
+def test_stack_pop3(stack):
+    stack.push('a')
+    stack.push('b')
+    stack.push('c')
+    stack.push('d')
+    stack.push('e')
+    stack.push('f')
+
+    assert stack.pop3() == ('f', 'e', 'd')
+    assert stack.pop3() == ('c', 'b', 'a')
+
+
 def test_stack_peek(stack):
     stack.push('a')
     assert stack.peek() == 'a'
@@ -48,3 +60,32 @@ def test_stack_peek(stack):
     stack.pop()
 
     assert stack.peek() == 'a'
+
+
+def test_stack_length(stack):
+    assert len(stack) == 0
+
+    stack.push('a')
+    stack.push('b')
+
+    assert len(stack) == 2
+
+
+def test_stack_bool_casting(stack):
+    assert not stack
+
+    stack.push('a')
+
+    assert stack
+
+    stack.pop()
+
+    assert not stack
+
+
+def test_stack_iterable_casting(stack):
+    stack.push('a')
+    stack.push('b')
+    stack.push('c')
+
+    assert tuple(stack) == ('a', 'b', 'c')
