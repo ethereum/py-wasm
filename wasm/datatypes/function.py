@@ -40,7 +40,7 @@ class Function(NamedTuple):
     """
     https://webassembly.github.io/spec/core/bikeshed/index.html#functions%E2%91%A0
     """
-    type: TypeIdx
+    type_idx: TypeIdx
     locals: Tuple[ValType, ...]
     body: Tuple['BaseInstruction', ...]
 
