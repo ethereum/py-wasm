@@ -70,6 +70,9 @@ from .stack import (  # noqa: F401
     LabelStack,
     ValueStack,
 )
+from .store import (  # noqa: F401
+    Store,
+)
 from .table import (  # noqa: F401
     Table,
     TableInstance,

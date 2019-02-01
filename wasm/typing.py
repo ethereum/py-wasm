@@ -1,15 +1,12 @@
 from typing import (
     Any,
     Callable,
-    Dict,
-    List,
     NewType,
     Tuple,
     Union,
 )
 
-Store = Dict[Any, Any]
-HostFunctionCallable = Callable[[Store, List[Any]], Tuple[Store, Any]]
+HostFunctionCallable = Callable[[Any, Any], Tuple[Any, Any]]
 
 
 UInt8 = NewType('UInt8', int)
