@@ -1,5 +1,9 @@
 import io
 
+from wasm.datatypes import (
+    Memory,
+    MemoryType,
+)
 from wasm.instructions import (
     Instruction,
     MemoryArg,
@@ -13,6 +17,9 @@ from wasm.opcodes import (
 
 from .integers import (
     parse_u32,
+)
+from .limits import (
+    parse_limits,
 )
 from .null import (
     parse_null_byte,
@@ -39,3 +46,13 @@ def parse_memarg(stream: io.BytesIO) -> MemoryArg:
     align = parse_u32(stream)
     offset = parse_u32(stream)
     return MemoryArg(offset, align)
+
+
+def parse_memory_type(stream: io.BytesIO) -> MemoryType:
+    limits = parse_limits(stream)
+    return MemoryType(limits.min, limits.max)
+
+
+def parse_memory(stream: io.BytesIO) -> Memory:
+    memory_type = parse_memory_type(stream)
+    return Memory(memory_type)

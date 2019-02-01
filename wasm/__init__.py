@@ -7,7 +7,5 @@ from .main import (  # noqa: F401
     init_store,  # TODO: remove: shouldn't be exposed as public API
     instantiate_module,
     invoke_func,
-    spec_binary_name,  # TODO: remove: shouldn't be exposed as public API
-    spec_binary_uN_inv,  # TODO: remove: shouldn't be exposed as public API
     validate_module,
 )

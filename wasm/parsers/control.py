@@ -8,9 +8,6 @@ from typing import (
 from wasm._utils.toolz import (
     partitionby,
 )
-from wasm.datatypes import (
-    ValType,
-)
 from wasm.instructions import (
     BaseInstruction,
     Block,
@@ -31,14 +28,14 @@ from wasm.instructions import (
 from wasm.opcodes import (
     BinaryOpcode,
 )
-from wasm.typing import (
-    UInt8,
-)
 
+from .blocks import (
+    parse_blocktype,
+)
 from .indices import (
-    parse_funcidx,
-    parse_labelidx,
-    parse_typeidx,
+    parse_func_idx,
+    parse_label_idx,
+    parse_type_idx,
 )
 from .null import (
     parse_null_byte,
@@ -80,25 +77,8 @@ def parse_control_instruction(opcode: BinaryOpcode,
         raise Exception(f"Unhandled: {opcode}")
 
 
-def parse_block_valtype(stream: io.BytesIO) -> Tuple[ValType, ...]:
-    raw_byte = stream.read(1)
-
-    if not raw_byte:
-        raise Exception("TODO: end of stream")
-
-    raw_value = UInt8(raw_byte[0])
-
-    if raw_value == 0x40:
-        return tuple()
-
-    try:
-        return (ValType.from_byte(raw_value),)
-    except ValueError as err:
-        raise Exception(f"TODO: parse error: invalid valtype: {err}")
-
-
 def parse_block_instruction(stream: io.BytesIO) -> Block:
-    result_type = parse_block_valtype(stream)
+    result_type = parse_blocktype(stream)
     instructions = parse_inner_block_instructions(stream)
 
     return Block(result_type, instructions)
@@ -120,14 +100,14 @@ def _parse_inner_block_instructions(stream: io.BytesIO) -> Iterable[BaseInstruct
 
 
 def parse_loop_instruction(stream: io.BytesIO) -> Loop:
-    result_type = parse_block_valtype(stream)
+    result_type = parse_blocktype(stream)
     instructions = parse_inner_block_instructions(stream)
 
     return Loop(result_type, instructions)
 
 
 def parse_if_instruction(stream: io.BytesIO) -> If:
-    result_type = parse_block_valtype(stream)
+    result_type = parse_blocktype(stream)
 
     all_instructions = parse_inner_block_instructions(stream)
     partitioned_instructions = tuple(partitionby(lambda v: isinstance(v, Else), all_instructions))
@@ -152,29 +132,29 @@ def parse_if_instruction(stream: io.BytesIO) -> If:
 
 
 def parse_br_instruction(stream: io.BytesIO) -> Br:
-    label = parse_labelidx(stream)
+    label = parse_label_idx(stream)
     return Br(label)
 
 
 def parse_br_if_instruction(stream: io.BytesIO) -> BrIf:
-    label = parse_labelidx(stream)
+    label = parse_label_idx(stream)
     return BrIf(label)
 
 
 def parse_br_table_instruction(stream: io.BytesIO) -> BrTable:
-    labels = parse_vector(parse_labelidx, stream)
-    default_label = parse_labelidx(stream)
+    labels = parse_vector(parse_label_idx, stream)
+    default_label = parse_label_idx(stream)
 
     return BrTable(labels, default_label)
 
 
 def parse_call_instruction(stream: io.BytesIO) -> Call:
-    func_idx = parse_funcidx(stream)
+    func_idx = parse_func_idx(stream)
     return Call(func_idx)
 
 
 def parse_call_indirect_instruction(stream: io.BytesIO) -> CallIndirect:
-    type_idx = parse_typeidx(stream)
+    type_idx = parse_type_idx(stream)
     parse_null_byte(stream)
 
     return CallIndirect(type_idx)

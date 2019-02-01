@@ -11,9 +11,6 @@ from typing import (
 
 import pytest
 
-from _pytest.outcomes import (
-    Failed,
-)
 import wasm
 from wasm.datatypes import (
     ModuleInstance,
@@ -126,13 +123,8 @@ def run_opcode_action(command, store, module, all_modules, registered_modules):
 def run_opcode_action_invoke(action, store, module, all_modules, registered_modules):
     # get function name, which could include unicode bytes like \u001b which
     # must be converted to unicode string
-    funcname = action.field
-    idx = 0
-    utf8_bytes = bytearray()
-    for c in funcname:
-        utf8_bytes += bytearray([ord(c)])
-    utf8_bytes = wasm.spec_binary_uN_inv(len(funcname), 32) + utf8_bytes
-    _, funcname = wasm.spec_binary_name(utf8_bytes, 0)
+    raw_funcname = action.field
+    funcname = bytes(bytearray([ord(c) for c in raw_funcname])).decode('utf8')
 
     # get function address
     funcaddr = None
@@ -340,18 +332,6 @@ def get_command_fn(command):
 # properly refactored but for now they are skipped to allow for incremental
 # improvement to the library.
 SKIP_COMMANDS = {
-    'custom.wast': {
-        # It appears that the logic for parsing a binary module is broken,
-        # allowing the parser to exit before fully parsing the module.  For
-        # this test it ends up exiting before encountering the invalid section
-        # which **should** error out due to an invalid section ID.
-        93: Failed,
-        # This one appears to be lack of validation of the lengths of code and
-        # function section types.
-        # See the note here about malformed modules:
-        # - https://webassembly.github.io/spec/core/bikeshed/index.html#code-section%E2%91%A0
-        102: Failed,
-    },
     'float_exprs.wast': {
         # Incorrectly implemented floating point operations.
         506: AssertionError,

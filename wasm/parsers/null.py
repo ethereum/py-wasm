@@ -2,6 +2,7 @@ import io
 
 from wasm.exceptions import (
     MalformedModule,
+    ParseError,
 )
 
 
@@ -12,4 +13,4 @@ def parse_null_byte(stream: io.BytesIO) -> None:
     elif byte:
         raise MalformedModule(f"TODO: expected 0x00 but got {hex(byte[0])}")
     else:
-        raise Exception("Unexpected end of stream")
+        raise ParseError("Unexpected end of stream")

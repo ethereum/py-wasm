@@ -27,3 +27,10 @@ class Unlinkable(BaseWasmException):
 
 class ValidationError(BaseWasmException):
     pass
+
+
+class ParseError(BaseWasmException):
+    """
+    Raised during binary parsing when an error occurs.
+    """
+    pass

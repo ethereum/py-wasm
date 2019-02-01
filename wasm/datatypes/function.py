@@ -9,7 +9,7 @@ from .indices import (
     FuncIdx,
     TypeIdx,
 )
-from .val_type import (
+from .valtype import (
     ValType,
 )
 

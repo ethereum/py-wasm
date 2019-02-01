@@ -7,6 +7,10 @@ from typing import (
     Iterable,
 )
 
+from wasm.exceptions import (
+    ParseError,
+)
+
 SIGN_MASK = 2**6
 REMOVE_SIGN_MASK = 2**6 - 1
 
@@ -61,7 +65,9 @@ def _parse_unsigned_leb128(stream: io.BytesIO) -> Iterable[int]:
         try:
             value = byte[0]
         except IndexError:
-            raise Exception("TODO: proper error message for empty stream")
+            raise ParseError(
+                "Unexpected end of stream while parsing LEB128 encoded integer"
+            )
 
         yield (value & LOW_MASK) << shift
 

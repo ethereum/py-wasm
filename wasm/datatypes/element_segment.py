@@ -18,4 +18,4 @@ if TYPE_CHECKING:
 class ElementSegment(NamedTuple):
     table_idx: TableIdx
     offset: Tuple['BaseInstruction', ...]
-    init: Tuple[FuncIdx, ]
+    init: Tuple[FuncIdx, ...]

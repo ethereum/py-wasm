@@ -42,8 +42,6 @@ from wasm.datatypes import (
     Import,
     LabelIdx,
     Limits,
-    LocalIdx,
-    Memory,
     MemoryAddress,
     MemoryIdx,
     MemoryInstance,
@@ -53,7 +51,6 @@ from wasm.datatypes import (
     Mutability,
     StartFunction,
     Store,
-    Table,
     TableAddress,
     TableIdx,
     TableInstance,
@@ -65,6 +62,7 @@ from wasm.exceptions import (
     Exhaustion,
     InvalidModule,
     MalformedModule,
+    ParseError,
     Trap,
     Unlinkable,
     ValidationError,
@@ -104,14 +102,13 @@ from wasm.instructions import (
 from wasm.opcodes import (
     BinaryOpcode,
 )
-from wasm.parsers.instructions import (
-    parse_instruction,
+from wasm.parsers import (
+    parse_module,
 )
 from wasm.typing import (
     Float32,
     HostFunctionCallable,
     TValue,
-    UInt8,
     UInt32,
 )
 from wasm.validation import (
@@ -2809,17 +2806,8 @@ def spec_invoke(S: Store,
 # implemented are inverses (up to a canonical form) which write an abstract
 # syntax tree back to a `.wasm` file.
 
+
 # 5.1.3 VECTORS
-
-
-def spec_binary_vec(raw, idx, B):
-    idx, num = spec_binary_uN(raw, idx, 32)
-    logger.debug('spec_binary_vec(%s, %s)[%d]', idx, B, num)
-    xn = []
-    for i in range(num):
-        idx, x = B(raw, idx)
-        xn += [x]
-    return idx, xn
 
 
 ############
@@ -2829,56 +2817,12 @@ def spec_binary_vec(raw, idx, B):
 # 5.2.1 BYTES
 
 
-def spec_binary_byte(raw, idx):
-    if len(raw) <= idx:
-        raise MalformedModule("malformed")
-    return idx + 1, raw[idx]
-
-
 # 5.2.2 INTEGERS
-
-# unsigned
-def spec_binary_uN(raw, idx, N):
-    logger.debug('spec_binary_uN(%s, %s)', idx, N)
-
-    idx, n = spec_binary_byte(raw, idx)
-    if n < 2 ** 7 and n < 2 ** N:
-        return idx, n
-    elif n >= 2 ** 7 and N > 7:
-        idx, m = spec_binary_uN(raw, idx, N - 7)
-        return idx, (2 ** 7) * m + (n - 2 ** 7)
-    else:
-        raise MalformedModule("malformed")
-
-
-def spec_binary_uN_inv(k: int, N: int) -> bytearray:
-    logger.debug('spec_binary_uN_inv(%s, %s)', k, N)
-
-    if k < 2 ** 7 and k < 2 ** N:
-        return bytearray([k])
-    elif k >= 2 ** 7 and N > 7:
-        return bytearray([k % (2 ** 7) + 2 ** 7]) + spec_binary_uN_inv(
-            k // (2 ** 7), N - 7
-        )
-    else:
-        raise MalformedModule("malformed")
 
 
 # 5.2.3 FLOATING-POINT
 
 # 5.2.4 NAMES
-
-# name as UTF-8 codepoints
-def spec_binary_name(raw: bytes, idx: int) -> Tuple[int, str]:
-    logger.debug('spec_binary_name()')
-    idx, bstar = spec_binary_vec(raw, idx, spec_binary_byte)
-
-    try:
-        nametxt = bytearray(bstar).decode()
-    except UnicodeDecodeError as err:
-        raise MalformedModule from err
-
-    return idx, nametxt
 
 
 ###########
@@ -2887,99 +2831,23 @@ def spec_binary_name(raw: bytes, idx: int) -> Tuple[int, str]:
 
 # 5.3.1 VALUE TYPES
 
-def spec_binary_valtype(raw: bytes, idx: int) -> Tuple[int, ValType]:
-    try:
-        valtype = ValType.from_byte(UInt8(raw[idx]))
-    except KeyError as err:
-        raise MalformedModule(
-            f"Invalid byte while parsing valtype.  Got '{hex(raw[idx])}: {str(err)}"
-        )
-    else:
-        return idx + 1, valtype
-
 
 # 5.3.2 RESULT TYPES
-
-
-def spec_binary_blocktype(raw, idx):
-    if raw[idx] == 0x40:
-        return idx + 1, []
-    idx, valtype = spec_binary_valtype(raw, idx)
-    return idx, valtype
 
 
 # 5.3.3 FUNCTION TYPES
 
 
-def spec_binary_functype(raw: bytes, idx: int) -> Tuple[int, FunctionType]:
-    if raw[idx] != 0x60:
-        raise MalformedModule("malformed")
-    idx += 1
-    idx, t1star = spec_binary_vec(raw, idx, spec_binary_valtype)
-    idx, t2star = spec_binary_vec(raw, idx, spec_binary_valtype)
-    return idx, FunctionType(tuple(t1star), tuple(t2star))
-
-
 # 5.3.4 LIMITS
-
-
-def spec_binary_limits(raw: bytes, idx: int) -> Tuple[int, Limits]:
-    if raw[idx] == 0x00:
-        idx, n = spec_binary_uN(raw, idx + 1, 32)
-        return idx, Limits(n, None)
-    elif raw[idx] == 0x01:
-        idx, n = spec_binary_uN(raw, idx + 1, 32)
-        idx, m = spec_binary_uN(raw, idx, 32)
-        return idx, Limits(n, m)
-    else:
-        raise InvalidModule(
-            "Invalid starting byte for limits type.  Expected starting byte to "
-            f"be one of 0x00 or 0x01: Got {hex(raw[idx])}"
-        )
 
 
 # 5.3.5 MEMORY TYPES
 
 
-def spec_binary_memtype(raw: bytes, idx: int) -> Tuple[int, MemoryType]:
-    idx, limits = spec_binary_limits(raw, idx)
-    return idx, MemoryType(limits.min, limits.max)
-
-
 # 5.3.6 TABLE TYPES
 
 
-def spec_binary_tabletype(raw: bytes, idx: int) -> Tuple[int, TableType]:
-    idx, elem_type = spec_binary_elemtype(raw, idx)
-    idx, limits = spec_binary_limits(raw, idx)
-    return idx, TableType(limits, elem_type)
-
-
-def spec_binary_elemtype(raw: bytes, idx: int) -> Tuple[int, Type[FunctionAddress]]:
-    if raw[idx] == 0x70:
-        return idx + 1, FunctionAddress
-    else:
-        raise MalformedModule("malformed")
-
-
 # 5.3.7 GLOBAL TYPES
-
-
-def spec_binary_globaltype(raw: bytes, idx: int) -> Tuple[int, GlobalType]:
-    idx, valtype = spec_binary_valtype(raw, idx)
-    idx, mut = spec_binary_mut(raw, idx)
-    return idx, GlobalType(mut, valtype)
-
-
-def spec_binary_mut(raw: bytes, idx: int) -> Tuple[int, Mutability]:
-    try:
-        mut = Mutability.from_byte(UInt8(raw[idx]))
-    except ValueError as err:
-        raise MalformedModule(
-            f"Invalid byte while parsing mut.  Got '{hex(raw[idx])}: {str(err)}"
-        )
-    else:
-        return idx + 1, mut
 
 
 ##################
@@ -2989,31 +2857,7 @@ def spec_binary_mut(raw: bytes, idx: int) -> Tuple[int, Mutability]:
 # 5.4.1-5 VARIOUS INSTRUCTIONS
 
 
-def spec_binary_instr(raw: bytes, idx: int) -> Tuple[int, BaseInstruction]:
-    stream = io.BytesIO(raw)
-    stream.seek(idx)
-
-    instruction = cast(BaseInstruction, parse_instruction(stream))
-    return stream.tell(), instruction
-
-
 # 5.4.6 EXPRESSIONS
-
-
-def spec_binary_expr(raw: bytes, idx: int) -> Tuple[int, Tuple[BaseInstruction, ...]]:
-    logger.debug("spec_binary_expr(%s)", idx)
-    instar: List[BaseInstruction] = []
-
-    # TODO: open ended loop
-    while raw[idx] != 0x0B:
-        idx, ins = spec_binary_instr(raw, idx)
-        instar += [ins]
-
-    if raw[idx] != 0x0B:
-        raise MalformedModule("error")
-
-    tail = cast(Tuple[BaseInstruction, ...], (End(),))
-    return idx + 1, tuple(instar) + tail
 
 
 #############
@@ -3023,396 +2867,46 @@ def spec_binary_expr(raw: bytes, idx: int) -> Tuple[int, Tuple[BaseInstruction, 
 # 5.5.1 INDICES
 
 
-def spec_binary_typeidx(raw: bytes, idx: int) -> Tuple[int, TypeIdx]:
-    idx, x = spec_binary_uN(raw, idx, 32)
-    return idx, TypeIdx(x)
-
-
-def spec_binary_funcidx(raw: bytes, idx: int) -> Tuple[int, FuncIdx]:
-    idx, x = spec_binary_uN(raw, idx, 32)
-    return idx, FuncIdx(x)
-
-
-def spec_binary_tableidx(raw: bytes, idx: int) -> Tuple[int, TableIdx]:
-    idx, x = spec_binary_uN(raw, idx, 32)
-    return idx, TableIdx(x)
-
-
-def spec_binary_memidx(raw: bytes, idx: int) -> Tuple[int, MemoryIdx]:
-    idx, x = spec_binary_uN(raw, idx, 32)
-    return idx, MemoryIdx(x)
-
-
-def spec_binary_globalidx(raw: bytes, idx: int) -> Tuple[int, GlobalIdx]:
-    idx, x = spec_binary_uN(raw, idx, 32)
-    return idx, GlobalIdx(x)
-
-
-def spec_binary_localidx(raw: bytes, idx: int) -> Tuple[int, LocalIdx]:
-    idx, local_idx = spec_binary_uN(raw, idx, 32)
-    return idx, local_idx
-
-
-def spec_binary_labelidx(raw: bytes, idx: int) -> Tuple[int, LabelIdx]:
-    idx, label_idx = spec_binary_uN(raw, idx, 32)
-    return idx, label_idx
-
-
 # 5.5.2 SECTIONS
-
-
-def spec_binary_sectionN(raw, idx, N, B, skip):
-    logger.debug('spec_binary_section(%s, %s, %s, %s)', idx, N, B, skip)
-    if idx >= len(raw):
-        return idx, []  # already at end
-    elif raw[idx] != N:
-        return idx, []  # this sec not included
-
-    idx += 1
-    idx, size = spec_binary_uN(raw, idx, 32)
-    idx_plus_size = idx + size
-
-    if skip:
-        return idx + size, []
-    elif N == 0:  # custom section
-        idx, ret = B(raw, idx, idx + size)
-    elif N == 8:  # start section
-        idx, ret = B(raw, idx)
-    else:
-        idx, ret = spec_binary_vec(raw, idx, B)
-
-    if idx != idx_plus_size:
-        raise MalformedModule("malformed")
-    return idx, ret
 
 
 # 5.5.3 CUSTOM SECTION
 
 
-def spec_binary_customsec(raw, idx, skip):
-    idx, customsec = spec_binary_sectionN(raw, idx, 0, spec_binary_custom, skip)
-    return idx, customsec
-
-
-def spec_binary_custom(raw, idx, endidx):
-    bytestar = bytearray()
-    idx, name = spec_binary_name(raw, idx)
-    while idx < endidx:
-        idx, byte = spec_binary_byte(raw, idx)
-        bytestar += bytearray([byte])
-        if idx != endidx:
-            idx += 1
-    return idx, [name, bytestar]
-
-
 # 5.5.4 TYPE SECTION
-
-
-def spec_binary_typesec(raw, idx, skip=0):
-    return spec_binary_sectionN(raw, idx, 1, spec_binary_functype, skip)
 
 
 # 5.5.5 IMPORT SECTION
 
 
-def spec_binary_importsec(raw, idx, skip=0):
-    return spec_binary_sectionN(raw, idx, 2, spec_binary_import, skip)
-
-
-def spec_binary_import(raw: bytes, idx: int) -> Tuple[int, Import]:
-    idx, module = spec_binary_name(raw, idx)
-    idx, name = spec_binary_name(raw, idx)
-    idx, descriptor = spec_binary_importdesc(raw, idx)
-    return idx, Import(module, name, descriptor)
-
-
-def spec_binary_importdesc(raw: bytes, idx: int) -> Tuple[int, TImportDesc]:
-    if raw[idx] == 0x00:
-        return spec_binary_typeidx(raw, idx + 1)
-    elif raw[idx] == 0x01:
-        return spec_binary_tabletype(raw, idx + 1)
-    elif raw[idx] == 0x02:
-        return spec_binary_memtype(raw, idx + 1)
-    elif raw[idx] == 0x03:
-        return spec_binary_globaltype(raw, idx + 1)
-    else:
-        raise Exception("Invariant: unreachable code path")
-
-
 # 5.5.6 FUNCTION SECTION
-
-
-def spec_binary_funcsec(raw, idx, skip=0):
-    return spec_binary_sectionN(raw, idx, 3, spec_binary_typeidx, skip)
 
 
 # 5.5.7 TABLE SECTION
 
 
-def spec_binary_tablesec(raw, idx, skip=0):
-    return spec_binary_sectionN(raw, idx, 4, spec_binary_table, skip)
-
-
-def spec_binary_table(raw: bytes, idx: int) -> Tuple[int, Table]:
-    idx, tt = spec_binary_tabletype(raw, idx)
-    return idx, Table(tt)
-
-
 # 5.5.8 MEMORY SECTION
-
-
-def spec_binary_memsec(raw, idx, skip=0):
-    return spec_binary_sectionN(raw, idx, 5, spec_binary_mem, skip)
-
-
-def spec_binary_mem(raw: bytes, idx: int) -> Tuple[int, Memory]:
-    idx, memory_type = spec_binary_memtype(raw, idx)
-    return idx, Memory(memory_type)
 
 
 # 5.5.9 GLOBAL SECTION
 
 
-def spec_binary_globalsec(raw, idx, skip=0):
-    return spec_binary_sectionN(raw, idx, 6, spec_binary_global, skip)
-
-
-def spec_binary_global(raw: bytes, idx: int) -> Tuple[int, Global]:
-    idx, global_type = spec_binary_globaltype(raw, idx)
-    idx, init = spec_binary_expr(raw, idx)
-    return idx, Global(global_type, init)
-
-
 # 5.5.10 EXPORT SECTION
-
-
-def spec_binary_exportsec(raw, idx, skip=0):
-    return spec_binary_sectionN(raw, idx, 7, spec_binary_export, skip)
-
-
-def spec_binary_export(raw: bytes, idx: int) -> Tuple[int, Export]:
-    idx, name = spec_binary_name(raw, idx)
-    idx, desc = spec_binary_exportdesc(raw, idx)
-    return idx, Export(name, desc)
-
-
-def spec_binary_exportdesc(raw: bytes, idx: int) -> Tuple[int, TExportDesc]:
-    if raw[idx] == 0x00:
-        return spec_binary_funcidx(raw, idx + 1)
-    elif raw[idx] == 0x01:
-        return spec_binary_tableidx(raw, idx + 1)
-    elif raw[idx] == 0x02:
-        return spec_binary_memidx(raw, idx + 1)
-    elif raw[idx] == 0x03:
-        return spec_binary_globalidx(raw, idx + 1)
-    else:
-        raise Exception("Unreachable code path")
 
 
 # 5.5.11 START SECTION
 
 
-def spec_binary_startsec(raw, idx, skip=0):
-    return spec_binary_sectionN(raw, idx, 8, spec_binary_start, skip)
-
-
-def spec_binary_start(raw: bytes, idx: int) -> Tuple[int, StartFunction]:
-    idx, func_idx = spec_binary_funcidx(raw, idx)
-    return idx, StartFunction(func_idx)
-
-
 # 5.5.12 ELEMENT SECTION
-
-
-def spec_binary_elemsec(raw, idx, skip=0):
-    return spec_binary_sectionN(raw, idx, 9, spec_binary_elem, skip)
-
-
-def spec_binary_elem(raw: bytes, idx: int) -> Tuple[int, ElementSegment]:
-    idx, table_idx = spec_binary_tableidx(raw, idx)
-    idx, offset = spec_binary_expr(raw, idx)
-    idx, init = spec_binary_vec(raw, idx, spec_binary_funcidx)
-    return idx, ElementSegment(table_idx, offset, init)
 
 
 # 5.5.13 CODE SECTION
 
 
-def spec_binary_codesec(raw, idx, skip=0):
-    return spec_binary_sectionN(raw, idx, 10, spec_binary_code, skip)
-
-
-def spec_binary_code(raw, idx):
-    logger.debug('spec_binary_code(%s)', idx)
-    idx, size = spec_binary_uN(raw, idx, 32)
-    idx_end = idx + size
-    idx, code = spec_binary_func(raw, idx)
-
-    if idx_end != idx:
-        raise MalformedModule("malformed")
-    elif len(code) >= constants.UINT32_CEIL:
-        raise MalformedModule("malformed")
-    else:
-        return idx, code
-
-
-def spec_binary_func(raw, idx):
-    logger.debug('spec_binary_func(%s)', idx)
-    idx, tstarstar = spec_binary_vec(raw, idx, spec_binary_locals)
-    num_locals = sum(locals_info.num for locals_info in tstarstar)
-
-    if num_locals > constants.UINT32_MAX:
-        raise MalformedModule(
-            f"Number of locals exceeds u32: {num_locals} > "
-            f"{constants.UINT32_MAX}"
-        )
-
-    idx, e = spec_binary_expr(raw, idx)
-    concattstarstar = [
-        locals_info.valtype
-        for locals_info
-        in tstarstar
-        for _ in range(locals_info.num)
-    ]
-    return idx, [concattstarstar, e]
-
-
-class LocalsInfo(NamedTuple):
-    num: int
-    valtype: ValType
-
-
-def spec_binary_locals(raw: bytes, idx: int) -> Tuple[int, LocalsInfo]:
-    logger.debug("spec_binary_locals(%s)", idx)
-    idx, num = spec_binary_uN(raw, idx, 32)
-    idx, valtype = spec_binary_valtype(raw, idx)
-    return idx, LocalsInfo(num, valtype)
-
-
 # 5.5.14 DATA SECTION
 
 
-def spec_binary_datasec(raw, idx, skip=0):
-    return spec_binary_sectionN(raw, idx, 11, spec_binary_data, skip)
-
-
-def spec_binary_data(raw: bytes, idx: int) -> Tuple[int, DataSegment]:
-    idx, mem_idx = spec_binary_memidx(raw, idx)
-    idx, expression = spec_binary_expr(raw, idx)
-    idx, init = spec_binary_vec(raw, idx, spec_binary_byte)
-    return idx, DataSegment(mem_idx, expression, init)
-
-
 # 5.5.15 MODULES
-
-
-def spec_binary_module(raw: bytes) -> Module:
-    idx = 0
-    magic = [0x00, 0x61, 0x73, 0x6D]
-    if magic != [x for x in raw[idx:idx + 4]]:
-        raise MalformedModule("malformed")
-    idx += 4
-    version = [0x01, 0x00, 0x00, 0x00]
-    if version != [x for x in raw[idx:idx + 4]]:
-        raise MalformedModule("malformed")
-    idx += 4
-
-    while idx < len(raw) and raw[idx] == 0:
-        idx, customsec = spec_binary_customsec(raw, idx, 0)
-
-    idx, functypestar = spec_binary_typesec(raw, idx, 0)
-    logger.debug("functypestar: %s", functypestar)
-
-    while idx < len(raw) and raw[idx] == 0:
-        idx, customsec = spec_binary_customsec(raw, idx, 0)
-
-    idx, importstar = spec_binary_importsec(raw, idx, 0)
-    logger.debug("importstar: %s", importstar)
-
-    while idx < len(raw) and raw[idx] == 0:
-        idx, customsec = spec_binary_customsec(raw, idx, 0)
-
-    idx, typeidxn = spec_binary_funcsec(raw, idx, 0)
-    logger.debug("typeidxn: %s", typeidxn)
-
-    while idx < len(raw) and raw[idx] == 0:
-        idx, customsec = spec_binary_customsec(raw, idx, 0)
-
-    idx, tablestar = spec_binary_tablesec(raw, idx, 0)
-    logger.debug("tablestar: %s", tablestar)
-
-    while idx < len(raw) and raw[idx] == 0:
-        idx, customsec = spec_binary_customsec(raw, idx, 0)
-
-    idx, memstar = spec_binary_memsec(raw, idx, 0)
-    logger.debug("memstar: %s", memstar)
-
-    while idx < len(raw) and raw[idx] == 0:
-        idx, customsec = spec_binary_customsec(raw, idx, 0)
-
-    idx, globalstar = spec_binary_globalsec(raw, idx, 0)
-    logger.debug("globalstar: %s", globalstar)
-
-    while idx < len(raw) and raw[idx] == 0:
-        idx, customsec = spec_binary_customsec(raw, idx, 0)
-
-    idx, exportstar = spec_binary_exportsec(raw, idx, 0)
-    logger.debug("exportstar: %s", exportstar)
-
-    while idx < len(raw) and raw[idx] == 0:
-        idx, customsec = spec_binary_customsec(raw, idx, 0)
-
-    idx, startq = spec_binary_startsec(raw, idx, 0)
-    logger.debug("startq: %s", startq)
-
-    while idx < len(raw) and raw[idx] == 0:
-        idx, customsec = spec_binary_customsec(raw, idx, 0)
-
-    idx, elemstar = spec_binary_elemsec(raw, idx, 0)
-    logger.debug("elemstar: %s", elemstar)
-
-    while idx < len(raw) and raw[idx] == 0:
-        idx, customsec = spec_binary_customsec(raw, idx, 0)
-
-    idx, coden = spec_binary_codesec(raw, idx, 0)
-    logger.debug("coden: %s", coden)
-
-    while idx < len(raw) and raw[idx] == 0:
-        idx, customsec = spec_binary_customsec(raw, idx, 0)
-
-    idx, datastar = spec_binary_datasec(raw, idx, 0)
-    logger.debug("datastar: %s", datastar)
-
-    while idx < len(raw) and raw[idx] == 0:
-        idx, customsec = spec_binary_customsec(raw, idx, 0)
-
-    # TODO: It appears that this function incorrectly exits early once it
-    # encounters an invalid section id.  See `tests/custom.wast`.
-
-    funcn = []
-    if typeidxn and coden and len(typeidxn) == len(coden):
-        for i in range(len(typeidxn)):
-            funcn.append(Function(typeidxn[i], tuple(coden[i][0]), tuple(coden[i][1])))
-
-    if startq:
-        start = startq
-    else:
-        start = None
-
-    # TODO: remove tuple wrapping
-    module = Module(
-        types=tuple(functypestar),
-        funcs=tuple(funcn),
-        tables=tuple(tablestar),
-        mems=tuple(memstar),
-        globals=tuple(globalstar),
-        elem=tuple(elemstar),
-        data=tuple(datastar),
-        start=start,
-        imports=tuple(importstar),
-        exports=tuple(exportstar),
-    )
-    return module
 
 
 ##############
@@ -3440,7 +2934,11 @@ def init_store():
 
 
 def decode_module(bytestar):
-    return spec_binary_module(bytestar)
+    stream = io.BytesIO(bytestar)
+    try:
+        return parse_module(stream)
+    except ParseError as err:
+        raise MalformedModule from err
 
 
 def validate_module(module):

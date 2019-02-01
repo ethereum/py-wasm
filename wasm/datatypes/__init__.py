@@ -7,6 +7,10 @@ from .addresses import (  # noqa: F401
 from .bit_size import (  # noqa: F401
     BitSize,
 )
+from .code import (  # noqa: F401
+    Code,
+    LocalsMeta,
+)
 from .data_segment import (  # noqa: F401
     DataSegment,
 )
@@ -57,6 +61,20 @@ from .module import (  # noqa: F401
 from .mutability import (  # noqa: F401
     Mutability,
 )
+from .sections import (  # noqa: F401
+    CodeSection,
+    CustomSection,
+    DataSegmentSection,
+    ElementSegmentSection,
+    ExportSection,
+    FunctionSection,
+    GlobalSection,
+    ImportSection,
+    MemorySection,
+    StartSection,
+    TableSection,
+    TypeSection,
+)
 from .store import (  # noqa: F401
     Store,
 )
@@ -65,7 +83,7 @@ from .table import (  # noqa: F401
     TableInstance,
     TableType,
 )
-from .val_type import (  # noqa: F401
+from .valtype import (  # noqa: F401
     ValType,
 )
 
