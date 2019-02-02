@@ -1,6 +1,10 @@
 from .context import (  # noqa: F401
     Context,
 )
+from .expressions import (  # noqa: F401
+    validate_constant_expression,
+    validate_expression,
+)
 from .function import (  # noqa: F401
     validate_function_type,
 )
