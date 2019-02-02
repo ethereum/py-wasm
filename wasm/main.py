@@ -127,6 +127,11 @@ from wasm.typing import (
 )
 from wasm.validation import (
     Context,
+    validate_function_type,
+    validate_memory,
+    validate_memory_type,
+    validate_table,
+    validate_table_type,
 )
 
 logger = logging.getLogger('wasm.spec')
@@ -253,58 +258,16 @@ def spec_globals_exports(exports: Iterable[TExportAddress]) -> Tuple[GlobalAddre
 # 3.2.1 LIMITS
 
 
-def spec_validate_limit(limits: Limits, upper_bound: int) -> None:
-    """
-    https://webassembly.github.io/spec/core/bikeshed/index.html#limits%E2%91%A2
-    """
-    if limits.min > constants.UINT32_MAX:
-        raise InvalidModule("Limits.min is outside of u32 range: Got {limits.min}")
-    elif limits.min > upper_bound:
-        raise InvalidModule(f"Limits.min exceeds upper bound: {limits.min} > {upper_bound}")
-    elif limits.max is not None:
-        if limits.max > constants.UINT32_MAX:
-            raise InvalidModule("Limits.max is outside of u32 range: Got {limits.max}")
-        elif limits.max > upper_bound:
-            raise InvalidModule(f"Limits.max exceeds upper bound: {limits.max} > {upper_bound}")
-        elif limits.max < limits.min:
-            raise InvalidModule(
-                f"Limits.max cannot be greater than Limits.min: {limits.max} > "
-                f"{limits.min}"
-            )
-
-
 # 3.2.2 FUNCTION TYPES
-
-
-def spec_validate_functype(ft: FunctionType) -> None:
-    if len(ft.results) > 1:
-        raise InvalidModule(
-            f"Function types may only have one result.  Got {len(ft.results)}"
-        )
 
 
 # 3.2.3 TABLE TYPES
 
 
-def spec_validate_tabletype(table_type: TableType) -> TableType:
-    spec_validate_limit(table_type.limits, constants.UINT32_CEIL)
-    return table_type
-
-
 # 3.2.4 MEMORY TYPES
 
 
-def spec_validate_memtype(memory_type: MemoryType) -> MemoryType:
-    limits = Limits(memory_type.min, memory_type.max)
-    spec_validate_limit(limits, constants.UINT16_CEIL)
-    return memory_type
-
-
 # 3.2.5 GLOBAL TYPES
-
-
-def spec_validate_globaltype(global_type: GlobalType) -> GlobalType:
-    return global_type
 
 
 ##################
@@ -414,24 +377,13 @@ def spec_validate_func(context: Context, func: Function) -> Tuple[ValType, ...]:
 # 3.4.2 TABLES
 
 
-def spec_validate_table(table):
-    return spec_validate_tabletype(table.type)
-
-
 # 3.4.3 MEMORIES
-
-
-def spec_validate_mem(memory):
-    ret = spec_validate_memtype(memory.type)
-
-    return ret
 
 
 # 3.4.4 GLOBALS
 
 
 def spec_validate_global(C, global_):
-    spec_validate_globaltype(global_.type)
     # validate expr, but wrap it in a block first since empty control stack gives errors
     # but first wrap in block with appropriate return type
     instrstar = (
@@ -558,17 +510,13 @@ def spec_validate_importdesc(context: Context, descriptor: TImportDesc) -> TImpo
         context.validate_type_idx(descriptor)
         return context.get_type(descriptor)
     elif isinstance(descriptor, TableType):
-        spec_validate_tabletype(descriptor)
+        validate_table_type(descriptor)
         return descriptor
     elif isinstance(descriptor, MemoryType):
-        spec_validate_memtype(descriptor)
+        validate_memory_type(descriptor)
         return descriptor
     elif isinstance(descriptor, GlobalType):
-        spec_validate_globaltype(descriptor)
-        # TODO: confirm compliance with spec.  This comment indicates a
-        # validation step being ignore that causes a spec test to fail when
-        # enabled.
-        # if global_type[0] != "const": raise InvalidModule("invalid") #TODO: this was in the spec, but tests fail linking.wast: $Mg exports a mutable global, seems not to parse in wabt  # noqa: E501
+        # the global type is always valid
         return descriptor
     else:
         raise InvalidModule("invalid")
@@ -661,7 +609,7 @@ def spec_validate_module(module: Module) -> List[List[ExternType]]:
 
     # under the context C
     for functypei in module.types:
-        spec_validate_functype(functypei)
+        validate_function_type(functypei)
 
     for i, func in enumerate(module.funcs):
         ft = spec_validate_func(context, func)
@@ -669,13 +617,13 @@ def spec_validate_module(module: Module) -> List[List[ExternType]]:
             raise InvalidModule("invalid")
 
     for i, table in enumerate(module.tables):
-        tt = spec_validate_table(table)
-        if tt != ttstar[i]:
+        validate_table(table)
+        if table.type != ttstar[i]:
             raise InvalidModule("invalid")
 
     for i, mem in enumerate(module.mems):
-        mt = spec_validate_mem(mem)
-        if mt != mtstar[i]:
+        validate_memory(mem)
+        if mem.type != mtstar[i]:
             raise InvalidModule("invalid")
 
     for i, global_ in enumerate(module.globals):
@@ -4014,7 +3962,10 @@ def parse_module(codepointstar):
 
 
 def validate_module(module):
-    spec_validate_module(module)
+    try:
+        spec_validate_module(module)
+    except ValidationError as err:
+        raise InvalidModule from err
 
 
 # TODO: tighten type hint for `externvalstar`
