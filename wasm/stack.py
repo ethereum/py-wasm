@@ -5,25 +5,9 @@ from typing import (
     Generic,
     Iterator,
     List,
-    NamedTuple,
     Tuple,
     TypeVar,
     overload,
-)
-import uuid
-
-from wasm.typing import (
-    TValue,
-)
-
-from .indices import (
-    LabelIdx,
-)
-from .instructions import (
-    InstructionSequence,
-)
-from .module import (
-    ModuleInstance,
 )
 
 TStackItem = TypeVar('TStackItem')
@@ -74,33 +58,3 @@ class BaseStack(Sequence, Generic[TStackItem]):
 
     def peek(self) -> TStackItem:
         return self._stack[-1]
-
-
-class ValueStack(BaseStack[TValue]):
-    pass
-
-
-class Frame(NamedTuple):
-    id: uuid.UUID
-    module: ModuleInstance
-    locals: List[TValue]
-    instructions: InstructionSequence
-    arity: int
-    height: int
-
-
-class FrameStack(BaseStack[Frame]):
-    pass
-
-
-class Label(NamedTuple):
-    arity: int
-    height: int
-    instructions: InstructionSequence
-    is_loop: bool
-    frame_id: uuid.UUID
-
-
-class LabelStack(BaseStack[Label]):
-    def get_by_label_idx(self, key: LabelIdx) -> Label:
-        return self._stack[-1 * (key + 1)]

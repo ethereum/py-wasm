@@ -2,23 +2,22 @@ from collections.abc import (
     Sequence,
 )
 from typing import (
-    TYPE_CHECKING,
+    Iterable,
     Iterator,
     Tuple,
     overload,
 )
 
-if TYPE_CHECKING:
-    from wasm.instructions import (  # noqa: F401
-        BaseInstruction,
-    )
+from wasm.instructions import (
+    BaseInstruction,
+)
 
 
 class InstructionSequence(Sequence):
-    _instructions: Tuple['BaseInstruction', ...]
+    _instructions: Tuple[BaseInstruction, ...]
 
-    def __init__(self, instructions: Tuple['BaseInstruction', ...]) -> None:
-        self._instructions = instructions
+    def __init__(self, instructions: Iterable[BaseInstruction]) -> None:
+        self._instructions = tuple(instructions)
         self._idx = -1
 
     def __str__(self) -> str:
@@ -30,19 +29,19 @@ class InstructionSequence(Sequence):
     def __len__(self) -> int:
         return len(self._instructions)
 
-    def __next__(self) -> 'BaseInstruction':
+    def __next__(self) -> BaseInstruction:
         self._idx += 1
         try:
             return self._instructions[self._idx]
         except IndexError:
             raise StopIteration
 
-    def __iter__(self) -> Iterator['BaseInstruction']:
+    def __iter__(self) -> Iterator[BaseInstruction]:
         while self._idx < len(self._instructions) - 1:
             yield next(self)
 
     @overload
-    def __getitem__(self, idx: int) -> 'BaseInstruction':
+    def __getitem__(self, idx: int) -> BaseInstruction:
         pass
 
     @overload  # noqa: 811
@@ -61,8 +60,12 @@ class InstructionSequence(Sequence):
     def pc(self) -> int:
         return max(0, self._idx)
 
+    @pc.setter
+    def pc(self, value: int) -> None:
+        self.seek(value)
+
     @property
-    def current(self) -> 'BaseInstruction':
+    def current(self) -> BaseInstruction:
         return self[self.pc]
 
     def seek(self, idx: int) -> None:

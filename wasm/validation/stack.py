@@ -1,9 +1,11 @@
 from wasm.datatypes import (
-    BaseStack,
     LabelIdx,
 )
 from wasm.exceptions import (
     ValidationError,
+)
+from wasm.stack import (
+    BaseStack,
 )
 
 from .control_frame import (
