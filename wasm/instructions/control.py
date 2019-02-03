@@ -60,6 +60,14 @@ class Block(NamedTuple):
             ),
         ))
 
+    @classmethod
+    def wrap_with_end(cls,
+                      result_type: Tuple[ValType, ...],
+                      expression: Tuple[BaseInstruction, ...]
+                      ) -> Tuple[BaseInstruction, ...]:
+        wrapped_expression = cls.wrap(result_type, expression)
+        return cast(Tuple[BaseInstruction, ...], wrapped_expression + End.as_tail())
+
 
 @register
 class Br(Interned):

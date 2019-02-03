@@ -42,7 +42,6 @@ def validate_function(context: Context,
         returns=function_type.results,
     )
     with ctx:
-        # validate body using algorithm in appendix
         expression = Block.wrap(function_type.results, function.body)
         validate_expression(expression, ctx)
 
