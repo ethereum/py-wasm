@@ -19,27 +19,19 @@ from typing import (
 from wasm import (
     constants,
 )
-from wasm._utils.validation import (
-    get_duplicates,
-)
 from wasm.datatypes import (
-    Export,
     ExportInstance,
     Function,
     FunctionAddress,
-    FunctionIdx,
     FunctionInstance,
     FunctionType,
     GlobalAddress,
-    GlobalIdx,
     GlobalInstance,
     GlobalType,
     HostFunction,
-    Import,
     LabelIdx,
     Limits,
     MemoryAddress,
-    MemoryIdx,
     MemoryInstance,
     MemoryType,
     Module,
@@ -47,10 +39,8 @@ from wasm.datatypes import (
     Mutability,
     Store,
     TableAddress,
-    TableIdx,
     TableInstance,
     TableType,
-    TypeIdx,
     ValType,
 )
 from wasm.exceptions import (
@@ -107,17 +97,7 @@ from wasm.typing import (
     UInt32,
 )
 from wasm.validation import (
-    Context,
-    validate_data_segment,
-    validate_element_segment,
-    validate_function,
-    validate_function_type,
-    validate_global,
-    validate_memory,
-    validate_memory_type,
-    validate_start_function,
-    validate_table,
-    validate_table_type,
+    validate_module as _validate_module,
 )
 
 logger = logging.getLogger('wasm.spec')
@@ -152,24 +132,6 @@ def spec_expon(N):
 
 
 # 2.3.8 EXTERNAL TYPES
-
-ExternType = Union[FunctionType, TableType, MemoryType, GlobalType]
-
-
-def spec_funcs(imports: Iterable[ExternType]) -> Tuple[FunctionType, ...]:
-    return tuple(item for item in imports if isinstance(item, FunctionType))
-
-
-def spec_tables(imports: Iterable[ExternType]) -> Tuple[TableType, ...]:
-    return tuple(item for item in imports if isinstance(item, TableType))
-
-
-def spec_mems(imports: Iterable[ExternType]) -> Tuple[MemoryType, ...]:
-    return tuple(item for item in imports if isinstance(item, MemoryType))
-
-
-def spec_globals(imports: Iterable[ExternType]) -> Tuple[GlobalType, ...]:
-    return tuple(item for item in imports if isinstance(item, GlobalType))
 
 
 # 2.5.10.1 EXTERNAL TYPES
@@ -275,220 +237,10 @@ Expression = Tuple[BaseInstruction, ...]
 # 3.4.8 EXPORTS
 
 
-TExportValue = Union[FunctionType, TableType, MemoryType, GlobalType]
-TExportDesc = Union[FunctionIdx, GlobalIdx, MemoryIdx, TableIdx]
-
-
-def spec_validate_export(context: Context, export: Export) -> TExportValue:
-    return spec_validate_exportdesc(context, export.desc)
-
-
-def spec_validate_exportdesc(context: Context,
-                             idx: TExportDesc) -> TExportValue:
-    if isinstance(idx, FunctionIdx):
-        context.validate_function_idx(idx)
-        return context.get_function(idx)
-    elif isinstance(idx, TableIdx):
-        context.validate_table_idx(idx)
-        return context.get_table(idx)
-    elif isinstance(idx, MemoryIdx):
-        context.validate_mem_idx(idx)
-        return context.get_mem(idx)
-    elif isinstance(idx, GlobalIdx):
-        context.validate_global_idx(idx)
-        return context.get_global(idx)
-    else:
-        raise InvalidModule(f"Unknown export descriptor type: {type(idx)}")
-
-
-def get_export_type(context: Context, idx: TExportDesc) -> TExportValue:
-    if isinstance(idx, FunctionIdx):
-        return context.get_function(idx)
-    elif isinstance(idx, TableIdx):
-        return context.get_table(idx)
-    elif isinstance(idx, MemoryIdx):
-        return context.get_mem(idx)
-    elif isinstance(idx, GlobalIdx):
-        return context.get_global(idx)
-    else:
-        raise InvalidModule(f"Unknown export descriptor type: {type(idx)}")
-
-
 # 3.4.9 IMPORTS
 
 
-TImport = Union[FunctionType, TableType, MemoryType, GlobalType]
-
-
-def spec_validate_import(context: Context, import_: Import) -> None:
-    spec_validate_importdesc(context, import_.desc)
-
-
-TImportDesc = Union[TypeIdx, GlobalType, MemoryType, TableType]
-
-
-def spec_validate_importdesc(context: Context, descriptor: TImportDesc) -> None:
-    if isinstance(descriptor, TypeIdx):
-        context.validate_type_idx(descriptor)
-    elif isinstance(descriptor, TableType):
-        validate_table_type(descriptor)
-    elif isinstance(descriptor, MemoryType):
-        validate_memory_type(descriptor)
-    elif isinstance(descriptor, GlobalType):
-        pass
-    else:
-        raise InvalidModule(f"Unknown import descriptor type: {type(descriptor)}")
-
-
-def get_import_type(context: Context, descriptor: TImportDesc) -> TImport:
-    if isinstance(descriptor, TypeIdx):
-        return context.get_type(descriptor)
-    elif isinstance(descriptor, (TableType, MemoryType, GlobalType)):
-        return descriptor
-    else:
-        raise InvalidModule(f"Unknown import descriptor type: {type(descriptor)}")
-
-
 # 3.4.10 MODULE
-
-
-def spec_validate_module(module: Module) -> List[List[ExternType]]:
-    # mod is the module to validate
-    ftstar: List[FunctionType] = []
-
-    for func in module.funcs:
-        if len(module.types) <= func.type_idx:
-            # this was not explicit in spec, how about other *tstar
-            raise InvalidModule("invalid")
-        ftstar += [module.types[func.type_idx]]
-
-    ttstar = tuple(table.type for table in module.tables)
-    mtstar = tuple(mem.type for mem in module.mems)
-    gtstar = tuple(global_.type for global_ in module.globals)
-
-    itstar: List[ExternType] = []
-    for import_ in module.imports:
-        if import_.is_function:
-            if import_.type_idx >= len(module.types):
-                # this was not explicit in spec
-                raise InvalidModule(
-                    f"Function import out of range: {import_.desc} > "
-                    f"{len(module.types)}"
-                )
-            itstar.append(module.types[import_.type_idx])
-        else:
-            itstar.append(cast(Union[GlobalType, MemoryType, TableType], import_.desc))
-
-    # let i_tstar be the concatenation of imports of each type
-    iftstar = spec_funcs(itstar)
-    ittstar = spec_tables(itstar)
-    imtstar = spec_mems(itstar)
-    igtstar = spec_globals(itstar)
-
-    # let C and Cprime be contexts
-    context = Context(
-        types=module.types,
-        functions=iftstar + tuple(ftstar),
-        tables=ittstar + ttstar,
-        mems=imtstar + mtstar,
-        globals=igtstar + gtstar,
-        locals=(),
-        labels=(),
-        returns=(),
-
-    )
-
-    # et* is needed later, here is a good place to do it
-    etstar: List[ExternType] = []
-    for export in module.exports:
-        if export.is_function:
-            if len(context.functions) <= export.desc:
-                # this was not explicit in spec
-                raise InvalidModule("invalid")
-            etstar.append(context.functions[export.desc])
-        elif export.is_table:
-            if len(context.tables) <= export.desc:
-                # this was not explicit in spec
-                raise InvalidModule("invalid")
-            etstar.append(context.tables[export.desc])
-        elif export.is_memory:
-            if len(context.mems) <= export.desc:
-                # this was not explicit in spec
-                raise InvalidModule("invalid")
-            etstar.append(context.mems[export.desc])
-        elif export.is_global:
-            if len(context.globals) <= export.desc:
-                # this was not explicit in spec
-                raise InvalidModule("invalid")
-            etstar.append(context.globals[export.desc])
-        else:
-            raise Exception(f"Invariant: Unknown export type: {type(export.desc)}")
-
-    # under the context C
-    for functypei in module.types:
-        validate_function_type(functypei)
-
-    for i, func in enumerate(module.funcs):
-        validate_function(context, func, ftstar[i].results)
-
-    for i, table in enumerate(module.tables):
-        validate_table(table)
-        if table.type != ttstar[i]:
-            raise InvalidModule("invalid")
-
-    for i, mem in enumerate(module.mems):
-        validate_memory(mem)
-        if mem.type != mtstar[i]:
-            raise InvalidModule("invalid")
-
-    global_context = Context(
-        types=(),
-        functions=(),
-        tables=(),
-        mems=(),
-        globals=tuple(igtstar),
-        locals=(),
-        labels=(),
-        returns=(),
-    )
-    for i, global_ in enumerate(module.globals):
-        validate_global(global_context, global_)
-
-    for elem in module.elem:
-        validate_element_segment(context, elem)
-
-    for data in module.data:
-        validate_data_segment(context, data)
-
-    if module.start is not None:
-        validate_start_function(context, module.start)
-
-    for i, import_ in enumerate(module.imports):
-        spec_validate_import(context, import_)
-        it = get_import_type(context, import_.desc)
-        if it != itstar[i]:
-            raise InvalidModule("invalid")
-
-    for i, export in enumerate(module.exports):
-        spec_validate_export(context, export)
-        et = get_export_type(context, export.desc)
-        if et != etstar[i]:
-            raise InvalidModule("invalid")
-
-    if len(context.tables) > 1:
-        raise InvalidModule("invalid")
-    elif len(context.mems) > 1:
-        raise InvalidModule("invalid")
-
-    # export names must be unique
-    duplicate_exports: Tuple[str, ...] = get_duplicates(export.name for export in module.exports)
-    if duplicate_exports:
-        raise InvalidModule(
-            "Duplicate module name(s) exported: "
-            f"{'|'.join(sorted(duplicate_exports))}"
-        )
-
-    return [itstar, etstar]
 
 
 ###############
@@ -2263,9 +2015,13 @@ def spec_expr(config):
 
 # 4.5.1 EXTERNAL TYPING
 
+
+TExtern = Union[FunctionType, TableType, MemoryType, GlobalType]
+
+
 def spec_external_typing(S: Store,
                          extern_desc: TExportAddress,
-                         ) -> TExportValue:
+                         ) -> TExtern:
     logger.debug('spec_external_typing(%s)', extern_desc)
 
     if isinstance(extern_desc, FunctionAddress):
@@ -2517,7 +2273,7 @@ def spec_instantiate(S, module, externvaln):
 
     # 1
     # 2
-    ret = spec_validate_module(module)
+    ret = _validate_module(module)
     externtypeimn, externtypeexstar = ret
     # 3
     if len(module.imports) != len(externvaln):
@@ -2829,7 +2585,7 @@ def decode_module(bytestar):
 
 def validate_module(module):
     try:
-        spec_validate_module(module)
+        _validate_module(module)
     except ValidationError as err:
         raise InvalidModule from err
 

@@ -7,7 +7,7 @@ from wasm.datatypes import (
 from wasm.exceptions import (
     ValidationError,
 )
-from wasm.validation import (
+from wasm.validation.function import (
     validate_function_type,
 )
 
