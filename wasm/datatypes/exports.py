@@ -10,7 +10,7 @@ from .addresses import (
     TableAddress,
 )
 from .indices import (
-    FuncIdx,
+    FunctionIdx,
     GlobalIdx,
     MemoryIdx,
     TableIdx,
@@ -22,15 +22,15 @@ class Export(NamedTuple):
     https://webassembly.github.io/spec/core/bikeshed/index.html#memory-types%E2%91%A0
     """
     name: str
-    desc: Union[FuncIdx, GlobalIdx, MemoryIdx, TableIdx]
+    desc: Union[FunctionIdx, GlobalIdx, MemoryIdx, TableIdx]
 
     @property
     def is_function(self):
-        return isinstance(self.desc, FuncIdx)
+        return isinstance(self.desc, FunctionIdx)
 
     @property
-    def func_idx(self) -> FuncIdx:
-        if isinstance(self.desc, FuncIdx):
+    def function_idx(self) -> FunctionIdx:
+        if isinstance(self.desc, FunctionIdx):
             return self.desc
         else:
             raise TypeError(f"Export descriptor of type: {type(self.desc)}")

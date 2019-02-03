@@ -12,7 +12,7 @@ from .byte import (
     parse_single_byte,
 )
 from .indices import (
-    parse_func_idx,
+    parse_function_idx,
 )
 from .valtype import (
     parse_valtype,
@@ -37,5 +37,5 @@ def parse_function_type(stream: io.BytesIO) -> FunctionType:
 
 
 def parse_start_function(stream: io.BytesIO) -> StartFunction:
-    function_idx = parse_func_idx(stream)
+    function_idx = parse_function_idx(stream)
     return StartFunction(function_idx)

@@ -8,7 +8,7 @@ from .expressions import (
     parse_expression,
 )
 from .indices import (
-    parse_func_idx,
+    parse_function_idx,
     parse_table_idx,
 )
 from .vector import (
@@ -19,5 +19,5 @@ from .vector import (
 def parse_element_segment(stream: io.BytesIO) -> ElementSegment:
     table_idx = parse_table_idx(stream)
     offset = parse_expression(stream)
-    init = parse_vector(parse_func_idx, stream)
+    init = parse_vector(parse_function_idx, stream)
     return ElementSegment(table_idx, offset, init)

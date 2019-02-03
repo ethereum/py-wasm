@@ -134,8 +134,8 @@ def validate_br_table(instruction: BrTable, ctx: ExpressionContext) -> None:
 
 
 def validate_call(instruction: Call, ctx: ExpressionContext) -> None:
-    ctx.validate_function_idx(instruction.func_idx)
-    function_type = ctx.get_function(instruction.func_idx)
+    ctx.validate_function_idx(instruction.function_idx)
+    function_type = ctx.get_function(instruction.function_idx)
 
     ctx.pop_operands_of_expected_types(function_type.params)
     for valtype in function_type.results:

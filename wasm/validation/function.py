@@ -5,6 +5,7 @@ from typing import (
 from wasm.datatypes import (
     Function,
     FunctionType,
+    StartFunction,
     ValType,
 )
 from wasm.exceptions import (
@@ -50,4 +51,15 @@ def validate_function(context: Context,
         raise ValidationError(
             f"Function result type does not match declared result type: "
             f"{result_type} != {expected_result_type}"
+        )
+
+
+def validate_start_function(context: Context, start: StartFunction) -> None:
+    context.validate_function_idx(start.function_idx)
+    function_type = context.get_function(start.function_idx)
+
+    if function_type != FunctionType((), ()):
+        raise ValidationError(
+            "Start function may not have arguments or a result type.  Got "
+            f"{function_type}"
         )

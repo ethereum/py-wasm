@@ -25,9 +25,9 @@ from wasm._utils.validation import (
 from wasm.datatypes import (
     Export,
     ExportInstance,
-    FuncIdx,
     Function,
     FunctionAddress,
+    FunctionIdx,
     FunctionInstance,
     FunctionType,
     GlobalAddress,
@@ -45,7 +45,6 @@ from wasm.datatypes import (
     Module,
     ModuleInstance,
     Mutability,
-    StartFunction,
     Store,
     TableAddress,
     TableIdx,
@@ -116,6 +115,7 @@ from wasm.validation import (
     validate_global,
     validate_memory,
     validate_memory_type,
+    validate_start_function,
     validate_table,
     validate_table_type,
 )
@@ -272,22 +272,11 @@ Expression = Tuple[BaseInstruction, ...]
 # 3.4.7 START FUNCTION
 
 
-def spec_validate_start(context: Context, start: StartFunction) -> None:
-    context.validate_function_idx(start.func_idx)
-    func_type = context.get_function(start.func_idx)
-
-    if func_type != FunctionType((), ()):
-        raise InvalidModule(
-            "Start function may not have arguments or a result type.  Got "
-            f"{func_type}"
-        )
-
-
 # 3.4.8 EXPORTS
 
 
 TExportValue = Union[FunctionType, TableType, MemoryType, GlobalType]
-TExportDesc = Union[FuncIdx, GlobalIdx, MemoryIdx, TableIdx]
+TExportDesc = Union[FunctionIdx, GlobalIdx, MemoryIdx, TableIdx]
 
 
 def spec_validate_export(context: Context, export: Export) -> TExportValue:
@@ -296,7 +285,7 @@ def spec_validate_export(context: Context, export: Export) -> TExportValue:
 
 def spec_validate_exportdesc(context: Context,
                              idx: TExportDesc) -> TExportValue:
-    if isinstance(idx, FuncIdx):
+    if isinstance(idx, FunctionIdx):
         context.validate_function_idx(idx)
         return context.get_function(idx)
     elif isinstance(idx, TableIdx):
@@ -313,7 +302,7 @@ def spec_validate_exportdesc(context: Context,
 
 
 def get_export_type(context: Context, idx: TExportDesc) -> TExportValue:
-    if isinstance(idx, FuncIdx):
+    if isinstance(idx, FunctionIdx):
         return context.get_function(idx)
     elif isinstance(idx, TableIdx):
         return context.get_table(idx)
@@ -472,7 +461,7 @@ def spec_validate_module(module: Module) -> List[List[ExternType]]:
         validate_data_segment(context, data)
 
     if module.start is not None:
-        spec_validate_start(context, module.start)
+        validate_start_function(context, module.start)
 
     for i, import_ in enumerate(module.imports):
         spec_validate_import(context, import_)
@@ -1899,7 +1888,7 @@ def spec_call(config: Configuration) -> None:
     instruction = cast(Call, config.instructions.current)
     # 1
     # 3
-    addr = config.frame.module.func_addrs[instruction.func_idx]
+    addr = config.frame.module.func_addrs[instruction.function_idx]
     # 4
     spec_invoke_function_address(config, addr)
 
@@ -2376,8 +2365,8 @@ def spec_allocfunc(S: Store,
     logger.debug('spec_allocfunc()')
 
     funcaddr = FunctionAddress(len(S.funcs))
-    func_type = module.types[func.type_idx]
-    funcinst = FunctionInstance(func_type, module, func)
+    function_type = module.types[func.type_idx]
+    funcinst = FunctionInstance(function_type, module, func)
     S.funcs.append(funcinst)
     return S, funcaddr
 
@@ -2483,7 +2472,7 @@ def spec_allocmodule(S: Store,
         desc: TExportAddress
 
         if exporti.is_function:
-            desc = funcaddrmodstar[exporti.func_idx]
+            desc = funcaddrmodstar[exporti.function_idx]
         elif exporti.is_table:
             desc = tableaddrmodstar[exporti.table_idx]
         elif exporti.is_memory:
@@ -2628,7 +2617,7 @@ def spec_instantiate(S, module, externvaln):
             meminst[i].data[do[i] + j] = bij
     # 15
     if module.start is not None:
-        funcaddr = moduleinst.func_addrs[module.start.func_idx]
+        funcaddr = moduleinst.func_addrs[module.start.function_idx]
         ret = spec_invoke(S, funcaddr, [])
     else:
         ret = None
