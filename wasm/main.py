@@ -449,45 +449,6 @@ def spec_signediN_inv(N, i):
         raise Exception(f"Invariant: bit size out of range - Got '{N}'")
 
 
-def spec_iaddN(N, i1, i2):
-    logger.debug("spec_iaddN(%s, %s, %s)", N, i1, i2)
-
-    return (i1 + i2) % 2 ** N
-
-
-def spec_isubN(N, i1, i2):
-    logger.debug("spec_isubN(%s, %s, %s)", N, i1, i2)
-
-    return (i1 - i2 + 2 ** N) % 2 ** N
-
-
-def spec_imulN(N, i1, i2):
-    logger.debug("spec_imulN(%s, %s, %s)", N, i1, i2)
-
-    return (i1 * i2) % 2 ** N
-
-
-def spec_idiv_uN(N, i1, i2):
-    logger.debug("spec_idiv_uN(%s, %s, %s)", N, i1, i2)
-
-    if i2 == 0:
-        raise Trap("trap")
-    return spec_trunc((i1, i2))
-
-
-def spec_idiv_sN(N, i1, i2):
-    logger.debug("spec_idiv_sN(%s, %s, %s)", N, i1, i2)
-
-    j1 = spec_signediN(N, i1)
-    j2 = spec_signediN(N, i2)
-    if j2 == 0:
-        raise Trap("trap")
-    # assuming j1 and j2 are N-bit
-    if j1 // j2 == 2 ** (N - 1):
-        raise Trap("trap")
-    return spec_signediN_inv(N, spec_trunc((j1, j2)))
-
-
 def spec_irem_uN(N, i1, i2):
     logger.debug("spec_irem_uN(%s, %s, %s)", N, i1, i2)
 
@@ -566,147 +527,6 @@ def spec_irotrN(N, i1, i2):
     d1Nmk = d1Nmkd2k[: N - k]
     d2k = d1Nmkd2k[N - k:]
     return spec_ibitsN_inv(N, d2k + d1Nmk)
-
-
-def spec_iclzN(N, i):
-    logger.debug("spec_iclzN(%s, %s)", N, i)
-
-    k = 0
-    for b in spec_ibitsN(N, i):
-        if b == "0":
-            k += 1
-        else:
-            break
-    return k
-
-
-def spec_ictzN(N, i):
-    logger.debug("spec_ictzN(%s, %s)", N, i)
-
-    k = 0
-    for b in reversed(spec_ibitsN(N, i)):
-        if b == "0":
-            k += 1
-        else:
-            break
-    return k
-
-
-def spec_ipopcntN(N, i):
-    logger.debug("spec_ipopcntN(%s, %s)", N, i)
-
-    k = 0
-    for b in spec_ibitsN(N, i):
-        if b == "1":
-            k += 1
-    return k
-
-
-def spec_ieqzN(N, i):
-    logger.debug("spec_ieqzN(%s, %s)", N, i)
-
-    if i == 0:
-        return 1
-    else:
-        return 0
-
-
-def spec_ieqN(N, i1, i2):
-    logger.debug("spec_ieqN(%s, %s, %s)", N, i1, i2)
-
-    if i1 == i2:
-        return 1
-    else:
-        return 0
-
-
-def spec_ineN(N, i1, i2):
-    logger.debug("spec_ineN(%s, %s, %s)", N, i1, i2)
-
-    if i1 != i2:
-        return 1
-    else:
-        return 0
-
-
-def spec_ilt_uN(N, i1, i2):
-    logger.debug("spec_ilt_uN(%s, %s, %s)", N, i1, i2)
-
-    if i1 < i2:
-        return 1
-    else:
-        return 0
-
-
-def spec_ilt_sN(N, i1, i2):
-    logger.debug("spec_ilt_sN(%s, %s, %s)", N, i1, i2)
-
-    j1 = spec_signediN(N, i1)
-    j2 = spec_signediN(N, i2)
-    if j1 < j2:
-        return 1
-    else:
-        return 0
-
-
-def spec_igt_uN(N, i1, i2):
-    logger.debug("spec_igt_uN(%s, %s, %s)", N, i1, i2)
-
-    if i1 > i2:
-        return 1
-    else:
-        return 0
-
-
-def spec_igt_sN(N, i1, i2):
-    logger.debug("spec_igt_sN(%s, %s, %s)", N, i1, i2)
-
-    j1 = spec_signediN(N, i1)
-    j2 = spec_signediN(N, i2)
-    if j1 > j2:
-        return 1
-    else:
-        return 0
-
-
-def spec_ile_uN(N, i1, i2):
-    logger.debug("spec_ile_uN(%s, %s, %s)", N, i1, i2)
-
-    if i1 <= i2:
-        return 1
-    else:
-        return 0
-
-
-def spec_ile_sN(N, i1, i2):
-    logger.debug("spec_ile_sN(%s, %s, %s)", N, i1, i2)
-
-    j1 = spec_signediN(N, i1)
-    j2 = spec_signediN(N, i2)
-    if j1 <= j2:
-        return 1
-    else:
-        return 0
-
-
-def spec_ige_uN(N, i1, i2):
-    logger.debug("spec_ige_uN(%s, %s, %s)", N, i1, i2)
-
-    if i1 >= i2:
-        return 1
-    else:
-        return 0
-
-
-def spec_ige_sN(N, i1, i2):
-    logger.debug("spec_ige_sN(%s, %s, %s)", N, i1, i2)
-
-    j1 = spec_signediN(N, i1)
-    j2 = spec_signediN(N, i2)
-    if j1 >= j2:
-        return 1
-    else:
-        return 0
 
 
 # 4.3.3 FLOATING-POINT OPERATIONS
@@ -1453,32 +1273,6 @@ def spec_memorygrow(config: Configuration) -> None:
 """
 
 
-def spec_nop(config):
-    logger.debug("spec_nop()")
-
-
-def spec_unreachable(config):
-    logger.debug("spec_unreachable()")
-
-    raise Trap("trap")
-
-
-def spec_block(config):
-    logger.debug("spec_block()")
-
-    block = cast(Block, config.instructions.current)
-    # 1
-    # 2
-    L = Label(
-        arity=len(block.result_type),
-        instructions=InstructionSequence(block.instructions),
-        is_loop=False,
-    )
-
-    # 3
-    spec_enter_block(config, L)
-
-
 def spec_loop(config: Configuration) -> None:
     logger.debug("spec_loop()")
 
@@ -1776,9 +1570,9 @@ class InvokeInstruction(NamedTuple):
 # opcodes with two functions, the second function is called by the first
 # function.
 opcode2exec: Dict[Union[Type[InvokeOp], BinaryOpcode], Tuple[Callable, ...]] = {
-    BinaryOpcode.UNREACHABLE: (spec_unreachable,),
-    BinaryOpcode.NOP: (spec_nop,),
-    BinaryOpcode.BLOCK: (spec_block,),  # blocktype in* end
+    # BinaryOpcode.UNREACHABLE: (spec_unreachable,),
+    # BinaryOpcode.NOP: (spec_nop,),
+    # BinaryOpcode.BLOCK: (spec_block,),  # blocktype in* end
     BinaryOpcode.LOOP: (spec_loop,),  # blocktype in* end
     BinaryOpcode.IF: (spec_if,),  # blocktype in1* else? in2* end
     BinaryOpcode.ELSE: (spec_end,),  # in2*
@@ -1821,32 +1615,32 @@ opcode2exec: Dict[Union[Type[InvokeOp], BinaryOpcode], Tuple[Callable, ...]] = {
     BinaryOpcode.I64_STORE32: (spec_tstore,),  # memarg
     BinaryOpcode.MEMORY_SIZE: (spec_memorysize,),
     BinaryOpcode.MEMORY_GROW: (spec_memorygrow,),
-    BinaryOpcode.I32_CONST: (spec_tconst,),  # i32
-    BinaryOpcode.I64_CONST: (spec_tconst,),  # i64
-    BinaryOpcode.F32_CONST: (spec_tconst,),  # f32
-    BinaryOpcode.F64_CONST: (spec_tconst,),  # f64
-    BinaryOpcode.I32_EQZ: (spec_ttestop, spec_ieqzN),
-    BinaryOpcode.I32_EQ: (spec_trelop, spec_ieqN),
-    BinaryOpcode.I32_NE: (spec_trelop, spec_ineN),
-    BinaryOpcode.I32_LT_S: (spec_trelop, spec_ilt_sN),
-    BinaryOpcode.I32_LT_U: (spec_trelop, spec_ilt_uN),
-    BinaryOpcode.I32_GT_S: (spec_trelop, spec_igt_sN),
-    BinaryOpcode.I32_GT_U: (spec_trelop, spec_igt_uN),
-    BinaryOpcode.I32_LE_S: (spec_trelop, spec_ile_sN),
-    BinaryOpcode.I32_LE_U: (spec_trelop, spec_ile_uN),
-    BinaryOpcode.I32_GE_S: (spec_trelop, spec_ige_sN),
-    BinaryOpcode.I32_GE_U: (spec_trelop, spec_ige_uN),
-    BinaryOpcode.I64_EQZ: (spec_ttestop, spec_ieqzN),
-    BinaryOpcode.I64_EQ: (spec_trelop, spec_ieqN),
-    BinaryOpcode.I64_NE: (spec_trelop, spec_ineN),
-    BinaryOpcode.I64_LT_S: (spec_trelop, spec_ilt_sN),
-    BinaryOpcode.I64_LT_U: (spec_trelop, spec_ilt_uN),
-    BinaryOpcode.I64_GT_S: (spec_trelop, spec_igt_sN),
-    BinaryOpcode.I64_GT_U: (spec_trelop, spec_igt_uN),
-    BinaryOpcode.I64_LE_S: (spec_trelop, spec_ile_sN),
-    BinaryOpcode.I64_LE_U: (spec_trelop, spec_ile_uN),
-    BinaryOpcode.I64_GE_S: (spec_trelop, spec_ige_sN),
-    BinaryOpcode.I64_GE_U: (spec_trelop, spec_ige_uN),
+    # BinaryOpcode.I32_CONST: (spec_tconst,),  # i32
+    # BinaryOpcode.I64_CONST: (spec_tconst,),  # i64
+    # BinaryOpcode.F32_CONST: (spec_tconst,),  # f32
+    # BinaryOpcode.F64_CONST: (spec_tconst,),  # f64
+    # BinaryOpcode.I32_EQZ: (spec_ttestop, spec_ieqzN),
+    # BinaryOpcode.I32_EQ: (spec_trelop, spec_ieqN),
+    # BinaryOpcode.I32_NE: (spec_trelop, spec_ineN),
+    # BinaryOpcode.I32_LT_S: (spec_trelop, spec_ilt_sN),
+    # BinaryOpcode.I32_LT_U: (spec_trelop, spec_ilt_uN),
+    # BinaryOpcode.I32_GT_S: (spec_trelop, spec_igt_sN),
+    # BinaryOpcode.I32_GT_U: (spec_trelop, spec_igt_uN),
+    # BinaryOpcode.I32_LE_S: (spec_trelop, spec_ile_sN),
+    # BinaryOpcode.I32_LE_U: (spec_trelop, spec_ile_uN),
+    # BinaryOpcode.I32_GE_S: (spec_trelop, spec_ige_sN),
+    # BinaryOpcode.I32_GE_U: (spec_trelop, spec_ige_uN),
+    # BinaryOpcode.I64_EQZ: (spec_ttestop, spec_ieqzN),
+    # BinaryOpcode.I64_EQ: (spec_trelop, spec_ieqN),
+    # BinaryOpcode.I64_NE: (spec_trelop, spec_ineN),
+    # BinaryOpcode.I64_LT_S: (spec_trelop, spec_ilt_sN),
+    # BinaryOpcode.I64_LT_U: (spec_trelop, spec_ilt_uN),
+    # BinaryOpcode.I64_GT_S: (spec_trelop, spec_igt_sN),
+    # BinaryOpcode.I64_GT_U: (spec_trelop, spec_igt_uN),
+    # BinaryOpcode.I64_LE_S: (spec_trelop, spec_ile_sN),
+    # BinaryOpcode.I64_LE_U: (spec_trelop, spec_ile_uN),
+    # BinaryOpcode.I64_GE_S: (spec_trelop, spec_ige_sN),
+    # BinaryOpcode.I64_GE_U: (spec_trelop, spec_ige_uN),
     BinaryOpcode.F32_EQ: (spec_trelop, spec_feqN),
     BinaryOpcode.F32_NE: (spec_trelop, spec_fneN),
     BinaryOpcode.F32_LT: (spec_trelop, spec_fltN),
@@ -1859,14 +1653,14 @@ opcode2exec: Dict[Union[Type[InvokeOp], BinaryOpcode], Tuple[Callable, ...]] = {
     BinaryOpcode.F64_GT: (spec_trelop, spec_fgtN),
     BinaryOpcode.F64_LE: (spec_trelop, spec_fleN),
     BinaryOpcode.F64_GE: (spec_trelop, spec_fgeN),
-    BinaryOpcode.I32_CLZ: (spec_tunop, spec_iclzN),
-    BinaryOpcode.I32_CTZ: (spec_tunop, spec_ictzN),
-    BinaryOpcode.I32_POPCNT: (spec_tunop, spec_ipopcntN),
-    BinaryOpcode.I32_ADD: (spec_tbinop, spec_iaddN),
-    BinaryOpcode.I32_SUB: (spec_tbinop, spec_isubN),
-    BinaryOpcode.I32_MUL: (spec_tbinop, spec_imulN),
-    BinaryOpcode.I32_DIV_S: (spec_tbinop, spec_idiv_sN),
-    BinaryOpcode.I32_DIV_U: (spec_tbinop, spec_idiv_uN),
+    # BinaryOpcode.I32_CLZ: (spec_tunop, spec_iclzN),
+    # BinaryOpcode.I32_CTZ: (spec_tunop, spec_ictzN),
+    # BinaryOpcode.I32_POPCNT: (spec_tunop, spec_ipopcntN),
+    # BinaryOpcode.I32_ADD: (spec_tbinop, spec_iaddN),
+    # BinaryOpcode.I32_SUB: (spec_tbinop, spec_isubN),
+    # BinaryOpcode.I32_MUL: (spec_tbinop, spec_imulN),
+    # BinaryOpcode.I32_DIV_S: (spec_tbinop, spec_idiv_sN),
+    # BinaryOpcode.I32_DIV_U: (spec_tbinop, spec_idiv_uN),
     BinaryOpcode.I32_REM_S: (spec_tbinop, spec_irem_sN),
     BinaryOpcode.I32_REM_U: (spec_tbinop, spec_irem_uN),
     BinaryOpcode.I32_AND: (spec_tbinop, spec_iandN),
@@ -1877,14 +1671,14 @@ opcode2exec: Dict[Union[Type[InvokeOp], BinaryOpcode], Tuple[Callable, ...]] = {
     BinaryOpcode.I32_SHR_U: (spec_tbinop, spec_ishr_uN),
     BinaryOpcode.I32_ROTL: (spec_tbinop, spec_irotlN),
     BinaryOpcode.I32_ROTR: (spec_tbinop, spec_irotrN),
-    BinaryOpcode.I64_CLZ: (spec_tunop, spec_iclzN),
-    BinaryOpcode.I64_CTZ: (spec_tunop, spec_ictzN),
-    BinaryOpcode.I64_POPCNT: (spec_tunop, spec_ipopcntN),
-    BinaryOpcode.I64_ADD: (spec_tbinop, spec_iaddN),
-    BinaryOpcode.I64_SUB: (spec_tbinop, spec_isubN),
-    BinaryOpcode.I64_MUL: (spec_tbinop, spec_imulN),
-    BinaryOpcode.I64_DIV_S: (spec_tbinop, spec_idiv_sN),
-    BinaryOpcode.I64_DIV_U: (spec_tbinop, spec_idiv_uN),
+    # BinaryOpcode.I64_CLZ: (spec_tunop, spec_iclzN),
+    # BinaryOpcode.I64_CTZ: (spec_tunop, spec_ictzN),
+    # BinaryOpcode.I64_POPCNT: (spec_tunop, spec_ipopcntN),
+    # BinaryOpcode.I64_ADD: (spec_tbinop, spec_iaddN),
+    # BinaryOpcode.I64_SUB: (spec_tbinop, spec_isubN),
+    # BinaryOpcode.I64_MUL: (spec_tbinop, spec_imulN),
+    # BinaryOpcode.I64_DIV_S: (spec_tbinop, spec_idiv_sN),
+    # BinaryOpcode.I64_DIV_U: (spec_tbinop, spec_idiv_uN),
     BinaryOpcode.I64_REM_S: (spec_tbinop, spec_irem_sN),
     BinaryOpcode.I64_REM_U: (spec_tbinop, spec_irem_uN),
     BinaryOpcode.I64_AND: (spec_tbinop, spec_iandN),

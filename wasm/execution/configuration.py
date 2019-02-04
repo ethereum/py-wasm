@@ -4,6 +4,7 @@ from abc import (
 )
 from typing import (
     Tuple,
+    cast,
 )
 
 from wasm.datatypes import (
@@ -12,6 +13,8 @@ from wasm.datatypes import (
 )
 from wasm.typing import (
     TValue,
+    UInt32,
+    UInt64,
 )
 
 from .instructions import (
@@ -86,6 +89,35 @@ class BaseConfiguration(ABC):
         pass
 
     #
+    # Pop u32
+    #
+    @abstractmethod
+    def pop_u32(self) -> UInt32:
+        pass
+
+    @abstractmethod
+    def pop2_u32(self) -> Tuple[UInt32, UInt32]:
+        pass
+
+    @abstractmethod
+    def pop3_u32(self) -> Tuple[UInt32, UInt32, UInt32]:
+        pass
+
+    #
+    # Pop u64
+    #
+    def pop_u64(self) -> UInt64:
+        return cast(UInt64, self.frame.active_operand_stack.pop())
+
+    def pop2_u64(self) -> Tuple[UInt64, UInt64]:
+        a, b = self.frame.active_operand_stack.pop2()
+        return cast(UInt64, a), cast(UInt64, b)
+
+    def pop3_u64(self) -> Tuple[UInt64, UInt64, UInt64]:
+        a, b, c = self.frame.active_operand_stack.pop3()
+        return cast(UInt64, a), cast(UInt64, b), cast(UInt64, c)
+
+    #
     # Frames
     #
     @property
@@ -132,11 +164,17 @@ class Configuration(BaseConfiguration):
     def execute(self) -> Tuple[TValue, ...]:
         # TODO: unwrap import once logic functions move out of wasm.main
         from wasm.main import opcode2exec
+        from wasm.logic import OPCODE_TO_LOGIC_FN
 
         while self.has_active_frame:
             instruction = next(self.instructions)
 
-            logic_fn = opcode2exec[instruction.opcode][0]
+            if instruction.opcode in OPCODE_TO_LOGIC_FN:
+                assert instruction.opcode not in opcode2exec
+                logic_fn = OPCODE_TO_LOGIC_FN[instruction.opcode]
+            else:
+                logic_fn = opcode2exec[instruction.opcode][0]
+
             logic_fn(self)
 
         if len(self.result_stack) > 1:
@@ -186,6 +224,34 @@ class Configuration(BaseConfiguration):
 
     def pop3_operands(self) -> Tuple[TValue, TValue, TValue]:
         return self.frame.active_operand_stack.pop3()
+
+    #
+    # Pop u32
+    #
+    def pop_u32(self) -> UInt32:
+        return cast(UInt32, self.frame.active_operand_stack.pop())
+
+    def pop2_u32(self) -> Tuple[UInt32, UInt32]:
+        a, b = self.frame.active_operand_stack.pop2()
+        return cast(UInt32, a), cast(UInt32, b)
+
+    def pop3_u32(self) -> Tuple[UInt32, UInt32, UInt32]:
+        a, b, c = self.frame.active_operand_stack.pop3()
+        return cast(UInt32, a), cast(UInt32, b), cast(UInt32, c)
+
+    #
+    # Pop u64
+    #
+    def pop_u64(self) -> UInt64:
+        return cast(UInt64, self.frame.active_operand_stack.pop())
+
+    def pop2_u64(self) -> Tuple[UInt64, UInt64]:
+        a, b = self.frame.active_operand_stack.pop2()
+        return cast(UInt64, a), cast(UInt64, b)
+
+    def pop3_u64(self) -> Tuple[UInt64, UInt64, UInt64]:
+        a, b, c = self.frame.active_operand_stack.pop3()
+        return cast(UInt64, a), cast(UInt64, b), cast(UInt64, c)
 
     #
     # Frames
