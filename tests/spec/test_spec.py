@@ -3,7 +3,7 @@ from pathlib import (
 )
 
 from wasm import (
-    Store,
+    Runtime,
 )
 from wasm.tools import (
     generate_fixture_tests,
@@ -23,17 +23,15 @@ def pytest_generate_tests(metafunc):
 
 
 def test_json_fixture(fixture_path):
-    store = Store()
-    modules = {
-        "spectest": instantiate_spectest_module(
-            store
-        ),  # module "spectest" is imported from by many tests
-        "test": instantiate_test_module(
-            store
-        ),  # module "test" is imported from by many tests
-    }
-    registered_modules = {
-        "spectest": modules["spectest"],  # register module "spectest" to be import-able
-        "test": modules["test"],  # register module "test" to be import-able
-    }
-    run_fixture_test(fixture_path, store, modules, registered_modules)
+    runtime = Runtime()
+    # module "spectest" is imported from by many tests
+    runtime.register_module(
+        "spectest",
+        instantiate_spectest_module(runtime.store),
+    )
+    # module "test" is imported from by many tests
+    runtime.register_module(
+        "test",
+        instantiate_test_module(runtime.store),
+    )
+    run_fixture_test(fixture_path, runtime)
