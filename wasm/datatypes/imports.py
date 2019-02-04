@@ -18,8 +18,8 @@ from .table import (
 
 
 class Import(NamedTuple):
-    module: str
-    name: str
+    module_name: str
+    as_name: str
     desc: Union[TypeIdx, GlobalType, MemoryType, TableType]
 
     @property

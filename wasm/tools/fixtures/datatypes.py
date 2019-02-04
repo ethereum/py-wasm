@@ -3,7 +3,6 @@ from pathlib import (
 )
 from typing import (
     TYPE_CHECKING,
-    Any,
     NamedTuple,
     Optional,
     Tuple,
@@ -34,7 +33,7 @@ class Action(NamedTuple):
     type: str
     field: str
     module: Optional[str]
-    args: Optional[Tuple[Any, ...]]
+    args: Tuple[Argument, ...]
 
 
 class AssertReturnCommand(NamedTuple):
