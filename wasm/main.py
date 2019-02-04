@@ -21,7 +21,6 @@ from wasm import (
 )
 from wasm.datatypes import (
     ExportInstance,
-    Function,
     FunctionAddress,
     FunctionInstance,
     FunctionType,
@@ -39,7 +38,6 @@ from wasm.datatypes import (
     Mutability,
     Store,
     TableAddress,
-    TableInstance,
     TableType,
     ValType,
 )
@@ -92,7 +90,6 @@ from wasm.parsers import (
 )
 from wasm.typing import (
     Float32,
-    HostFunctionCallable,
     TValue,
     UInt32,
 )
@@ -2111,66 +2108,6 @@ def spec_externtype_matching(externtype1, externtype2):
 # 4.5.3 ALLOCATION
 
 
-def spec_allocfunc(S: Store,
-                   func: Function,
-                   module: ModuleInstance,
-                   ) -> Tuple[Store, FunctionAddress]:
-    logger.debug('spec_allocfunc()')
-
-    funcaddr = FunctionAddress(len(S.funcs))
-    function_type = module.types[func.type_idx]
-    funcinst = FunctionInstance(function_type, module, func)
-    S.funcs.append(funcinst)
-    return S, funcaddr
-
-
-def spec_allochostfunc(S: Store,
-                       functype: FunctionType,
-                       hostfunc: HostFunctionCallable,
-                       ) -> Tuple[Store, FunctionAddress]:
-    logger.debug('spec_allochostfunc()')
-
-    funcaddr = FunctionAddress(len(S.funcs))
-    funcinst = HostFunction(functype, hostfunc)
-    S.funcs.append(funcinst)
-    return S, funcaddr
-
-
-def spec_alloctable(S: Store, table_type: TableType) -> Tuple[Store, TableAddress]:
-    logger.debug('spec_alloctable()')
-
-    tableaddr = TableAddress(len(S.tables))
-    tableinst = TableInstance(
-        elem=[None] * table_type.limits.min,
-        max=table_type.limits.max,
-    )
-    S.tables.append(tableinst)
-    return S, tableaddr
-
-
-def spec_allocmem(S: Store, memory_type: MemoryType) -> Tuple[Store, MemoryAddress]:
-    logger.debug('spec_allocmem()')
-
-    memaddr = MemoryAddress(len(S.mems))
-    meminst = MemoryInstance(
-        data=bytearray(memory_type.min * constants.PAGE_SIZE_64K),
-        max=memory_type.max,
-    )
-    S.mems.append(meminst)
-    return S, memaddr
-
-
-def spec_allocglobal(S: Store,
-                     global_type: GlobalType,
-                     val: TValue) -> Tuple[Store, GlobalAddress]:
-    logger.debug('spec_allocglobal()')
-
-    globaladdr = GlobalAddress(len(S.globals))
-    globalinst = GlobalInstance(global_type.valtype, val, global_type.mut)
-    S.globals.append(globalinst)
-    return S, globaladdr
-
-
 def spec_growmem(meminst: MemoryInstance, n: UInt32) -> None:
     logger.debug('spec_growmem()')
 
@@ -2208,10 +2145,10 @@ def spec_allocmodule(S: Store,
         for addr
         in range(next_function_address, next_function_address + len(module.funcs))
     )
-    tableaddrstar = tuple(spec_alloctable(S, table.type)[1] for table in module.tables)
-    memaddrstar = tuple(spec_allocmem(S, mem.type)[1] for mem in module.mems)
+    tableaddrstar = tuple(S.allocate_table(table.type) for table in module.tables)
+    memaddrstar = tuple(S.allocate_memory(mem.type) for mem in module.mems)
     globaladdrstar = tuple(
-        spec_allocglobal(S, global_.type, valstar[idx])[1]
+        S.allocate_global(global_.type, valstar[idx])
         for idx, global_ in enumerate(module.globals)
     )
 
@@ -2249,7 +2186,8 @@ def spec_allocmodule(S: Store,
     )
 
     store_function_addresses = tuple(
-        spec_allocfunc(S, func, moduleinst)[1] for func in module.funcs
+        S.allocate_function(moduleinst, function)
+        for function in module.funcs
     )
     if store_function_addresses != funcaddrstar:
         raise Exception(
@@ -2565,10 +2503,6 @@ def spec_invoke(S: Store,
 # 7.1.1 STORE
 
 
-def init_store():
-    return Store([], [], [], [])
-
-
 # 7.1.2 MODULES
 
 
@@ -2606,11 +2540,6 @@ def instantiate_module(store: Store,
 # 7.1.4 FUNCTIONS
 
 
-def alloc_func(store, functype, hostfunc):
-    store, funcaddr = spec_allochostfunc(store, functype, hostfunc)
-    return store, funcaddr
-
-
 def invoke_func(store, funcaddr, valstar):
     ret = spec_invoke(store, funcaddr, valstar)
     return store, ret
@@ -2619,21 +2548,7 @@ def invoke_func(store, funcaddr, valstar):
 # 7.1.4 TABLES
 
 
-def alloc_table(store, tabletype):
-    store, tableaddr = spec_alloctable(store, tabletype)
-    return store, tableaddr
-
-
 # 7.1.6 MEMORIES
 
 
-def alloc_mem(store, memtype):
-    store, memaddr = spec_allocmem(store, memtype)
-    return store, memaddr
-
-
 # 7.1.7 GLOBALS
-
-
-def alloc_global(store, globaltype, val):
-    return spec_allocglobal(store, globaltype, val)

@@ -1,6 +1,5 @@
 import logging
 
-import wasm
 from wasm.datatypes import (
     ExportInstance,
     FunctionAddress,
@@ -18,6 +17,8 @@ from wasm.datatypes import (
     ValType,
 )
 from wasm.typing import (
+    Float32,
+    Float64,
     UInt32,
 )
 
@@ -53,24 +54,30 @@ def instantiate_spectest_module(store: Store) -> ModuleInstance:
         logger.debug('print: %s', arg)
         return store, []
 
-    wasm.alloc_func(store, FunctionType((ValType.i32,), ()), spectest__print_i32)
-    wasm.alloc_func(store, FunctionType((ValType.i64,), ()), spectest__print_i64)
-    wasm.alloc_func(store, FunctionType((ValType.f32,), ()), spectest__print_f32)
-    wasm.alloc_func(store, FunctionType((ValType.f64,), ()), spectest__print_f64)
-    wasm.alloc_func(store, FunctionType((ValType.i32, ValType.f32), ()), spectest__print_i32_f32)
-    wasm.alloc_func(store, FunctionType((ValType.f64, ValType.f64), ()), spectest__print_f64_f64)
-    wasm.alloc_func(store, FunctionType((), ()), spectest__print)
+    store.allocate_host_function(FunctionType((ValType.i32,), ()), spectest__print_i32)
+    store.allocate_host_function(FunctionType((ValType.i64,), ()), spectest__print_i64)
+    store.allocate_host_function(FunctionType((ValType.f32,), ()), spectest__print_f32)
+    store.allocate_host_function(FunctionType((ValType.f64,), ()), spectest__print_f64)
+    store.allocate_host_function(
+        FunctionType((ValType.i32, ValType.f32), ()),
+        spectest__print_i32_f32
+    )
+    store.allocate_host_function(
+        FunctionType((ValType.f64, ValType.f64), ()),
+        spectest__print_f64_f64
+    )
+    store.allocate_host_function(FunctionType((), ()), spectest__print)
 
     # min:1,max:2 required by import.wast:
-    wasm.alloc_mem(store, MemoryType(UInt32(1), UInt32(2)))
+    store.allocate_memory(MemoryType(UInt32(1), UInt32(2)))
 
     # 666 required by import.wast
-    wasm.alloc_global(store, GlobalType(Mutability.const, ValType.i32), 666)
+    store.allocate_global(GlobalType(Mutability.const, ValType.i32), UInt32(666))
 
-    wasm.alloc_global(store, GlobalType(Mutability.const, ValType.f32), 0.0)
-    wasm.alloc_global(store, GlobalType(Mutability.const, ValType.f64), 0.0)
-    wasm.alloc_table(
-        store, TableType(Limits(UInt32(10), UInt32(20)), FunctionAddress)
+    store.allocate_global(GlobalType(Mutability.const, ValType.f32), Float32(0.0))
+    store.allocate_global(GlobalType(Mutability.const, ValType.f64), Float64(0.0))
+    store.allocate_table(
+        TableType(Limits(UInt32(10), UInt32(20)), FunctionAddress)
     )  # max was 30, changed to 20 for import.wast
     moduleinst = ModuleInstance(
         types=(
@@ -127,17 +134,18 @@ def instantiate_test_module(store):
     def test__func_i64_i64(store, arg):
         pass
 
-    wasm.alloc_func(store, FunctionType((), ()), test__func)
-    wasm.alloc_func(store, FunctionType((ValType.i32,), ()), test__func_i32)
-    wasm.alloc_func(store, FunctionType((ValType.f32,), ()), test__func_f32)
-    wasm.alloc_func(store, FunctionType((), (ValType.i32,)), test__func__i32)
-    wasm.alloc_func(store, FunctionType((), (ValType.f32,)), test__func__f32)
-    wasm.alloc_func(store, FunctionType((ValType.i32,), (ValType.i32,)), test__func_i32_i32)
-    wasm.alloc_func(store, FunctionType((ValType.i64,), (ValType.i64,)), test__func_i64_i64)
-    wasm.alloc_mem(store, MemoryType(1, None))
-    wasm.alloc_global(store, GlobalType(Mutability.const, ValType.i32), 666)
-    wasm.alloc_global(store, GlobalType(Mutability.const, ValType.f32), 0.0)
-    wasm.alloc_table(store, TableType(Limits(10, None), FunctionAddress))
+    store.allocate_host_function(FunctionType((), ()), test__func)
+    store.allocate_host_function(FunctionType((ValType.i32,), ()), test__func_i32)
+    store.allocate_host_function(FunctionType((ValType.f32,), ()), test__func_f32)
+    store.allocate_host_function(FunctionType((), (ValType.i32,)), test__func__i32)
+    store.allocate_host_function(FunctionType((), (ValType.f32,)), test__func__f32)
+    store.allocate_host_function(FunctionType((ValType.i32,), (ValType.i32,)), test__func_i32_i32)
+    store.allocate_host_function(FunctionType((ValType.i64,), (ValType.i64,)), test__func_i64_i64)
+
+    store.allocate_memory(MemoryType(1, None))
+    store.allocate_global(GlobalType(Mutability.const, ValType.i32), UInt32(666))
+    store.allocate_global(GlobalType(Mutability.const, ValType.f32), Float32(0.0))
+    store.allocate_table(TableType(Limits(10, None), FunctionAddress))
     moduleinst = ModuleInstance(
         types=(
             FunctionType((), ()),
