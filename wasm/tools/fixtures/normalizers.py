@@ -113,7 +113,7 @@ def _normalize_get_action(raw_action: RawCommand) -> Action:
         type=raw_action['type'],
         field=raw_action['field'],
         module=raw_action.get('module'),
-        args=None,
+        args=tuple(),
     )
 
 

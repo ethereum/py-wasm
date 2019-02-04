@@ -15,6 +15,6 @@ if TYPE_CHECKING:
 
 
 class DataSegment(NamedTuple):
-    mem_idx: MemoryIdx
+    memory_idx: MemoryIdx
     offset: Tuple['BaseInstruction', ...]
     init: bytes

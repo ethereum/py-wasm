@@ -3,13 +3,10 @@ import logging
 import math
 import struct
 from typing import (
-    Any,
     Callable,
     Dict,
-    Iterable,
     List,
     NamedTuple,
-    Sequence,
     Tuple,
     Type,
     Union,
@@ -20,25 +17,15 @@ from wasm import (
     constants,
 )
 from wasm.datatypes import (
-    ExportInstance,
     FunctionAddress,
     FunctionInstance,
-    FunctionType,
-    GlobalAddress,
     GlobalInstance,
-    GlobalType,
     HostFunction,
     LabelIdx,
-    Limits,
-    MemoryAddress,
     MemoryInstance,
-    MemoryType,
-    Module,
     ModuleInstance,
     Mutability,
     Store,
-    TableAddress,
-    TableType,
     ValType,
 )
 from wasm.exceptions import (
@@ -47,7 +34,6 @@ from wasm.exceptions import (
     MalformedModule,
     ParseError,
     Trap,
-    Unlinkable,
     ValidationError,
 )
 from wasm.execution import (
@@ -132,24 +118,6 @@ def spec_expon(N):
 
 
 # 2.5.10.1 EXTERNAL TYPES
-
-TExportAddress = Union[FunctionAddress, TableAddress, MemoryAddress, GlobalAddress]
-
-
-def spec_funcs_exports(exports: Iterable[TExportAddress]) -> Tuple[FunctionAddress, ...]:
-    return tuple(idx for idx in exports if isinstance(idx, FunctionAddress))
-
-
-def spec_tables_exports(exports: Iterable[TExportAddress]) -> Tuple[TableAddress, ...]:
-    return tuple(idx for idx in exports if isinstance(idx, TableAddress))
-
-
-def spec_memory_exports(exports: Iterable[TExportAddress]) -> Tuple[MemoryAddress, ...]:
-    return tuple(idx for idx in exports if isinstance(idx, MemoryAddress))
-
-
-def spec_globals_exports(exports: Iterable[TExportAddress]) -> Tuple[GlobalAddress, ...]:
-    return tuple(idx for idx in exports if isinstance(idx, GlobalAddress))
 
 
 ################
@@ -1985,24 +1953,6 @@ opcode2exec: Dict[Union[Type[InvokeOp], BinaryOpcode], Tuple[Callable, ...]] = {
 }
 
 
-# this executes instr* end. This deviates from the spec.
-def spec_expr(config):
-    logger.debug('spec_expr()')
-
-    while config.has_active_frame:
-        instruction = next(config.instructions)
-
-        logic_fn = opcode2exec[instruction.opcode][0]
-        logic_fn(config)
-
-    if len(config.result_stack) > 1:
-        raise Exception("Invariant?")
-    elif len(config.result_stack) == 1:
-        return (config.result_stack.pop(),)
-    else:
-        return tuple()
-
-
 #############
 # 4.5 MODULES
 #############
@@ -2010,99 +1960,7 @@ def spec_expr(config):
 # 4.5.1 EXTERNAL TYPING
 
 
-TExtern = Union[FunctionType, TableType, MemoryType, GlobalType]
-
-
-def spec_external_typing(S: Store,
-                         extern_desc: TExportAddress,
-                         ) -> TExtern:
-    logger.debug('spec_external_typing(%s)', extern_desc)
-
-    if isinstance(extern_desc, FunctionAddress):
-        if len(S.funcs) < extern_desc:
-            raise Unlinkable("unlinkable")
-        funcinst = S.funcs[extern_desc]
-        return funcinst.type
-    elif isinstance(extern_desc, TableAddress):
-        if len(S.tables) < extern_desc:
-            raise Unlinkable("unlinkable")
-        tableinst = S.tables[extern_desc]
-        return TableType(
-            limits=Limits(UInt32(len(tableinst.elem)), tableinst.max),
-            elem_type=FunctionAddress,
-        )
-    elif isinstance(extern_desc, MemoryAddress):
-        if len(S.mems) < extern_desc:
-            raise Unlinkable("unlinkable")
-        meminst = S.mems[extern_desc]
-        return MemoryType(
-            UInt32(len(meminst.data) // constants.PAGE_SIZE_64K),
-            meminst.max,
-        )
-    elif isinstance(extern_desc, GlobalAddress):
-        if len(S.globals) < extern_desc:
-            raise Unlinkable("unlinkable")
-        globalinst = S.globals[extern_desc]
-        return GlobalType(
-            globalinst.mut,
-            globalinst.valtype,
-        )
-    else:
-        raise Unlinkable("unlinkable")
-
-
 # 4.5.2 IMPORT MATCHING
-
-
-def spec_externtype_matching_limits(limits_a: Limits, limits_b: Limits) -> str:
-    logger.debug('spec_externtype_matching_limits(%s, %s)', limits_a, limits_b)
-
-    if limits_a.min < limits_b.min:
-        raise Unlinkable("unlinkable")
-    elif limits_b.max is None:
-        return "<="
-    elif limits_a.max is not None and limits_a.max <= limits_b.max:
-        return "<="
-    else:
-        raise Unlinkable("unlinkable")
-
-
-def spec_externtype_matching(externtype1, externtype2):
-    logger.debug('spec_externtype_matching(%s, %s)', externtype1, externtype2)
-
-    if type(externtype1) is not type(externtype2):
-        raise Unlinkable(
-            f"Mismatch in extern types: {type(externtype1)} != {type(externtype2)}"
-        )
-    elif isinstance(externtype1, FunctionType):
-        if externtype1 == externtype2:
-            return "<="
-        else:
-            raise Unlinkable(f"Function types not equal: {externtype1} != {externtype2}")
-    elif isinstance(externtype1, TableType):
-        spec_externtype_matching_limits(externtype1.limits, externtype2.limits)
-
-        if externtype1.elem_type is externtype2.elem_type:
-            return "<="
-        else:
-            raise Unlinkable(
-                f"Table element type mismatch: {externtype1.elem_type} != "
-                f"{externtype2.elem_type}"
-            )
-    elif isinstance(externtype1, MemoryType):
-        if spec_externtype_matching_limits(externtype1, externtype2) == "<=":
-            return "<="
-        else:
-            # TODO: This code path doesn't appear to be excercised and it
-            # likely isn't an invariant.
-            raise Exception("Invariant")
-    elif isinstance(externtype1, GlobalType):
-        if externtype1 == externtype2:
-            return "<="
-        else:
-            raise Unlinkable(f"Globals extern type mismatch: {externtype1} != {externtype2}")
-    else:
-        raise Unlinkable(f"Unknown extern type: {type(externtype1)}")
 
 
 # 4.5.3 ALLOCATION
@@ -2131,197 +1989,12 @@ def spec_growmem(meminst: MemoryInstance, n: UInt32) -> None:
     ))  # each page created with bytearray(65536) which is 0s
 
 
-def spec_allocmodule(S: Store,
-                     module: Module,
-                     externvalimstar: Sequence[TExportAddress],
-                     valstar: Tuple[TValue, ...],
-                     ) -> Tuple[Store, ModuleInstance]:
-    logger.debug('spec_allocmodule()')
-
-    next_function_address = len(S.funcs)
-
-    funcaddrstar = tuple(
-        FunctionAddress(addr)
-        for addr
-        in range(next_function_address, next_function_address + len(module.funcs))
-    )
-    tableaddrstar = tuple(S.allocate_table(table.type) for table in module.tables)
-    memaddrstar = tuple(S.allocate_memory(mem.type) for mem in module.mems)
-    globaladdrstar = tuple(
-        S.allocate_global(global_.type, valstar[idx])
-        for idx, global_ in enumerate(module.globals)
-    )
-
-    funcaddrmodstar = spec_funcs_exports(externvalimstar) + funcaddrstar
-    tableaddrmodstar = spec_tables_exports(externvalimstar) + tableaddrstar
-    memaddrmodstar = spec_memory_exports(externvalimstar) + memaddrstar
-    globaladdrmodstar = spec_globals_exports(externvalimstar) + globaladdrstar
-
-    exportinststar: List[ExportInstance] = []
-    for exporti in module.exports:
-        desc: TExportAddress
-
-        if exporti.is_function:
-            desc = funcaddrmodstar[exporti.function_idx]
-        elif exporti.is_table:
-            desc = tableaddrmodstar[exporti.table_idx]
-        elif exporti.is_memory:
-            desc = memaddrmodstar[exporti.memory_idx]
-        elif exporti.is_global:
-            desc = globaladdrmodstar[exporti.global_idx]
-        else:
-            raise Exception(f"Unknown export: {exporti}")
-
-        exportinststar += [ExportInstance(exporti.name, desc)]
-
-    # TODO: remove type ignores when module instance data structure is
-    # formalized
-    moduleinst = ModuleInstance(
-        types=module.types,
-        func_addrs=funcaddrmodstar,
-        table_addrs=tableaddrmodstar,
-        memory_addrs=memaddrmodstar,
-        global_addrs=globaladdrmodstar,
-        exports=tuple(exportinststar),
-    )
-
-    store_function_addresses = tuple(
-        S.allocate_function(moduleinst, function)
-        for function in module.funcs
-    )
-    if store_function_addresses != funcaddrstar:
-        raise Exception(
-            "Invariant: actual function addresses don't match expected values:\n"
-            f" - store : {store_function_addresses}"
-            f" - actual: {funcaddrstar}"
-        )
-
-    return S, moduleinst
-
-
-def spec_instantiate(S, module, externvaln):
-    """
-    4.5.4
-    - https://webassembly.github.io/spec/core/bikeshed/index.html#instantiation%E2%91%A1
-    """
-    logger.debug('spec_instantiate()')
-
-    # 1
-    # 2
-    ret = _validate_module(module)
-    externtypeimn, externtypeexstar = ret
-    # 3
-    if len(module.imports) != len(externvaln):
-        raise Unlinkable("unlinkable")
-    # 4
-    for i in range(len(externvaln)):
-        externtypei = spec_external_typing(S, externvaln[i])
-        spec_externtype_matching(externtypei, externtypeimn[i])
-    # 5
-    valstar = []
-    moduleinstim = ModuleInstance(
-        types=(),
-        func_addrs=(),
-        memory_addrs=(),
-        table_addrs=(),
-        global_addrs=tuple(
-            externval
-            for externval in externvaln
-            if isinstance(externval, GlobalAddress)
-        ),
-        exports=(),
-    )
-    # TODO: figure out why previous frame stack had an arity?
-
-    for globali in module.globals:
-        F = Frame(
-            module=moduleinstim,
-            locals=[],
-            instructions=InstructionSequence(globali.init),
-            arity=1,
-        )
-        config = Configuration(
-            store=S,
-        )
-        config.push_frame(F)
-        ret = spec_expr(config)[0]
-        valstar += [ret]
-
-    # 6
-    S, moduleinst = spec_allocmodule(S, module, externvaln, valstar)
-    # 7
-    # 8
-    # 9
-    tableinst = []
-    eo = []
-    for elemi in module.elem:
-        F = Frame(
-            module=moduleinst,
-            locals=[],
-            instructions=InstructionSequence(elemi.offset),
-            arity=1,
-        )
-        config = Configuration(store=S)
-        config.push_frame(F)
-        eovali = spec_expr(config)[0]
-        eoi = eovali
-        eo += [eoi]
-        tableidxi = elemi.table_idx
-        tableaddri = moduleinst.table_addrs[tableidxi]
-        tableinsti = S.tables[tableaddri]
-        tableinst += [tableinsti]
-        eendi = eoi + len(elemi.init)
-        if eendi > len(tableinsti.elem):
-            raise Unlinkable("unlinkable")
-    # 10
-    meminst = []
-    do = []
-    for datai in module.data:
-        F = Frame(
-            module=moduleinst,
-            locals=[],
-            instructions=InstructionSequence(datai.offset),
-            arity=1,
-        )
-        config = Configuration(store=S)
-        config.push_frame(F)
-        dovali = spec_expr(config)
-        doi = dovali[0]
-        do += [doi]
-        memidxi = datai.mem_idx
-        memaddri = moduleinst.memory_addrs[memidxi]
-        meminsti = S.mems[memaddri]
-        meminst += [meminsti]
-        dendi = doi + len(datai.init)
-        if dendi > len(meminsti.data):
-            raise Unlinkable("unlinkable")
-    # 11
-    # 12
-    # 13
-    for i, elemi in enumerate(module.elem):
-        for j, funcidxij in enumerate(elemi.init):
-            funcaddrij = moduleinst.func_addrs[funcidxij]
-            tableinst[i].elem[eo[i] + j] = funcaddrij
-    # 14
-    for i, datai in enumerate(module.data):
-        for j, bij in enumerate(datai.init):
-            meminst[i].data[do[i] + j] = bij
-    # 15
-    if module.start is not None:
-        funcaddr = moduleinst.func_addrs[module.start.function_idx]
-        ret = spec_invoke(S, funcaddr, [])
-    else:
-        ret = None
-
-    return S, moduleinst, ret
-
-
 # 4.5.5 INVOCATION
 
 # valn looks like [["i32.const",3],["i32.const",199], ...]
 def spec_invoke(S: Store,
                 funcaddr: FunctionAddress,
-                valn: Tuple[Tuple[ValType, TValue], ...],
+                valn: Tuple[Tuple[ValType, TValue], ...] = None,
                 ) -> Tuple[TValue, ...]:
     logger.debug('spec_invoke()')
 
@@ -2333,6 +2006,9 @@ def spec_invoke(S: Store,
     # 5
     t1n, t2m = funcinst.type
     # 4
+    if valn is None:
+        valn = tuple()
+
     if len(valn) != len(t1n):
         raise Exception("wrong number of arguments")
     # 5
@@ -2357,7 +2033,7 @@ def spec_invoke(S: Store,
         for _, arg in valn:
             config.push_operand(arg)
 
-        valresm = spec_expr(config)
+        valresm = config.execute()
         assert valresm is not None
         return valresm
     elif isinstance(funcinst, HostFunction):
@@ -2519,19 +2195,6 @@ def validate_module(module):
         _validate_module(module)
     except ValidationError as err:
         raise InvalidModule from err
-
-
-# TODO: tighten type hint for `externvalstar`
-def instantiate_module(store: Store,
-                       module: Module,
-                       externvalstar: Tuple[Any, ...],
-                       ) -> Tuple[Store, ModuleInstance, TValue]:
-    # TODO: handle spec deviation if necessary
-    # we deviate from the spec by also returning the return value
-    ret = spec_instantiate(store, module, externvalstar)
-
-    store, modinst, startret = ret
-    return store, modinst, startret
 
 
 # 7.1.3 EXPORTS

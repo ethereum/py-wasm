@@ -54,7 +54,7 @@ def parse_import_descriptor(stream: io.BytesIO) -> TImportDesc:
 
 
 def parse_import(stream: io.BytesIO) -> Import:
-    module = parse_text(stream)
-    name = parse_text(stream)
+    module_name = parse_text(stream)
+    as_name = parse_text(stream)
     descriptor = parse_import_descriptor(stream)
-    return Import(module, name, descriptor)
+    return Import(module_name, as_name, descriptor)
