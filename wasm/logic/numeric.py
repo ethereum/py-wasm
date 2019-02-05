@@ -1,4 +1,5 @@
 import decimal
+import logging
 from typing import (
     Union,
     cast,
@@ -32,17 +33,21 @@ from wasm.typing import (
     UInt64,
 )
 
+logger = logging.getLogger('wasm.logic.numeric')
+
 TConst = Union[F32Const, F64Const, I32Const, I64Const]
 
 
 def const_op(config: Configuration) -> None:
     instruction = cast(TConst, config.instructions.current)
+    logger.debug("%s(%s)", instruction.opcode.text, instruction)
 
     config.push_operand(instruction.value)
 
 
 def ieqz_op(config: Configuration) -> None:
     value = config.pop_operand()
+    logger.debug("%s(%s)", config.instructions.current.opcode.text, value)
 
     if value == 0:
         config.push_operand(UInt32(1))
@@ -55,6 +60,8 @@ def ieqz_op(config: Configuration) -> None:
 #
 def ieq_op(config: Configuration) -> None:
     b, a = config.pop2_operands()
+    logger.debug("%s(%s, %s)", config.instructions.current.opcode.text, a, b)
+
     if a == b:
         config.push_operand(UInt32(1))
     else:
@@ -63,6 +70,8 @@ def ieq_op(config: Configuration) -> None:
 
 def ine_op(config: Configuration) -> None:
     b, a = config.pop2_operands()
+    logger.debug("%s(%s, %s)", config.instructions.current.opcode.text, a, b)
+
     if a == b:
         config.push_operand(UInt32(0))
     else:
@@ -74,6 +83,8 @@ def ine_op(config: Configuration) -> None:
 #
 def iltu_op(config: Configuration) -> None:
     b, a = config.pop2_operands()
+    logger.debug("%s(%s, %s)", config.instructions.current.opcode.text, a, b)
+
     if a < b:
         config.push_operand(UInt32(1))
     else:
@@ -82,6 +93,8 @@ def iltu_op(config: Configuration) -> None:
 
 def ileu_op(config: Configuration) -> None:
     b, a = config.pop2_operands()
+    logger.debug("%s(%s, %s)", config.instructions.current.opcode.text, a, b)
+
     if a <= b:
         config.push_operand(UInt32(1))
     else:
@@ -90,6 +103,8 @@ def ileu_op(config: Configuration) -> None:
 
 def igtu_op(config: Configuration) -> None:
     b, a = config.pop2_operands()
+    logger.debug("%s(%s, %s)", config.instructions.current.opcode.text, a, b)
+
     if a > b:
         config.push_operand(UInt32(1))
     else:
@@ -98,6 +113,8 @@ def igtu_op(config: Configuration) -> None:
 
 def igeu_op(config: Configuration) -> None:
     b, a = config.pop2_operands()
+    logger.debug("%s(%s, %s)", config.instructions.current.opcode.text, a, b)
+
     if a >= b:
         config.push_operand(UInt32(1))
     else:
@@ -111,6 +128,8 @@ def i32lts_op(config: Configuration) -> None:
     b, a = config.pop2_u32()
     b_s = u32_to_s32(b)
     a_s = u32_to_s32(a)
+    logger.debug("%s(%s, %s)", config.instructions.current.opcode.text, a_s, b_s)
+
     if a_s < b_s:
         config.push_operand(UInt32(1))
     else:
@@ -121,6 +140,8 @@ def i32les_op(config: Configuration) -> None:
     b, a = config.pop2_u32()
     b_s = u32_to_s32(b)
     a_s = u32_to_s32(a)
+    logger.debug("%s(%s, %s)", config.instructions.current.opcode.text, a_s, b_s)
+
     if a_s <= b_s:
         config.push_operand(UInt32(1))
     else:
@@ -131,6 +152,8 @@ def i32gts_op(config: Configuration) -> None:
     b, a = config.pop2_u32()
     b_s = u32_to_s32(b)
     a_s = u32_to_s32(a)
+    logger.debug("%s(%s, %s)", config.instructions.current.opcode.text, a_s, b_s)
+
     if a_s > b_s:
         config.push_operand(UInt32(1))
     else:
@@ -141,6 +164,8 @@ def i32ges_op(config: Configuration) -> None:
     b, a = config.pop2_u32()
     b_s = u32_to_s32(b)
     a_s = u32_to_s32(a)
+    logger.debug("%s(%s, %s)", config.instructions.current.opcode.text, a_s, b_s)
+
     if a_s >= b_s:
         config.push_operand(UInt32(1))
     else:
@@ -154,6 +179,8 @@ def i64lts_op(config: Configuration) -> None:
     b, a = config.pop2_u64()
     b_s = u64_to_s64(b)
     a_s = u64_to_s64(a)
+    logger.debug("%s(%s, %s)", config.instructions.current.opcode.text, a_s, b_s)
+
     if a_s < b_s:
         config.push_operand(UInt32(1))
     else:
@@ -164,6 +191,8 @@ def i64les_op(config: Configuration) -> None:
     b, a = config.pop2_u64()
     b_s = u64_to_s64(b)
     a_s = u64_to_s64(a)
+    logger.debug("%s(%s, %s)", config.instructions.current.opcode.text, a_s, b_s)
+
     if a_s <= b_s:
         config.push_operand(UInt32(1))
     else:
@@ -174,6 +203,8 @@ def i64gts_op(config: Configuration) -> None:
     b, a = config.pop2_u64()
     b_s = u64_to_s64(b)
     a_s = u64_to_s64(a)
+    logger.debug("%s(%s, %s)", config.instructions.current.opcode.text, a_s, b_s)
+
     if a_s > b_s:
         config.push_operand(UInt32(1))
     else:
@@ -184,6 +215,8 @@ def i64ges_op(config: Configuration) -> None:
     b, a = config.pop2_u64()
     b_s = u64_to_s64(b)
     a_s = u64_to_s64(a)
+    logger.debug("%s(%s, %s)", config.instructions.current.opcode.text, a_s, b_s)
+
     if a_s >= b_s:
         config.push_operand(UInt32(1))
     else:
@@ -195,21 +228,29 @@ def i64ges_op(config: Configuration) -> None:
 #
 def i32add_op(config: Configuration) -> None:
     b, a = config.pop2_u32()
+    logger.debug("%s(%s, %s)", config.instructions.current.opcode.text, a, b)
+
     config.push_operand(UInt32((a + b) % constants.UINT32_CEIL))
 
 
 def i64add_op(config: Configuration) -> None:
     b, a = config.pop2_u64()
+    logger.debug("%s(%s, %s)", config.instructions.current.opcode.text, a, b)
+
     config.push_operand(UInt64((a + b) % constants.UINT64_CEIL))
 
 
 def i32sub_op(config: Configuration) -> None:
     b, a = config.pop2_u32()
+    logger.debug("%s(%s, %s)", config.instructions.current.opcode.text, a, b)
+
     config.push_operand(UInt32((a - b) % constants.UINT32_CEIL))
 
 
 def i64sub_op(config: Configuration) -> None:
     b, a = config.pop2_u64()
+    logger.debug("%s(%s, %s)", config.instructions.current.opcode.text, a, b)
+
     config.push_operand(UInt64((a - b) % constants.UINT64_CEIL))
 
 
@@ -218,11 +259,15 @@ def i64sub_op(config: Configuration) -> None:
 #
 def i32mul_op(config: Configuration) -> None:
     b, a = config.pop2_u32()
+    logger.debug("%s(%s, %s)", config.instructions.current.opcode.text, a, b)
+
     config.push_operand(UInt32((a * b) % constants.UINT32_CEIL))
 
 
 def i64mul_op(config: Configuration) -> None:
     b, a = config.pop2_u64()
+    logger.debug("%s(%s, %s)", config.instructions.current.opcode.text, a, b)
+
     config.push_operand(UInt64((a * b) % constants.UINT64_CEIL))
 
 
@@ -231,6 +276,8 @@ def i64mul_op(config: Configuration) -> None:
 #
 def idivu_op(config: Configuration) -> None:
     b, a = config.pop2_u32()
+    logger.debug("%s(%s, %s)", config.instructions.current.opcode.text, a, b)
+
     if b == 0:
         raise Trap('DIVISION BY ZERO')
     config.push_operand(UInt32(a // b))
@@ -238,11 +285,13 @@ def idivu_op(config: Configuration) -> None:
 
 def i32divs_op(config: Configuration) -> None:
     b, a = config.pop2_u32()
-    if b == 0:
-        raise Trap('DIVISION BY ZERO')
 
     b_s = u32_to_s32(b)
     a_s = u32_to_s32(a)
+    logger.debug("%s(%s, %s)", config.instructions.current.opcode.text, a_s, b_s)
+
+    if b == 0:
+        raise Trap('DIVISION BY ZERO')
 
     raw_result = a_s / b_s
     if raw_result == constants.SINT32_CEIL:
@@ -252,11 +301,13 @@ def i32divs_op(config: Configuration) -> None:
 
 def i64divs_op(config: Configuration) -> None:
     b, a = config.pop2_u64()
-    if b == 0:
-        raise Trap('DIVISION BY ZERO')
 
     b_s = u64_to_s64(b)
     a_s = u64_to_s64(a)
+    logger.debug("%s(%s, %s)", config.instructions.current.opcode.text, a_s, b_s)
+
+    if b == 0:
+        raise Trap('DIVISION BY ZERO')
 
     # decimal wrapping needed to ensure float precision doesn't cause rounding
     # error.  21 *appears* to be the right precision, since 2**64 has 20 digits
@@ -274,11 +325,15 @@ def i64divs_op(config: Configuration) -> None:
 #
 def i32clz_op(config: Configuration) -> None:
     value = config.pop_u32()
+    logger.debug("%s(%s)", config.instructions.current.opcode.text, value)
+
     config.push_operand(UInt32(32 - value.bit_length()))
 
 
 def i64clz_op(config: Configuration) -> None:
     value = config.pop_u64()
+    logger.debug("%s(%s)", config.instructions.current.opcode.text, value)
+
     config.push_operand(UInt64(64 - value.bit_length()))
 
 
@@ -293,6 +348,8 @@ POWERS_OF_TWO = tuple(
 #
 def i32ctz_op(config: Configuration) -> None:
     value = config.pop_u32()
+    logger.debug("%s(%s)", config.instructions.current.opcode.text, value)
+
     if value == 0:
         config.push_operand(UInt32(32))
     else:
@@ -306,6 +363,8 @@ def i32ctz_op(config: Configuration) -> None:
 
 def i64ctz_op(config: Configuration) -> None:
     value = config.pop_u64()
+    logger.debug("%s(%s)", config.instructions.current.opcode.text, value)
+
     if value == 0:
         config.push_operand(UInt64(64))
     else:
@@ -320,10 +379,186 @@ def i64ctz_op(config: Configuration) -> None:
 #
 # Count non-zero bits
 #
-def ipopcnt(config: Configuration) -> None:
+def ipopcnt_op(config: Configuration) -> None:
     value = config.pop_operand()
+    logger.debug("%s(%s)", config.instructions.current.opcode.text, value)
 
     if value == 0:
         config.push_operand(UInt32(0))
     else:
         config.push_operand(UInt32(bin(int(value)).count('1')))
+
+
+#
+# Remainders
+#
+def iremu_op(config: Configuration) -> None:
+    b, a = config.pop2_u32()
+    logger.debug("%s(%s, %s)", config.instructions.current.opcode.text, a, b)
+
+    if b == 0:
+        raise Trap('DIVISION BY ZERO')
+
+    config.push_operand(a % b)
+
+
+def i32rems_op(config: Configuration) -> None:
+    b, a = config.pop2_u32()
+    logger.debug("%s(%s, %s)", config.instructions.current.opcode.text, a, b)
+
+    if b == 0:
+        raise Trap('DIVISION BY ZERO')
+
+    b_s = u32_to_s32(b)
+    a_s = u32_to_s32(a)
+
+    raw_result = abs(a_s) % abs(b_s)
+    result = -1 * raw_result if a_s < 0 else raw_result
+
+    config.push_operand(s32_to_u32(SInt32(int(result))))
+
+
+def i64rems_op(config: Configuration) -> None:
+    b, a = config.pop2_u64()
+    logger.debug("%s(%s, %s)", config.instructions.current.opcode.text, a, b)
+
+    if b == 0:
+        raise Trap('DIVISION BY ZERO')
+
+    b_s = u64_to_s64(b)
+    a_s = u64_to_s64(a)
+
+    raw_result = abs(a_s) % abs(b_s)
+    result = -1 * raw_result if a_s < 0 else raw_result
+
+    config.push_operand(s64_to_u64(SInt64(int(result))))
+
+
+#
+# Logical and/or/xor
+#
+def iand_op(config: Configuration) -> None:
+    b, a = config.pop2_operands()
+    logger.debug("%s(%s, %s)", config.instructions.current.opcode.text, a, b)
+
+    config.push_operand(UInt64(a & b))
+
+
+def ior_op(config: Configuration) -> None:
+    b, a = config.pop2_operands()
+    logger.debug("%s(%s, %s)", config.instructions.current.opcode.text, a, b)
+
+    config.push_operand(UInt64(a | b))
+
+
+def ixor_op(config: Configuration) -> None:
+    b, a = config.pop2_operands()
+    logger.debug("%s(%s, %s)", config.instructions.current.opcode.text, a, b)
+
+    config.push_operand(UInt64(a ^ b))
+
+
+#
+# Bitwise shifting
+#
+def i32shl_op(config: Configuration) -> None:
+    b, a = config.pop2_u32()
+    logger.debug("%s(%s, %s)", config.instructions.current.opcode.text, a, b)
+
+    config.push_operand(UInt32((a << (b % 32)) % constants.UINT32_CEIL))
+
+
+def i64shl_op(config: Configuration) -> None:
+    b, a = config.pop2_u64()
+    logger.debug("%s(%s, %s)", config.instructions.current.opcode.text, a, b)
+
+    config.push_operand(UInt64((a << (b % 64)) % constants.UINT64_CEIL))
+
+
+def i32shru_op(config: Configuration) -> None:
+    b, a = config.pop2_u32()
+    logger.debug("%s(%s, %s)", config.instructions.current.opcode.text, a, b)
+
+    config.push_operand(UInt32(a >> (b % 32)))
+
+
+def i64shru_op(config: Configuration) -> None:
+    b, a = config.pop2_u64()
+    logger.debug("%s(%s, %s)", config.instructions.current.opcode.text, a, b)
+
+    config.push_operand(UInt64(a >> (b % 64)))
+
+
+def i32shrs_op(config: Configuration) -> None:
+    b, a = config.pop2_u32()
+
+    a_s = u32_to_s32(a)
+
+    logger.debug("%s(%s, %s)", config.instructions.current.opcode.text, a, b)
+
+    config.push_operand(UInt32(
+        s32_to_u32(a_s >> (b % 32))
+    ))
+
+
+def i64shrs_op(config: Configuration) -> None:
+    b, a = config.pop2_u64()
+
+    a_s = u64_to_s64(a)
+
+    logger.debug("%s(%s, %s)", config.instructions.current.opcode.text, a, b)
+
+    config.push_operand(UInt64(
+        s64_to_u64(a_s >> (b % 64))
+    ))
+
+
+#
+# Bitwise rotation
+#
+def i32rotl_op(config: Configuration) -> None:
+    b, a = config.pop2_u64()
+
+    logger.debug("%s(%s, %s)", config.instructions.current.opcode.text, a, b)
+
+    shift_size = b % 32
+    upper = a << shift_size
+    lower = a >> (32 - shift_size)
+
+    config.push_operand(UInt32((upper | lower) % constants.UINT32_CEIL))
+
+
+def i64rotl_op(config: Configuration) -> None:
+    b, a = config.pop2_u64()
+
+    logger.debug("%s(%s, %s)", config.instructions.current.opcode.text, a, b)
+
+    shift_size = b % 64
+    upper = a << shift_size
+    lower = a >> (64 - shift_size)
+
+    config.push_operand(UInt64((upper | lower) % constants.UINT64_CEIL))
+
+
+def i32rotr_op(config: Configuration) -> None:
+    b, a = config.pop2_u64()
+
+    logger.debug("%s(%s, %s)", config.instructions.current.opcode.text, a, b)
+
+    shift_size = b % 32
+    lower = a >> shift_size
+    upper = a << (32 - shift_size)
+
+    config.push_operand(UInt32((upper | lower) % constants.UINT32_CEIL))
+
+
+def i64rotr_op(config: Configuration) -> None:
+    b, a = config.pop2_u64()
+
+    logger.debug("%s(%s, %s)", config.instructions.current.opcode.text, a, b)
+
+    shift_size = b % 64
+    lower = a >> shift_size
+    upper = a << (64 - shift_size)
+
+    config.push_operand(UInt64((upper | lower) % constants.UINT64_CEIL))

@@ -449,86 +449,6 @@ def spec_signediN_inv(N, i):
         raise Exception(f"Invariant: bit size out of range - Got '{N}'")
 
 
-def spec_irem_uN(N, i1, i2):
-    logger.debug("spec_irem_uN(%s, %s, %s)", N, i1, i2)
-
-    if i2 == 0:
-        raise Trap("trap")
-    return i1 - i2 * spec_trunc((i1, i2))
-
-
-def spec_irem_sN(N, i1, i2):
-    logger.debug("spec_irem_sN(%s, %s, %s)", N, i1, i2)
-
-    j1 = spec_signediN(N, i1)
-    j2 = spec_signediN(N, i2)
-    if i2 == 0:
-        raise Trap("trap")
-    return spec_signediN_inv(N, j1 - j2 * spec_trunc((j1, j2)))
-
-
-def spec_iandN(N, i1, i2):
-    logger.debug("spec_iandN(%s, %s, %s)", N, i1, i2)
-
-    return i1 & i2
-
-
-def spec_iorN(N, i1, i2):
-    logger.debug("spec_iorN(%s, %s, %s)", N, i1, i2)
-
-    return i1 | i2
-
-
-def spec_ixorN(N, i1, i2):
-    logger.debug("spec_ixorN(%s, %s, %s)", N, i1, i2)
-
-    return i1 ^ i2
-
-
-def spec_ishlN(N, i1, i2):
-    logger.debug("spec_ishlN(%s, %s, %s)", N, i1, i2)
-
-    k = i2 % N
-    return (i1 << k) % (2 ** N)
-
-
-def spec_ishr_uN(N, i1, i2):
-    logger.debug("spec_ishr_uN(%s, %s, %s)", N, i1, i2)
-
-    j2 = i2 % N
-    return i1 >> j2
-
-
-def spec_ishr_sN(N, i1, i2):
-    logger.debug("spec_ishr_sN(%s, %s, %s)", N, i1, i2)
-
-    k = i2 % N
-    d0d1Nmkm1d2k = spec_ibitsN(N, i1)
-    d0 = d0d1Nmkm1d2k[0]
-    d1Nmkm1 = d0d1Nmkm1d2k[1:N - k]
-    return spec_ibitsN_inv(N, d0 * (k + 1) + d1Nmkm1)
-
-
-def spec_irotlN(N, i1, i2):
-    logger.debug("spec_irotlN(%s, %s, %s)", N, i1, i2)
-
-    k = i2 % N
-    d1kd2Nmk = spec_ibitsN(N, i1)
-    d2Nmk = d1kd2Nmk[k:]
-    d1k = d1kd2Nmk[:k]
-    return spec_ibitsN_inv(N, d2Nmk + d1k)
-
-
-def spec_irotrN(N, i1, i2):
-    logger.debug("spec_irotrN(%s, %s, %s)", N, i1, i2)
-
-    k = i2 % N
-    d1Nmkd2k = spec_ibitsN(N, i1)
-    d1Nmk = d1Nmkd2k[: N - k]
-    d2k = d1Nmkd2k[N - k:]
-    return spec_ibitsN_inv(N, d2k + d1Nmk)
-
-
 # 4.3.3 FLOATING-POINT OPERATIONS
 
 
@@ -1661,16 +1581,16 @@ opcode2exec: Dict[Union[Type[InvokeOp], BinaryOpcode], Tuple[Callable, ...]] = {
     # BinaryOpcode.I32_MUL: (spec_tbinop, spec_imulN),
     # BinaryOpcode.I32_DIV_S: (spec_tbinop, spec_idiv_sN),
     # BinaryOpcode.I32_DIV_U: (spec_tbinop, spec_idiv_uN),
-    BinaryOpcode.I32_REM_S: (spec_tbinop, spec_irem_sN),
-    BinaryOpcode.I32_REM_U: (spec_tbinop, spec_irem_uN),
-    BinaryOpcode.I32_AND: (spec_tbinop, spec_iandN),
-    BinaryOpcode.I32_OR: (spec_tbinop, spec_iorN),
-    BinaryOpcode.I32_XOR: (spec_tbinop, spec_ixorN),
-    BinaryOpcode.I32_SHL: (spec_tbinop, spec_ishlN),
-    BinaryOpcode.I32_SHR_S: (spec_tbinop, spec_ishr_sN),
-    BinaryOpcode.I32_SHR_U: (spec_tbinop, spec_ishr_uN),
-    BinaryOpcode.I32_ROTL: (spec_tbinop, spec_irotlN),
-    BinaryOpcode.I32_ROTR: (spec_tbinop, spec_irotrN),
+    # BinaryOpcode.I32_REM_S: (spec_tbinop, spec_irem_sN),
+    # BinaryOpcode.I32_REM_U: (spec_tbinop, spec_irem_uN),
+    # BinaryOpcode.I32_AND: (spec_tbinop, spec_iandN),
+    # BinaryOpcode.I32_OR: (spec_tbinop, spec_iorN),
+    # BinaryOpcode.I32_XOR: (spec_tbinop, spec_ixorN),
+    # BinaryOpcode.I32_SHL: (spec_tbinop, spec_ishlN),
+    # BinaryOpcode.I32_SHR_S: (spec_tbinop, spec_ishr_sN),
+    # BinaryOpcode.I32_SHR_U: (spec_tbinop, spec_ishr_uN),
+    # BinaryOpcode.I32_ROTL: (spec_tbinop, spec_irotlN),
+    # BinaryOpcode.I32_ROTR: (spec_tbinop, spec_irotrN),
     # BinaryOpcode.I64_CLZ: (spec_tunop, spec_iclzN),
     # BinaryOpcode.I64_CTZ: (spec_tunop, spec_ictzN),
     # BinaryOpcode.I64_POPCNT: (spec_tunop, spec_ipopcntN),
@@ -1679,16 +1599,16 @@ opcode2exec: Dict[Union[Type[InvokeOp], BinaryOpcode], Tuple[Callable, ...]] = {
     # BinaryOpcode.I64_MUL: (spec_tbinop, spec_imulN),
     # BinaryOpcode.I64_DIV_S: (spec_tbinop, spec_idiv_sN),
     # BinaryOpcode.I64_DIV_U: (spec_tbinop, spec_idiv_uN),
-    BinaryOpcode.I64_REM_S: (spec_tbinop, spec_irem_sN),
-    BinaryOpcode.I64_REM_U: (spec_tbinop, spec_irem_uN),
-    BinaryOpcode.I64_AND: (spec_tbinop, spec_iandN),
-    BinaryOpcode.I64_OR: (spec_tbinop, spec_iorN),
-    BinaryOpcode.I64_XOR: (spec_tbinop, spec_ixorN),
-    BinaryOpcode.I64_SHL: (spec_tbinop, spec_ishlN),
-    BinaryOpcode.I64_SHR_S: (spec_tbinop, spec_ishr_sN),
-    BinaryOpcode.I64_SHR_U: (spec_tbinop, spec_ishr_uN),
-    BinaryOpcode.I64_ROTL: (spec_tbinop, spec_irotlN),
-    BinaryOpcode.I64_ROTR: (spec_tbinop, spec_irotrN),
+    # BinaryOpcode.I64_REM_S: (spec_tbinop, spec_irem_sN),
+    # BinaryOpcode.I64_REM_U: (spec_tbinop, spec_irem_uN),
+    # BinaryOpcode.I64_AND: (spec_tbinop, spec_iandN),
+    # BinaryOpcode.I64_OR: (spec_tbinop, spec_iorN),
+    # BinaryOpcode.I64_XOR: (spec_tbinop, spec_ixorN),
+    # BinaryOpcode.I64_SHL: (spec_tbinop, spec_ishlN),
+    # BinaryOpcode.I64_SHR_S: (spec_tbinop, spec_ishr_sN),
+    # BinaryOpcode.I64_SHR_U: (spec_tbinop, spec_ishr_uN),
+    # BinaryOpcode.I64_ROTL: (spec_tbinop, spec_irotlN),
+    # BinaryOpcode.I64_ROTR: (spec_tbinop, spec_irotrN),
     BinaryOpcode.F32_ABS: (spec_tunop, spec_fabsN),
     BinaryOpcode.F32_NEG: (spec_tunop, spec_fnegN),
     BinaryOpcode.F32_CEIL: (spec_tunop, spec_fceilN),

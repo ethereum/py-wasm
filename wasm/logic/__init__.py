@@ -103,40 +103,40 @@ OPCODE_TO_LOGIC_FN: Dict[BinaryOpcode, Callable[['Configuration'], None]] = {
     # BinaryOpcode.F64_GE:
     BinaryOpcode.I32_CLZ: numeric.i32clz_op,
     BinaryOpcode.I32_CTZ: numeric.i32ctz_op,
-    BinaryOpcode.I32_POPCNT: numeric.ipopcnt,
+    BinaryOpcode.I32_POPCNT: numeric.ipopcnt_op,
     BinaryOpcode.I32_ADD: numeric.i32add_op,
     BinaryOpcode.I32_SUB: numeric.i32sub_op,
     BinaryOpcode.I32_MUL: numeric.i32mul_op,
     BinaryOpcode.I32_DIV_S: numeric.i32divs_op,
     BinaryOpcode.I32_DIV_U: numeric.idivu_op,
-    # BinaryOpcode.I32_REM_S:
-    # BinaryOpcode.I32_REM_U:
-    # BinaryOpcode.I32_AND:
-    # BinaryOpcode.I32_OR:
-    # BinaryOpcode.I32_XOR:
-    # BinaryOpcode.I32_SHL:
-    # BinaryOpcode.I32_SHR_S:
-    # BinaryOpcode.I32_SHR_U:
-    # BinaryOpcode.I32_ROTL:
-    # BinaryOpcode.I32_ROTR:
+    BinaryOpcode.I32_REM_S: numeric.i32rems_op,
+    BinaryOpcode.I32_REM_U: numeric.iremu_op,
+    BinaryOpcode.I32_AND: numeric.iand_op,
+    BinaryOpcode.I32_OR: numeric.ior_op,
+    BinaryOpcode.I32_XOR: numeric.ixor_op,
+    BinaryOpcode.I32_SHL: numeric.i32shl_op,
+    BinaryOpcode.I32_SHR_S: numeric.i32shrs_op,
+    BinaryOpcode.I32_SHR_U: numeric.i32shru_op,
+    BinaryOpcode.I32_ROTL: numeric.i32rotl_op,
+    BinaryOpcode.I32_ROTR: numeric.i32rotr_op,
     BinaryOpcode.I64_CLZ: numeric.i64clz_op,
     BinaryOpcode.I64_CTZ: numeric.i64ctz_op,
-    BinaryOpcode.I64_POPCNT: numeric.ipopcnt,
+    BinaryOpcode.I64_POPCNT: numeric.ipopcnt_op,
     BinaryOpcode.I64_ADD: numeric.i64add_op,
     BinaryOpcode.I64_SUB: numeric.i64sub_op,
     BinaryOpcode.I64_MUL: numeric.i64mul_op,
     BinaryOpcode.I64_DIV_S: numeric.i64divs_op,
     BinaryOpcode.I64_DIV_U: numeric.idivu_op,
-    # BinaryOpcode.I64_REM_S:
-    # BinaryOpcode.I64_REM_U:
-    # BinaryOpcode.I64_AND:
-    # BinaryOpcode.I64_OR:
-    # BinaryOpcode.I64_XOR:
-    # BinaryOpcode.I64_SHL:
-    # BinaryOpcode.I64_SHR_S:
-    # BinaryOpcode.I64_SHR_U:
-    # BinaryOpcode.I64_ROTL:
-    # BinaryOpcode.I64_ROTR:
+    BinaryOpcode.I64_REM_S: numeric.i64rems_op,
+    BinaryOpcode.I64_REM_U: numeric.iremu_op,
+    BinaryOpcode.I64_AND: numeric.iand_op,
+    BinaryOpcode.I64_OR: numeric.ior_op,
+    BinaryOpcode.I64_XOR: numeric.ixor_op,
+    BinaryOpcode.I64_SHL: numeric.i64shl_op,
+    BinaryOpcode.I64_SHR_S: numeric.i64shrs_op,
+    BinaryOpcode.I64_SHR_U: numeric.i64shru_op,
+    BinaryOpcode.I64_ROTL: numeric.i64rotl_op,
+    BinaryOpcode.I64_ROTR: numeric.i64rotr_op,
     # BinaryOpcode.F32_ABS:
     # BinaryOpcode.F32_NEG:
     # BinaryOpcode.F32_CEIL:
