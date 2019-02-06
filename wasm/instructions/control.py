@@ -48,6 +48,18 @@ class Block(NamedTuple):
         rt = f"({','.join((v.value for v in self.result_type))})"
         return f"{self.opcode.text}[rt={rt},expr={stringify_instructions(self.instructions)}]"
 
+    @classmethod
+    def wrap(cls,
+             result_type: Tuple[ValType, ...],
+             expression: Tuple[BaseInstruction, ...]
+             ) -> Tuple[BaseInstruction, ...]:
+        return cast(Tuple[BaseInstruction, ...], (
+            cls(
+                result_type,
+                expression,
+            ),
+        ))
+
 
 @register
 class Br(Interned):

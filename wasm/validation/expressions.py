@@ -19,7 +19,7 @@ from wasm.opcodes import (
 )
 
 from .context import (
-    Context,
+    ExpressionContext,
 )
 from .instructions import (
     validate_constant_instruction,
@@ -37,7 +37,7 @@ BLOCK_LOOP_IF = {
 
 
 def validate_expression(expression: Tuple[BaseInstruction, ...],
-                        context: Context) -> None:
+                        ctx: ExpressionContext) -> None:
     for idx, instruction in enumerate(expression):
         if not isinstance(instruction, BaseInstruction):
             # TODO: use a different exceptin since this represents an internal
@@ -49,27 +49,22 @@ def validate_expression(expression: Tuple[BaseInstruction, ...],
 
         logger.debug('Validating instruction: %s', instruction)
 
-        # SIDE-EFFECT: Instruction validation is inherently
-        # stateful/side-effect causing.  Both `Context.operand_stack` and
-        # `Context.control_stack` end up being mutated over the course of
-        # expression validation to keep track of things like the expected
-        # number of operands on the stack and their types.
-        validate_instruction(instruction, context)
+        validate_instruction(instruction, ctx)
 
         # recurse for block, loop, if
         if instruction.opcode in BLOCK_LOOP_IF:
             sub_instructions = cast(Union[Block, Loop, If], instruction).instructions
             # RECURSION
-            validate_expression(sub_instructions, context)
+            validate_expression(sub_instructions, ctx)
 
             if instruction.opcode is BinaryOpcode.IF:
                 else_instructions = cast(If, instruction).else_instructions
                 # RECURSION
-                validate_expression(else_instructions, context)
+                validate_expression(else_instructions, ctx)
 
 
 def validate_constant_expression(expression: Tuple[BaseInstruction, ...],
-                                 context: Context) -> None:
+                                 ctx: ExpressionContext) -> None:
     for idx, instruction in enumerate(expression[:-1]):
         if not isinstance(instruction, BaseInstruction):
             # TODO: use a different exceptin since this represents an internal
@@ -80,4 +75,4 @@ def validate_constant_expression(expression: Tuple[BaseInstruction, ...],
             )
         logger.debug('Validating instruction: %s', instruction)
 
-        validate_constant_instruction(instruction, context)
+        validate_constant_instruction(instruction, ctx)

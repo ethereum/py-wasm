@@ -9,7 +9,6 @@ from typing import (
     Iterable,
     List,
     NamedTuple,
-    Optional,
     Sequence,
     Tuple,
     Type,
@@ -24,8 +23,6 @@ from wasm._utils.validation import (
     get_duplicates,
 )
 from wasm.datatypes import (
-    DataSegment,
-    ElementSegment,
     Export,
     ExportInstance,
     FuncIdx,
@@ -33,7 +30,6 @@ from wasm.datatypes import (
     FunctionAddress,
     FunctionInstance,
     FunctionType,
-    Global,
     GlobalAddress,
     GlobalIdx,
     GlobalInstance,
@@ -113,9 +109,11 @@ from wasm.typing import (
 )
 from wasm.validation import (
     Context,
-    validate_constant_expression,
-    validate_expression,
+    validate_data_segment,
+    validate_element_segment,
+    validate_function,
     validate_function_type,
+    validate_global,
     validate_memory,
     validate_memory_type,
     validate_table,
@@ -256,32 +254,6 @@ Expression = Tuple[BaseInstruction, ...]
 # 3.4.1 FUNCTIONS
 
 
-def spec_validate_func(context: Context, func: Function) -> Tuple[ValType, ...]:
-    context.validate_type_idx(func.type_idx)
-
-    func_type: FunctionType = context.types[func.type_idx]
-
-    t1 = func_type.params
-    t2 = func_type.results
-    function_context = context.prime(
-        locals=tuple(t1 + func.locals),
-        labels=t2,
-        returns=t2,
-    )
-    # validate body using algorithm in appendix
-    instrstar = cast(Tuple[BaseInstruction, ...], (
-        Block(
-            t2,
-            func.body,
-        ),
-    ))
-
-    validate_expression(instrstar, function_context)
-    result_type: Tuple[ValType, ...] = tuple(function_context.operand_stack)
-
-    return result_type
-
-
 # 3.4.2 TABLES
 
 
@@ -291,77 +263,10 @@ def spec_validate_func(context: Context, func: Function) -> Tuple[ValType, ...]:
 # 3.4.4 GLOBALS
 
 
-def spec_validate_global(context: Context, global_: Global) -> None:
-    # validate expr, but wrap it in a block first since empty control stack gives errors
-    # but first wrap in block with appropriate return type
-    instrstar = cast(Tuple[BaseInstruction, ...], (
-        Block(
-            (global_.type.valtype,),
-            global_.init,
-        ),
-    ))
-
-    global_context = context.prime()
-    validate_expression(instrstar, global_context)
-    ret = tuple(global_context.operand_stack)
-
-    if ret != (global_.type.valtype,):
-        raise InvalidModule("invalid")
-
-    validate_constant_expression(global_.init, context.prime())
-
-
 # 3.4.5 ELEMENT SEGMENT
 
 
-def spec_validate_elem(context: Context, element_segment: ElementSegment) -> None:
-    context.validate_table_idx(element_segment.table_idx)
-    table_type = context.get_table(element_segment.table_idx)
-
-    elem_type = table_type.elem_type
-    if elem_type is not FunctionAddress:
-        raise InvalidModule("invalid")
-    # first wrap in block with appropriate return type
-    instrstar = cast(Tuple[BaseInstruction, ...], (
-        Block(
-            (ValType.i32,),
-            element_segment.offset,
-        ),
-    ))
-
-    elem_context = context.prime()
-    validate_expression(instrstar, elem_context)
-    ret = tuple(elem_context.operand_stack)
-
-    if ret != (ValType.i32,):
-        raise InvalidModule("invalid")
-    validate_constant_expression(element_segment.offset, context.prime())
-    for y in element_segment.init:
-        context.validate_function_idx(y)
-
-
 # 3.4.6 DATA SEGMENTS
-
-
-def spec_validate_data(context: Context, data_segment: DataSegment) -> None:
-    context.validate_mem_idx(data_segment.mem_idx)
-
-    instrstar = cast(Tuple[BaseInstruction, ...], (
-        Block(
-            (ValType.i32,),
-            data_segment.offset,
-        ),
-    ))
-
-    data_context = context.prime()
-    validate_expression(instrstar, data_context)
-    ret = tuple(data_context.operand_stack)
-
-    if tuple(ret) != (ValType.i32,):
-        raise InvalidModule(
-            f"Invalid data segment.  Return type must be '(i32,)'.  Got {ret}"
-        )
-    validate_constant_expression(data_segment.offset, context.prime())
 
 
 # 3.4.7 START FUNCTION
@@ -535,9 +440,7 @@ def spec_validate_module(module: Module) -> List[List[ExternType]]:
         validate_function_type(functypei)
 
     for i, func in enumerate(module.funcs):
-        ft = spec_validate_func(context, func)
-        if ft != ftstar[i].results:
-            raise InvalidModule("invalid")
+        validate_function(context, func, ftstar[i].results)
 
     for i, table in enumerate(module.tables):
         validate_table(table)
@@ -560,15 +463,13 @@ def spec_validate_module(module: Module) -> List[List[ExternType]]:
         returns=(),
     )
     for i, global_ in enumerate(module.globals):
-        spec_validate_global(global_context, global_)
-        if global_.type != gtstar[i]:
-            raise InvalidModule("invalid")
+        validate_global(global_context, global_)
 
     for elem in module.elem:
-        spec_validate_elem(context, elem)
+        validate_element_segment(context, elem)
 
     for data in module.data:
-        spec_validate_data(context, data)
+        validate_data_segment(context, data)
 
     if module.start is not None:
         spec_validate_start(context, module.start)
@@ -2528,7 +2429,7 @@ def spec_allocglobal(S: Store,
     return S, globaladdr
 
 
-def spec_growmem(meminst: MemoryInstance, n: UInt32) -> Optional[str]:
+def spec_growmem(meminst: MemoryInstance, n: UInt32) -> None:
     logger.debug('spec_growmem()')
 
     if len(meminst.data) % constants.PAGE_SIZE_64K != 0:
@@ -2550,11 +2451,7 @@ def spec_growmem(meminst: MemoryInstance, n: UInt32) -> Optional[str]:
         n * constants.PAGE_SIZE_64K
     ))  # each page created with bytearray(65536) which is 0s
 
-    # TODO: remove return statement
-    return None
 
-
-# TODO: more precise type hint for `Store` return type.
 def spec_allocmodule(S: Store,
                      module: Module,
                      externvalimstar: Sequence[TExportAddress],
