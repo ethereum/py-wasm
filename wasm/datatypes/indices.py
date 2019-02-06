@@ -1,4 +1,4 @@
-class FuncIdx(int):
+class FunctionIdx(int):
     pass
 
 

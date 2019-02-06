@@ -1,7 +1,7 @@
 import io
 
 from wasm.datatypes import (
-    FuncIdx,
+    FunctionIdx,
     GlobalIdx,
     LabelIdx,
     LocalIdx,
@@ -15,9 +15,9 @@ from .integers import (
 )
 
 
-def parse_func_idx(stream: io.BytesIO) -> FuncIdx:
+def parse_function_idx(stream: io.BytesIO) -> FunctionIdx:
     raw_idx = parse_u32(stream)
-    return FuncIdx(raw_idx)
+    return FunctionIdx(raw_idx)
 
 
 def parse_global_idx(stream: io.BytesIO) -> GlobalIdx:

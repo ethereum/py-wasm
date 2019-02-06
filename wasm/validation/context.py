@@ -5,7 +5,7 @@ from typing import (
 )
 
 from wasm.datatypes import (
-    FuncIdx,
+    FunctionIdx,
     FunctionType,
     GlobalIdx,
     GlobalType,
@@ -66,16 +66,16 @@ class BaseContext:
     #
     # Functions
     #
-    def validate_function_idx(self, idx: FuncIdx) -> None:
+    def validate_function_idx(self, idx: FunctionIdx) -> None:
         if not self.has_function(idx):
             raise ValidationError(
                 f"Function index outside of valid range: {idx} >= {len(self.functions)}"
             )
 
-    def has_function(self, idx: FuncIdx) -> bool:
+    def has_function(self, idx: FunctionIdx) -> bool:
         return idx < len(self.functions)
 
-    def get_function(self, idx: FuncIdx) -> FunctionType:
+    def get_function(self, idx: FunctionIdx) -> FunctionType:
         return self.functions[idx]
 
     #

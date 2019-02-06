@@ -5,7 +5,7 @@ from typing import (
 
 from wasm.datatypes import (
     Export,
-    FuncIdx,
+    FunctionIdx,
     GlobalIdx,
     MemoryIdx,
     TableIdx,
@@ -18,7 +18,7 @@ from .byte import (
     parse_single_byte,
 )
 from .indices import (
-    parse_func_idx,
+    parse_function_idx,
     parse_global_idx,
     parse_memory_idx,
     parse_table_idx,
@@ -27,14 +27,14 @@ from .text import (
     parse_text,
 )
 
-TExportDesc = Union[FuncIdx, GlobalIdx, MemoryIdx, TableIdx]
+TExportDesc = Union[FunctionIdx, GlobalIdx, MemoryIdx, TableIdx]
 
 
 def parse_export_descriptor(stream: io.BytesIO) -> TExportDesc:
     flag = parse_single_byte(stream)
 
     if flag == 0x00:
-        return parse_func_idx(stream)
+        return parse_function_idx(stream)
     elif flag == 0x01:
         return parse_table_idx(stream)
     elif flag == 0x02:

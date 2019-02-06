@@ -6,7 +6,7 @@ from typing import (
 )
 
 from .indices import (
-    FuncIdx,
+    FunctionIdx,
     TypeIdx,
 )
 from .valtype import (
@@ -58,4 +58,4 @@ class StartFunction(NamedTuple):
     """
     https://webassembly.github.io/spec/core/bikeshed/index.html#syntax-start
     """
-    func_idx: FuncIdx
+    function_idx: FunctionIdx

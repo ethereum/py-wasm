@@ -10,7 +10,7 @@ from wasm._utils.interned import (
     Interned,
 )
 from wasm.datatypes import (
-    FuncIdx,
+    FunctionIdx,
     LabelIdx,
     TypeIdx,
     ValType,
@@ -185,11 +185,11 @@ class Unreachable(SimpleOp):
 class Call(Interned):
     opcode = BinaryOpcode.CALL
 
-    def __init__(self, func_idx: FuncIdx) -> None:
-        self.func_idx = func_idx
+    def __init__(self, function_idx: FunctionIdx) -> None:
+        self.function_idx = function_idx
 
     def __str__(self) -> str:
-        return f"{self.opcode.text}[{self.func_idx}]"
+        return f"{self.opcode.text}[{self.function_idx}]"
 
 
 @register

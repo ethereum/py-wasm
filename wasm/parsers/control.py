@@ -33,7 +33,7 @@ from .blocks import (
     parse_blocktype,
 )
 from .indices import (
-    parse_func_idx,
+    parse_function_idx,
     parse_label_idx,
     parse_type_idx,
 )
@@ -149,8 +149,8 @@ def parse_br_table_instruction(stream: io.BytesIO) -> BrTable:
 
 
 def parse_call_instruction(stream: io.BytesIO) -> Call:
-    func_idx = parse_func_idx(stream)
-    return Call(func_idx)
+    function_idx = parse_function_idx(stream)
+    return Call(function_idx)
 
 
 def parse_call_indirect_instruction(stream: io.BytesIO) -> CallIndirect:

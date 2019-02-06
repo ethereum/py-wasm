@@ -14,6 +14,7 @@ from .expressions import (  # noqa: F401
 from .function import (  # noqa: F401
     validate_function_type,
     validate_function,
+    validate_start_function,
 )
 from .globals import (  # noqa: F401
     validate_global,
