@@ -1,6 +1,5 @@
 from typing import (
     Tuple,
-    cast,
 )
 
 from wasm.datatypes import (
@@ -12,7 +11,6 @@ from wasm.exceptions import (
     ValidationError,
 )
 from wasm.instructions import (
-    BaseInstruction,
     Block,
 )
 
@@ -44,13 +42,8 @@ def validate_function(context: Context,
     )
     with ctx:
         # validate body using algorithm in appendix
-        instrstar = cast(Tuple[BaseInstruction, ...], (
-            Block(
-                function_type.results,
-                function.body,
-            ),
-        ))
-        validate_expression(instrstar, ctx)
+        expression = Block.wrap(function_type.results, function.body)
+        validate_expression(expression, ctx)
 
     result_type = ctx.result_type
     if result_type != expected_result_type:
