@@ -7,7 +7,7 @@ from wasm.datatypes import (
     ValType,
 )
 from wasm.exceptions import (
-    MalformedModule,
+    ParseError,
 )
 
 from .byte import (
@@ -23,7 +23,7 @@ def parse_blocktype(stream: io.BytesIO) -> Tuple[ValType, ...]:
     try:
         valtype = ValType.from_byte(byte)
     except ValueError as err:
-        raise MalformedModule(
+        raise ParseError(
             f"Invalid byte while parsing mut.  Got '{hex(byte)}: {str(err)}"
         )
 

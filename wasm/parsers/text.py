@@ -15,7 +15,10 @@ def parse_text(stream: io.BytesIO) -> str:
     encoded_name = stream.read(encoded_name_length)
 
     if len(encoded_name) != encoded_name_length:
-        raise ParseError("Unexpected end of stream while parsing name")
+        raise ParseError(
+            "Unexpected end of stream while parsing name. Expected length "
+            f"{encoded_name_length}.  Got '{encoded_name} with length "
+            f"{len(encoded_name)}")
 
     try:
         name = encoded_name.decode('utf8')

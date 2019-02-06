@@ -5,6 +5,9 @@ import pytest
 from wasm.datatypes import (
     ValType,
 )
+from wasm.exceptions import (
+    ParseError,
+)
 from wasm.parsers.blocks import (
     parse_blocktype,
 )
@@ -23,3 +26,8 @@ from wasm.parsers.blocks import (
 def test_parse_blocktype(raw, expected):
     actual = parse_blocktype(io.BytesIO(raw))
     assert actual == expected
+
+
+def test_parse_blocktype_invalid():
+    with pytest.raises(ParseError):
+        parse_blocktype(io.BytesIO(b'\x00'))

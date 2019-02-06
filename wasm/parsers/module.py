@@ -20,8 +20,10 @@ from .version import (
 
 
 def parse_module(stream: io.BytesIO) -> Module:
+    # `parse_magic` both parses and validates the 4-byte *magic* preamble.
+    # Curretly we simply discard this value.
     parse_magic(stream)
-    parse_version(stream)
+    version = parse_version(stream)
 
     (
         custom_sections,
@@ -52,6 +54,7 @@ def parse_module(stream: io.BytesIO) -> Module:
     )
 
     module = Module(
+        version=version,
         types=type_section.function_types,
         funcs=functions,
         tables=table_section.tables,

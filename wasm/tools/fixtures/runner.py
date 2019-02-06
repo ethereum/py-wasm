@@ -123,8 +123,7 @@ def run_opcode_action(command, store, module, all_modules, registered_modules):
 def run_opcode_action_invoke(action, store, module, all_modules, registered_modules):
     # get function name, which could include unicode bytes like \u001b which
     # must be converted to unicode string
-    raw_funcname = action.field
-    funcname = bytes(bytearray([ord(c) for c in raw_funcname])).decode('utf8')
+    funcname = action.field.encode('latin1').decode('utf8')
 
     # get function address
     funcaddr = None

@@ -35,3 +35,5 @@ UINT128_CEIL = 2 ** 128
 
 # https://webassembly.github.io/spec/core/bikeshed/index.html#memory-instances%E2%91%A0
 PAGE_SIZE_64K = 65536
+
+VERSION_1 = (0x01, 0x00, 0x00, 0x00)

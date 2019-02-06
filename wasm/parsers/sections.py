@@ -1,3 +1,4 @@
+import functools
 import io
 import logging
 from typing import (
@@ -5,6 +6,8 @@ from typing import (
     Callable,
     Dict,
     Iterable,
+    Iterator,
+    Set,
     Tuple,
     Type,
     TypeVar,
@@ -16,32 +19,24 @@ from wasm._utils.toolz import (
     groupby,
 )
 from wasm.datatypes import (
-    Code,
     CodeSection,
     CustomSection,
-    DataSegment,
     DataSegmentSection,
-    ElementSegment,
     ElementSegmentSection,
-    Export,
     ExportSection,
     FunctionSection,
-    FunctionType,
-    Global,
     GlobalSection,
-    Import,
     ImportSection,
-    Memory,
     MemorySection,
     StartSection,
-    Table,
     TableSection,
-    TypeIdx,
     TypeSection,
 )
 from wasm.exceptions import (
-    MalformedModule,
     ParseError,
+)
+from wasm.typing import (
+    UInt8,
 )
 
 from .byte import (
@@ -94,34 +89,6 @@ logger = logging.getLogger('wasm.parsers.sections')
 TReturn = TypeVar('TReturn')
 
 
-KNOWN_SECTION_IDS = {
-    0x01,
-    0x02,
-    0x03,
-    0x04,
-    0x05,
-    0x06,
-    0x07,
-    0x08,
-    0x09,
-    0x0a,
-    0x0b,
-}
-
-EMPTY_SECTIONS_BY_ID = {
-    0x01: TypeSection(tuple()),
-    0x02: ImportSection(tuple()),
-    0x03: FunctionSection(tuple()),
-    0x04: TableSection(tuple()),
-    0x05: MemorySection(tuple()),
-    0x06: GlobalSection(tuple()),
-    0x07: ExportSection(tuple()),
-    0x08: StartSection(None),
-    0x09: ElementSegmentSection(tuple()),
-    0x0a: CodeSection(tuple()),
-    0x0b: DataSegmentSection(tuple()),
-}
-
 SECTION_TYPES = Union[
     CodeSection,
     CustomSection,
@@ -136,6 +103,20 @@ SECTION_TYPES = Union[
     TableSection,
     TypeSection,
 ]
+
+EMPTY_SECTIONS_BY_ID: Tuple[Tuple[int, SECTION_TYPES], ...] = (
+    (0x01, TypeSection(tuple())),
+    (0x02, ImportSection(tuple())),
+    (0x03, FunctionSection(tuple())),
+    (0x04, TableSection(tuple())),
+    (0x05, MemorySection(tuple())),
+    (0x06, GlobalSection(tuple())),
+    (0x07, ExportSection(tuple())),
+    (0x08, StartSection(None)),
+    (0x09, ElementSegmentSection(tuple())),
+    (0x0a, CodeSection(tuple())),
+    (0x0b, DataSegmentSection(tuple())),
+)
 
 T_SECTIONS = Tuple[
     Tuple[CustomSection, ...],
@@ -250,14 +231,32 @@ def parse_sections(stream: io.BytesIO) -> T_SECTIONS:
     return normalize_sections(sections)
 
 
+def _next_empty_section(section_id: UInt8,
+                        empty_sections_iter: Iterator[Tuple[int, SECTION_TYPES]]
+                        ) -> Iterator[Tuple[int, SECTION_TYPES]]:
+    for empty_section_id, empty_section in empty_sections_iter:
+        if empty_section_id != section_id:
+            yield (empty_section_id, empty_section)
+        else:
+            break
+
+
 def _parse_sections(stream: io.BytesIO) -> Iterable[Any]:
     start_pos = stream.tell()
     end_pos = stream.seek(0, 2)
     stream.seek(start_pos)
 
-    # We create an iterator so that during parsing we can
-    parser_iter = iter(ordered_parsers_by_section_id)
-    seen_section_ids = set()
+    # During section parsing sections may be omitted.  The WASM spec says that
+    # omitted sections are equivalent to them being present but empty.  As we
+    # parse the bytecode, we need to fill in any missing sections with their
+    # empty equivalent.  This iterator allows us to lazily step through the
+    # sections in order.
+    empty_section_iter = iter(EMPTY_SECTIONS_BY_ID)
+
+    # A data structure to allow detection of duplicate sections.
+    seen_section_ids: Set[int] = set()
+    # We track missing sections separately.
+    missing_section_ids: Set[int] = set()
 
     while stream.tell() < end_pos:
         section_id = parse_single_byte(stream)
@@ -265,79 +264,75 @@ def _parse_sections(stream: io.BytesIO) -> Iterable[Any]:
         if section_id == 0x00:
             yield parse_custom_section(stream)
             continue
-        elif section_id not in KNOWN_SECTION_IDS:
-            raise MalformedModule(f"Invalid section id: {hex(section_id)}")
+        elif section_id not in PARSERS_BY_SECTION_ID:
+            raise ParseError(f"Invalid section id: {hex(section_id)}")
+        elif section_id in seen_section_ids:
+            raise ParseError(
+                f"Encountered multiple sections with the section id: "
+                f"{hex(section_id)}"
+            )
+        elif section_id in missing_section_ids:
+            all_seen = tuple(sorted(seen_section_ids.union(missing_section_ids)))
+            raise ParseError(
+                f"Encountered section id out of order. section_id={section_id} "
+                f"already encountered sections {all_seen}"
+            )
 
-        for parser_section_id, section_parser in parser_iter:
-            if section_id == parser_section_id:
-                yield section_parser(stream)
-                # Track which section ids we've encountered.
-                seen_section_ids.add(section_id)
-                break
-            else:
-                yield EMPTY_SECTIONS_BY_ID[parser_section_id]
-        else:
-            # If the loop above exits naturally, it means that we've
-            # encountered a section out of order or multiple times.
-            if section_id in seen_section_ids:
-                raise MalformedModule(
-                    f"Encountered multiple sections with the section id: "
-                    f"{hex(section_id)}"
-                )
-            elif section_id < max(seen_section_ids):
-                raise MalformedModule(
-                    f"Encountered section id out of order.  id={section_id} "
-                    f"already_seen={tuple(sorted(seen_section_ids))}"
-                )
-            else:
-                raise Exception("Invariant: unreachable code path")
+        seen_section_ids.add(section_id)
 
-    # Generate empties for any sections that were left off.
-    for parser_section_id, _ in parser_iter:
-        yield EMPTY_SECTIONS_BY_ID[parser_section_id]
+        for empty_id, empty_section in _next_empty_section(section_id, empty_section_iter):
+            missing_section_ids.add(section_id)
+            yield empty_section
+
+        section_parser_fn = PARSERS_BY_SECTION_ID[section_id]
+        section = section_parser_fn(stream)
+        yield section
+
+    # get empty sections for any that were omitted.
+    for _, empty_section in empty_section_iter:
+        yield empty_section
 
 
-def _parse_single_section(body_parser: Callable[[io.BytesIO], TReturn],
-                          stream: io.BytesIO) -> TReturn:
-    """
-    Wrapper around section parsing to ensure that the declared size and the
-    parsed size match.
-    """
-    # Note: Section parsers all operate under the assumption that their `stream`
-    # contains **only** the bytes for the given section.  It follows that
-    # successful parsing for any section **must** consume the full stream.
-    declared_size = parse_u32(stream)
-    raw_section = stream.read(declared_size)
+def validate_section_length(parser_fn: Callable[[io.BytesIO], TReturn]
+                            ) -> Callable[[io.BytesIO], TReturn]:
+    @functools.wraps(parser_fn)
+    def parse_and_validate_length_fn(stream: io.BytesIO) -> TReturn:
+        # Note: Section parsers all operate under the assumption that their `stream`
+        # contains **only** the bytes for the given section.  It follows that
+        # successful parsing for any section **must** consume the full stream.
+        declared_size = parse_u32(stream)
+        raw_section = stream.read(declared_size)
 
-    if len(raw_section) != declared_size:
-        raise ParseError(
-            "Section declared size larger than stream. "
-            "declared={declared_size}  actual={len(raw_section)}"
-        )
+        if len(raw_section) != declared_size:
+            raise ParseError(
+                "Section declared size larger than stream. "
+                "declared={declared_size}  actual={len(raw_section)}"
+            )
 
-    section_stream = io.BytesIO(raw_section)
-    section = body_parser(section_stream)
+        section_stream = io.BytesIO(raw_section)
+        section = parser_fn(section_stream)
 
-    current_pos = section_stream.tell()
-    end_pos = section_stream.seek(0, 2)
+        current_pos = section_stream.tell()
+        end_pos = section_stream.seek(0, 2)
 
-    if current_pos != end_pos:
-        raise ParseError(
-            f"Section parser did not fully consume section stream, leaving "
-            f"{end_pos - current_pos} unconsumed bytes"
-        )
-    return section
+        if current_pos != end_pos:
+            raise ParseError(
+                f"Section parser did not fully consume section stream, leaving "
+                f"{end_pos - current_pos} unconsumed bytes"
+            )
+        return section
+    return parse_and_validate_length_fn
 
 
 #
 # Custom
 #
+@validate_section_length
 def parse_custom_section(stream: io.BytesIO) -> CustomSection:
-    return _parse_single_section(parse_custom_section_body, stream)
-
-
-def parse_custom_section_body(stream: io.BytesIO) -> CustomSection:
     name = parse_text(stream)
+    # Note that this **requires** that the main section parser feed this parser
+    # a stream that **only** contains the section data since it blindly reads
+    # till the end of the stream.
     binary = stream.read()
 
     return CustomSection(name, binary)
@@ -346,141 +341,101 @@ def parse_custom_section_body(stream: io.BytesIO) -> CustomSection:
 #
 # Type (1)
 #
-def parse_type_section_body(stream: io.BytesIO) -> Tuple[FunctionType, ...]:
-    return parse_vector(parse_function_type, stream)
-
-
+@validate_section_length
 def parse_type_section(stream: io.BytesIO) -> TypeSection:
-    functions = _parse_single_section(parse_type_section_body, stream)
-    return TypeSection(functions)
+    return TypeSection(parse_vector(parse_function_type, stream))
 
 
 #
 # Import (2)
 #
-def parse_import_section_body(stream: io.BytesIO) -> Tuple[Import, ...]:
-    return parse_vector(parse_import, stream)
-
-
+@validate_section_length
 def parse_import_section(stream: io.BytesIO) -> ImportSection:
-    imports = _parse_single_section(parse_import_section_body, stream)
-    return ImportSection(imports)
+    return ImportSection(parse_vector(parse_import, stream))
 
 
 #
 # Function (3)
 #
-def parse_function_section_body(stream: io.BytesIO) -> Tuple[TypeIdx, ...]:
-    return parse_vector(parse_type_idx, stream)
-
-
+@validate_section_length
 def parse_function_section(stream: io.BytesIO) -> FunctionSection:
-    types = _parse_single_section(parse_function_section_body, stream)
-    return FunctionSection(types)
+    return FunctionSection(parse_vector(parse_type_idx, stream))
 
 
 #
 # Table (4)
 #
-def parse_table_section_body(stream: io.BytesIO) -> Tuple[Table, ...]:
-    return parse_vector(parse_table, stream)
-
-
+@validate_section_length
 def parse_table_section(stream: io.BytesIO) -> TableSection:
-    tables = _parse_single_section(parse_table_section_body, stream)
-    return TableSection(tables)
+    return TableSection(parse_vector(parse_table, stream))
 
 
 #
 # Memory (5)
 #
-def parse_memory_section_body(stream: io.BytesIO) -> Tuple[Memory, ...]:
-    return parse_vector(parse_memory, stream)
-
-
+@validate_section_length
 def parse_memory_section(stream: io.BytesIO) -> MemorySection:
-    mems = _parse_single_section(parse_memory_section_body, stream)
-    return MemorySection(mems)
+    return MemorySection(parse_vector(parse_memory, stream))
 
 
 #
 # Global (6)
 #
-def parse_global_section_body(stream: io.BytesIO) -> Tuple[Global, ...]:
-    return parse_vector(parse_global, stream)
-
-
+@validate_section_length
 def parse_global_section(stream: io.BytesIO) -> GlobalSection:
-    globals = _parse_single_section(parse_global_section_body, stream)
-    return GlobalSection(globals)
+    return GlobalSection(parse_vector(parse_global, stream))
 
 
 #
 # Export (7)
 #
-def parse_export_section_body(stream: io.BytesIO) -> Tuple[Export, ...]:
-    return parse_vector(parse_export, stream)
-
-
+@validate_section_length
 def parse_export_section(stream: io.BytesIO) -> ExportSection:
-    exports = _parse_single_section(parse_export_section_body, stream)
-    return ExportSection(exports)
+    return ExportSection(parse_vector(parse_export, stream))
 
 
 #
 # Start (8)
 #
+@validate_section_length
 def parse_start_section(stream: io.BytesIO) -> StartSection:
-    start_function = _parse_single_section(parse_start_function, stream)
-    return StartSection(start_function)
+    return StartSection(parse_start_function(stream))
 
 
 #
 # Element Segment (9)
 #
-def parse_element_segment_section_body(stream: io.BytesIO) -> Tuple[ElementSegment, ...]:
-    return parse_vector(parse_element_segment, stream)
-
-
+@validate_section_length
 def parse_element_segment_section(stream: io.BytesIO) -> ElementSegmentSection:
-    element_segments = _parse_single_section(parse_element_segment_section_body, stream)
-    return ElementSegmentSection(element_segments)
+    return ElementSegmentSection(parse_vector(parse_element_segment, stream))
 
 
 #
 # Code (10)
 #
-def parse_code_section_body(stream: io.BytesIO) -> Tuple[Code, ...]:
-    return parse_vector(parse_code, stream)
-
-
+@validate_section_length
 def parse_code_section(stream: io.BytesIO) -> CodeSection:
-    codes = _parse_single_section(parse_code_section_body, stream)
-    return CodeSection(codes)
+    return CodeSection(parse_vector(parse_code, stream))
 
 
 #
 # Data (11)
 #
-def parse_data_segment_section_body(stream: io.BytesIO) -> Tuple[DataSegment, ...]:
-    return parse_vector(parse_data_segment, stream)
-
-
+@validate_section_length
 def parse_data_segment_section(stream: io.BytesIO) -> DataSegmentSection:
-    data_segments = _parse_single_section(parse_data_segment_section_body, stream)
-    return DataSegmentSection(data_segments)
+    return DataSegmentSection(parse_vector(parse_data_segment, stream))
 
 
-ordered_parsers_by_section_id = (
-    (0x01, parse_type_section),
-    (0x02, parse_import_section),
-    (0x03, parse_function_section),
-    (0x04, parse_table_section),
-    (0x05, parse_memory_section),
-    (0x06, parse_global_section),
-    (0x07, parse_export_section),
-    (0x08, parse_start_section),
-    (0x09, parse_element_segment_section),
-    (0x0a, parse_code_section),
-    (0x0b, parse_data_segment_section),
-)
+PARSERS_BY_SECTION_ID = {
+    0x01: parse_type_section,
+    0x02: parse_import_section,
+    0x03: parse_function_section,
+    0x04: parse_table_section,
+    0x05: parse_memory_section,
+    0x06: parse_global_section,
+    0x07: parse_export_section,
+    0x08: parse_start_section,
+    0x09: parse_element_segment_section,
+    0x0a: parse_code_section,
+    0x0b: parse_data_segment_section,
+}
