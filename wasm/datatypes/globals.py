@@ -7,7 +7,7 @@ from typing import (
 from .mutability import (
     Mutability,
 )
-from .val_type import (
+from .valtype import (
     ValType,
 )
 

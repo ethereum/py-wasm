@@ -4,6 +4,10 @@ from typing import (
     Tuple,
 )
 
+from wasm.typing import (
+    UInt8,
+)
+
 from .addresses import (
     FunctionAddress,
     GlobalAddress,
@@ -40,6 +44,8 @@ from .table import (
 
 
 class Module(NamedTuple):
+    version: Tuple[UInt8, UInt8, UInt8, UInt8]
+
     types: Tuple[FunctionType, ...]
     funcs: Tuple[Function, ...]
     tables: Tuple[Table, ...]

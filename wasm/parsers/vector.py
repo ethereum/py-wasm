@@ -6,6 +6,9 @@ from typing import (
     TypeVar,
 )
 
+from wasm.exceptions import (
+    ParseError,
+)
 from wasm.typing import (
     UInt32,
 )
@@ -24,7 +27,7 @@ def parse_vector(sub_parser: Callable[[io.BytesIO], TItem],
     try:
         return tuple(_parse_vector(sub_parser, vector_size, stream))
     except Exception as err:
-        raise Exception(f"TODO: error parsing vector items: {err}")
+        raise ParseError(f"Error parsing vector: {err}") from err
 
 
 def _parse_vector(sub_parser: Callable[[io.BytesIO], TItem],
