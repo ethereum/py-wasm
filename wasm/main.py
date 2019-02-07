@@ -1744,10 +1744,7 @@ def spec_invoke_function_address(config: Configuration,
                 raise Exception(f"Invariant: unkown type '{valtype}'")
         # 10 & 11
         blockinstrstarendend = InstructionSequence(
-            cast(
-                Tuple[BaseInstruction, ...],
-                (Block(t2m, tuple(instrstarend)), End()),
-            ),
+            Block.wrap_with_end(t2m, instrstarend)
         )
         F = Frame(
             module=f.module,
