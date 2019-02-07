@@ -9,6 +9,7 @@ from wasm.opcodes import (
 )
 
 from . import control
+from . import memory
 from . import numeric
 from . import parametric
 from . import variable
@@ -40,31 +41,31 @@ OPCODE_TO_LOGIC_FN: Dict[BinaryOpcode, Callable[['Configuration'], None]] = {
     BinaryOpcode.TEE_LOCAL: variable.tee_local_op,
     BinaryOpcode.GET_GLOBAL: variable.get_global_op,
     BinaryOpcode.SET_GLOBAL: variable.set_global_op,
-    # BinaryOpcode.I32_LOAD:
-    # BinaryOpcode.I64_LOAD:
-    # BinaryOpcode.F32_LOAD:
-    # BinaryOpcode.F64_LOAD:
-    # BinaryOpcode.I32_LOAD8_S:
-    # BinaryOpcode.I32_LOAD8_U:
-    # BinaryOpcode.I32_LOAD16_S:
-    # BinaryOpcode.I32_LOAD16_U:
-    # BinaryOpcode.I64_LOAD8_S:
-    # BinaryOpcode.I64_LOAD8_U:
-    # BinaryOpcode.I64_LOAD16_S:
-    # BinaryOpcode.I64_LOAD16_U:
-    # BinaryOpcode.I64_LOAD32_S:
-    # BinaryOpcode.I64_LOAD32_U:
-    # BinaryOpcode.I32_STORE:
-    # BinaryOpcode.I64_STORE:
-    # BinaryOpcode.F32_STORE:
-    # BinaryOpcode.F64_STORE:
-    # BinaryOpcode.I32_STORE8:
-    # BinaryOpcode.I32_STORE16:
-    # BinaryOpcode.I64_STORE8:
-    # BinaryOpcode.I64_STORE16:
-    # BinaryOpcode.I64_STORE32:
-    # BinaryOpcode.MEMORY_SIZE:
-    # BinaryOpcode.MEMORY_GROW:
+    BinaryOpcode.I32_LOAD: memory.load_op,
+    BinaryOpcode.I64_LOAD: memory.load_op,
+    BinaryOpcode.F32_LOAD: memory.load_op,
+    BinaryOpcode.F64_LOAD: memory.load_op,
+    BinaryOpcode.I32_LOAD8_S: memory.load_op,
+    BinaryOpcode.I32_LOAD8_U: memory.load_op,
+    BinaryOpcode.I32_LOAD16_S: memory.load_op,
+    BinaryOpcode.I32_LOAD16_U: memory.load_op,
+    BinaryOpcode.I64_LOAD8_S: memory.load_op,
+    BinaryOpcode.I64_LOAD8_U: memory.load_op,
+    BinaryOpcode.I64_LOAD16_S: memory.load_op,
+    BinaryOpcode.I64_LOAD16_U: memory.load_op,
+    BinaryOpcode.I64_LOAD32_S: memory.load_op,
+    BinaryOpcode.I64_LOAD32_U: memory.load_op,
+    BinaryOpcode.I32_STORE: memory.store_op,
+    BinaryOpcode.I64_STORE: memory.store_op,
+    BinaryOpcode.F32_STORE: memory.store_op,
+    BinaryOpcode.F64_STORE: memory.store_op,
+    BinaryOpcode.I32_STORE8: memory.store_op,
+    BinaryOpcode.I32_STORE16: memory.store_op,
+    BinaryOpcode.I64_STORE8: memory.store_op,
+    BinaryOpcode.I64_STORE16: memory.store_op,
+    BinaryOpcode.I64_STORE32: memory.store_op,
+    BinaryOpcode.MEMORY_SIZE: memory.memory_size_op,
+    BinaryOpcode.MEMORY_GROW: memory.memory_grow_op,
     BinaryOpcode.I32_CONST: numeric.const_op,
     BinaryOpcode.I64_CONST: numeric.const_op,
     BinaryOpcode.F32_CONST: numeric.const_op,

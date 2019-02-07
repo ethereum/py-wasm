@@ -4,7 +4,7 @@ from wasm.execution import (
     Configuration,
 )
 
-logger = logging.getLogger('wasm.logic.control')
+logger = logging.getLogger('wasm.logic.parametric')
 
 
 def drop_op(config: Configuration) -> None:

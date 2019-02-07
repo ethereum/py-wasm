@@ -13,23 +13,19 @@ from wasm import (
     constants,
 )
 from wasm.datatypes import (
-    MemoryInstance,
     ValType,
 )
 from wasm.exceptions import (
     Trap,
-    ValidationError,
 )
 from wasm.execution import (
     Configuration,
 )
 from wasm.instructions import (
-    BaseInstruction,
     BinOp,
     Convert,
     Demote,
     Extend,
-    MemoryOp,
     Promote,
     Reinterpret,
     RelOp,
@@ -39,9 +35,6 @@ from wasm.instructions import (
 )
 from wasm.opcodes import (
     BinaryOpcode,
-)
-from wasm.typing import (
-    UInt32,
 )
 
 logger = logging.getLogger('wasm.spec')
@@ -130,9 +123,6 @@ def spec_expon(N):
 # We use the algorithm in the appendix for validating instruction sequences
 
 # 3.3.7 EXPRESSIONS
-
-
-Expression = Tuple[BaseInstruction, ...]
 
 
 #############
@@ -961,145 +951,14 @@ def spec_t2cvtopt1(config: Configuration) -> None:
 
 # 4.4.4 MEMORY INSTRUCTIONS
 
-# this is for both t.load and t.loadN_sx
-def spec_tload(config: Configuration) -> None:
-    logger.debug("spec_tload()")
-
-    S = config.store
-    instruction = cast(MemoryOp, config.instructions.current)
-    memarg = instruction.memarg
-    t = instruction.valtype
-    # 3
-    a = config.frame.module.memory_addrs[0]
-    # 5
-    mem = S.mems[a]
-    # 7
-    i = config.pop_operand()
-    # 8
-    ea = i + memarg.offset
-    # 9
-    sxflag = instruction.signed
-    N = instruction.memory_bit_size.value
-
-    # 10
-    if ea + N // 8 > len(mem.data):
-        raise Trap("trap")
-    # 11
-    # TODO: remove type ignore.  replace with formal memory read API.
-    bstar = mem.data[ea:ea + N // 8]  # type: ignore
-    # 12
-    if sxflag:
-        n = spec_bytest_inv(t, bstar)
-        c = spec_extend_sMN(N, t.bit_size.value, n)
-    else:
-        c = spec_bytest_inv(t, bstar)
-    # 13
-    config.push_operand(c)
-    logger.debug("loaded %s from memory locations %s to %s", c, ea, ea + N // 8)
-
-
-def spec_tstore(config: Configuration) -> None:
-    logger.debug("spec_tstore()")
-
-    S = config.store
-    instruction = cast(MemoryOp, config.instructions.current)
-    memarg = instruction.memarg
-    t = instruction.valtype
-    # 3
-    a = config.frame.module.memory_addrs[0]
-    # 5
-    mem = S.mems[a]
-    # 7
-    c = config.pop_operand()
-    # 9
-    i = config.pop_operand()
-    # 10
-    ea = i + memarg.offset
-    # 11
-    Nflag = instruction.declared_bit_size is not None
-    N = instruction.memory_bit_size.value
-    # 12
-    if ea + N // 8 > len(mem.data):
-        raise Trap("trap")
-    # 13
-    if Nflag:
-        M = t.bit_size.value
-        c = spec_wrapMN(M, N, c)
-        bstar = spec_bytest(t, c)  # type: ignore
-    else:
-        bstar = spec_bytest(t, c)  # type: ignore
-    # 15
-    # TODO: remove type ignore in favor of formal memory writing API
-    mem.data[ea:ea + N // 8] = bstar[: N // 8]  # type: ignore
-    logger.debug("stored %s to memory locations %s to %s", bstar[:N // 8], ea, ea + N // 8)
-
-
-def spec_memorysize(config: Configuration) -> None:
-    logger.debug("spec_memorysize()")
-
-    S = config.store
-    a = config.frame.module.memory_addrs[0]
-    mem = S.mems[a]
-    sz = UInt32(len(mem.data) // constants.PAGE_SIZE_64K)
-    config.push_operand(sz)
-
-
-def spec_memorygrow(config: Configuration) -> None:
-    logger.debug("spec_memorygrow()")
-
-    S = config.store
-    a = config.frame.module.memory_addrs[0]
-    mem = S.mems[a]
-    sz = UInt32(len(mem.data) // constants.PAGE_SIZE_64K)
-    n = config.pop_operand()
-    try:
-        spec_growmem(mem, cast(UInt32, n))
-    except ValidationError:
-        # put -1 on top of stack
-        config.push_operand(constants.INT32_NEGATIVE_ONE)
-    else:
-        # put the new size on top of the stack
-        config.push_operand(sz)
-
 
 # 4.4.5 CONTROL INSTRUCTIONS
-
-
-"""
- This implementation deviates from the spec as follows.
-   - Three stacks are maintained, operands, control-flow labels, and function-call frames.
-     Operand_stack holds only values, control_stack holds only labels. The
-     function-call frames are mainted implicitly in Python function calls --
-     this will be changed, putting function call frames into the label stack or
-     into their own stack.
-   - `config` inculdes store S, frame F, instr_list, idx into this instr_list,
-     operand_stack, and control_stack.
-   - Each label L has extra value for height of operand stack when it started,
-     continuation when it is branched to, and end when it's last instruction is
-     called.
-"""
 
 
 # 4.4.6 BLOCKS
 
 
 # 4.4.7 FUNCTION CALLS
-
-def spec_return_from_func(config: Configuration) -> None:
-    logger.debug('spec_return_from_func()')
-
-    if config.has_active_label:
-        raise Exception("Invariant")
-
-    valn = tuple(config.pop_operand() for _ in range(config.frame.arity))
-    config.pop_frame()
-
-    if config.has_active_frame:
-        for arg in reversed(valn):
-            config.push_operand(arg)
-    else:
-        for arg in reversed(valn):
-            config.result_stack.push(arg)
 
 
 # 4.4.8 EXPRESSIONS
@@ -1129,31 +988,31 @@ opcode2exec: Dict[BinaryOpcode, Tuple[Callable, ...]] = {
     # BinaryOpcode.TEE_LOCAL: (spec_tee_local,),  # localidx
     # BinaryOpcode.GET_GLOBAL: (spec_get_global,),  # globalidx
     # BinaryOpcode.SET_GLOBAL: (spec_set_global,),  # globalidx
-    BinaryOpcode.I32_LOAD: (spec_tload,),  # memarg
-    BinaryOpcode.I64_LOAD: (spec_tload,),  # memarg
-    BinaryOpcode.F32_LOAD: (spec_tload,),  # memarg
-    BinaryOpcode.F64_LOAD: (spec_tload,),  # memarg
-    BinaryOpcode.I32_LOAD8_S: (spec_tload,),  # memarg
-    BinaryOpcode.I32_LOAD8_U: (spec_tload,),  # memarg
-    BinaryOpcode.I32_LOAD16_S: (spec_tload,),  # memarg
-    BinaryOpcode.I32_LOAD16_U: (spec_tload,),  # memarg
-    BinaryOpcode.I64_LOAD8_S: (spec_tload,),  # memarg
-    BinaryOpcode.I64_LOAD8_U: (spec_tload,),  # memarg
-    BinaryOpcode.I64_LOAD16_S: (spec_tload,),  # memarg
-    BinaryOpcode.I64_LOAD16_U: (spec_tload,),  # memarg
-    BinaryOpcode.I64_LOAD32_S: (spec_tload,),  # memarg
-    BinaryOpcode.I64_LOAD32_U: (spec_tload,),  # memarg
-    BinaryOpcode.I32_STORE: (spec_tstore,),  # memarg
-    BinaryOpcode.I64_STORE: (spec_tstore,),  # memarg
-    BinaryOpcode.F32_STORE: (spec_tstore,),  # memarg
-    BinaryOpcode.F64_STORE: (spec_tstore,),  # memarg
-    BinaryOpcode.I32_STORE8: (spec_tstore,),  # memarg
-    BinaryOpcode.I32_STORE16: (spec_tstore,),  # memarg
-    BinaryOpcode.I64_STORE8: (spec_tstore,),  # memarg
-    BinaryOpcode.I64_STORE16: (spec_tstore,),  # memarg
-    BinaryOpcode.I64_STORE32: (spec_tstore,),  # memarg
-    BinaryOpcode.MEMORY_SIZE: (spec_memorysize,),
-    BinaryOpcode.MEMORY_GROW: (spec_memorygrow,),
+    # BinaryOpcode.I32_LOAD: (spec_tload,),  # memarg
+    # BinaryOpcode.I64_LOAD: (spec_tload,),  # memarg
+    # BinaryOpcode.F32_LOAD: (spec_tload,),  # memarg
+    # BinaryOpcode.F64_LOAD: (spec_tload,),  # memarg
+    # BinaryOpcode.I32_LOAD8_S: (spec_tload,),  # memarg
+    # BinaryOpcode.I32_LOAD8_U: (spec_tload,),  # memarg
+    # BinaryOpcode.I32_LOAD16_S: (spec_tload,),  # memarg
+    # BinaryOpcode.I32_LOAD16_U: (spec_tload,),  # memarg
+    # BinaryOpcode.I64_LOAD8_S: (spec_tload,),  # memarg
+    # BinaryOpcode.I64_LOAD8_U: (spec_tload,),  # memarg
+    # BinaryOpcode.I64_LOAD16_S: (spec_tload,),  # memarg
+    # BinaryOpcode.I64_LOAD16_U: (spec_tload,),  # memarg
+    # BinaryOpcode.I64_LOAD32_S: (spec_tload,),  # memarg
+    # BinaryOpcode.I64_LOAD32_U: (spec_tload,),  # memarg
+    # BinaryOpcode.I32_STORE: (spec_tstore,),  # memarg
+    # BinaryOpcode.I64_STORE: (spec_tstore,),  # memarg
+    # BinaryOpcode.F32_STORE: (spec_tstore,),  # memarg
+    # BinaryOpcode.F64_STORE: (spec_tstore,),  # memarg
+    # BinaryOpcode.I32_STORE8: (spec_tstore,),  # memarg
+    # BinaryOpcode.I32_STORE16: (spec_tstore,),  # memarg
+    # BinaryOpcode.I64_STORE8: (spec_tstore,),  # memarg
+    # BinaryOpcode.I64_STORE16: (spec_tstore,),  # memarg
+    # BinaryOpcode.I64_STORE32: (spec_tstore,),  # memarg
+    # BinaryOpcode.MEMORY_SIZE: (spec_memorysize,),
+    # BinaryOpcode.MEMORY_GROW: (spec_memorygrow,),
     # BinaryOpcode.I32_CONST: (spec_tconst,),  # i32
     # BinaryOpcode.I64_CONST: (spec_tconst,),  # i64
     # BinaryOpcode.F32_CONST: (spec_tconst,),  # f32
@@ -1295,29 +1154,6 @@ opcode2exec: Dict[BinaryOpcode, Tuple[Callable, ...]] = {
 
 
 # 4.5.3 ALLOCATION
-
-
-def spec_growmem(meminst: MemoryInstance, n: UInt32) -> None:
-    logger.debug('spec_growmem()')
-
-    if len(meminst.data) % constants.PAGE_SIZE_64K != 0:
-        # TODO: runtime validation that should be removed
-        raise Exception("Invariant")
-
-    len_ = n + len(meminst.data) // constants.PAGE_SIZE_64K
-    if len_ >= constants.UINT16_CEIL:
-        raise ValidationError(
-            f"Memory length exceeds u16 bounds: {len_} > {constants.UINT16_CEIL}"
-        )
-    elif meminst.max is not None and meminst.max < len_:
-        raise ValidationError(
-            f"Memory length exceeds maximum memory size bounds: {len_} > "
-            f"{meminst.max}"
-        )
-
-    meminst.data.extend(bytearray(
-        n * constants.PAGE_SIZE_64K
-    ))  # each page created with bytearray(65536) which is 0s
 
 
 # 4.5.5 INVOCATION
