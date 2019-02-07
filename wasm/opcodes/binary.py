@@ -337,5 +337,7 @@ class BinaryOpcode(enum.Enum):
 
     @property
     def text(self) -> str:
-        from .text import OPCODE_TO_TEXT
-        return OPCODE_TO_TEXT[self]
+        if not hasattr(self, '_text'):
+            from .text import OPCODE_TO_TEXT
+            self._text = OPCODE_TO_TEXT[self]
+        return self._text
