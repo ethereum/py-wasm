@@ -1,3 +1,4 @@
+import copy
 import json
 import logging
 import math
@@ -6,15 +7,22 @@ from pathlib import (
 )
 from typing import (
     Any,
-    List,
+    Callable,
+    Dict,
+    Optional,
+    Tuple,
+    Type,
+    Union,
 )
 
 import pytest
 
 import wasm
+from wasm import (
+    Runtime,
+)
 from wasm.datatypes import (
     ModuleInstance,
-    Store,
 )
 from wasm.exceptions import (
     Exhaustion,
@@ -23,8 +31,12 @@ from wasm.exceptions import (
     Trap,
     Unlinkable,
 )
+from wasm.typing import (
+    TValue,
+)
 
 from .datatypes import (
+    Action,
     ActionCommand,
     AssertExhaustion,
     AssertInvalidCommand,
@@ -49,11 +61,12 @@ class FloatingPointNotImplemented(NotImplementedError):
     pass
 
 
-def instantiate_module_from_wasm_file(
-        file_path: Path,
-        store: Store,
-        registered_modules: List[ModuleInstance, ]
-) -> ModuleInstance:
+CurrentModule = Optional[ModuleInstance]
+AllModules = Dict[str, ModuleInstance]
+
+
+def instantiate_module_from_wasm_file(file_path: Path,
+                                      runtime: Runtime) -> ModuleInstance:
     logger.debug("Loading wasm module from file: %s", file_path.name)
 
     if file_path.suffix != ".wasm":
@@ -65,34 +78,19 @@ def instantiate_module_from_wasm_file(
         wasmbytes = memoryview(wasm_module_file.read())
         module = wasm.decode_module(wasmbytes)
 
-        # validate
-        wasm.validate_module(module)
+    wasm.validate_module(module)
 
-        # imports preparation
-        externvalstar: List[Any] = []
-        for import_ in module.imports:
-            if import_.module not in registered_modules:
-                raise Unlinkable(f"Unlinkable module: {import_.module}")
+    module_instance, _ = runtime.instantiate_module(module)
 
-            sub_module = registered_modules[import_.module]
-
-            for export in sub_module.exports:
-                if export.name == import_.name:
-                    externval = export.value
-                    break
-            else:
-                raise Unlinkable("Unlinkable module: export name not found")
-
-            externvalstar += [externval]
-        _, moduleinst, _ = wasm.instantiate_module(store, module, tuple(externvalstar))
-    return moduleinst
+    return module_instance
 
 
-def do_module(command, store, module, all_modules, registered_modules):
+def do_module(command: ModuleCommand,
+              module: CurrentModule,
+              all_modules: AllModules,
+              runtime: Runtime) -> ModuleInstance:
     if command.file_path is not None:
-        module = instantiate_module_from_wasm_file(
-            command.file_path, store, registered_modules
-        )
+        module = instantiate_module_from_wasm_file(command.file_path, runtime)
 
         if command.name is not None:
             all_modules[command.name] = module
@@ -102,17 +100,44 @@ def do_module(command, store, module, all_modules, registered_modules):
         raise Exception("Unhandled")
 
 
-def run_opcode_action(command, store, module, all_modules, registered_modules):
+TActionCommands = Union[
+    AssertReturnCommand,
+    AssertTrap,
+    AssertExhaustion,
+]
+TAnyCommand = Union[
+    ActionCommand,
+    AssertExhaustion,
+    AssertInvalidCommand,
+    AssertMalformed,
+    AssertReturnArithmeticNan,
+    AssertReturnCanonicalNan,
+    AssertReturnCommand,
+    AssertTrap,
+    AssertUninstantiable,
+    AssertUnlinkable,
+    ModuleCommand,
+    Register,
+]
+
+
+def run_opcode_action(command: TActionCommands,
+                      module: CurrentModule,
+                      all_modules: AllModules,
+                      runtime: Runtime) -> Tuple[TValue, ...]:
     if command.action.module is not None:
         module = all_modules[command.action.module]
 
+    if module is None:
+        raise Exception("Invariant")
+
     if command.action.type == "invoke":
         ret = run_opcode_action_invoke(
-            command.action, store, module, all_modules, registered_modules
+            command.action, module, all_modules, runtime,
         )
     elif command.action.type == "get":
         ret = run_opcode_action_get(
-            command.action, store, module, all_modules, registered_modules
+            command.action, module, all_modules, runtime,
         )
     else:
         raise Exception(f"Unsupported action type: {command.action.type}")
@@ -120,7 +145,10 @@ def run_opcode_action(command, store, module, all_modules, registered_modules):
     return ret
 
 
-def run_opcode_action_invoke(action, store, module, all_modules, registered_modules):
+def run_opcode_action_invoke(action: Action,
+                             module: ModuleInstance,
+                             all_modules: AllModules,
+                             runtime: Runtime) -> Tuple[TValue, ...]:
     # get function name, which could include unicode bytes like \u001b which
     # must be converted to unicode string
     funcname = action.field.encode('latin1').decode('utf8')
@@ -148,26 +176,32 @@ def run_opcode_action_invoke(action, store, module, all_modules, registered_modu
         args.append((type_, value))
 
     # invoke func
-    _, ret = wasm.invoke_func(store, funcaddr, tuple(args))
+    _, ret = wasm.invoke_func(runtime.store, funcaddr, tuple(args))
 
     return ret
 
 
-def run_opcode_action_get(action, store, module, all_modules, registered_modules):
+def run_opcode_action_get(action: Action,
+                          module: ModuleInstance,
+                          all_modules: AllModules,
+                          runtime: Runtime) -> Tuple[TValue, ...]:
     # this is naive, since test["expected"] is a list, should iterate over each
     # one, but maybe OK since there is only one test["action"]
     for export in module.exports:
         if export.name == action.field:
             globaladdr = export.value
-            value = store.globals[globaladdr].value
-            return [value]
+            value = runtime.store.globals[globaladdr].value
+            return (value,)
     else:
         raise Exception(f"No export found for name: '{action.field}")
 
 
-def do_assert_return(command, store, module, all_modules, registered_modules):
+def do_assert_return(command: AssertReturnCommand,
+                     module: CurrentModule,
+                     all_modules: AllModules,
+                     runtime: Runtime) -> None:
     try:
-        ret = run_opcode_action(command, store, module, all_modules, registered_modules)
+        ret = run_opcode_action(command, module, all_modules, runtime)
     except FloatingPointNotImplemented:
         return
 
@@ -205,32 +239,41 @@ def do_assert_return(command, store, module, all_modules, registered_modules):
             raise AssertionError(f"Unknown expected return type: {expected_type}")
 
 
-def do_assert_invalid(command, store, module, all_modules, registered_modules):
+def do_assert_invalid(command: AssertInvalidCommand,
+                      module: CurrentModule,
+                      all_modules: AllModules,
+                      runtime: Runtime) -> None:
     if command.module_type != "binary":
         raise Exception("Unhandled")
 
     if command.file_path:
         with pytest.raises(InvalidModule):
-            instantiate_module_from_wasm_file(command.file_path, store, registered_modules)
+            instantiate_module_from_wasm_file(command.file_path, runtime)
     else:
         raise Exception("Unhandled")
 
 
-def do_assert_trap(command, store, module, all_modules, registered_modules):
+def do_assert_trap(command: AssertTrap,
+                   module: CurrentModule,
+                   all_modules: AllModules,
+                   runtime: Runtime) -> None:
     if hasattr(command, 'module'):
         raise Exception("Unhandled")
 
     if command.action:
         try:
             with pytest.raises(Trap):
-                run_opcode_action(command, store, module, all_modules, registered_modules)
+                run_opcode_action(command, module, all_modules, runtime)
         except FloatingPointNotImplemented:
             pass
     else:
         raise Exception("Unhandled")
 
 
-def do_assert_malformed(command, store, module, all_modules, registered_modules):
+def do_assert_malformed(command: AssertMalformed,
+                        module: CurrentModule,
+                        all_modules: AllModules,
+                        runtime: Runtime) -> None:
     if command.module_type == 'text':
         assert not command.file_path.exists()
         logger.info("Skipping command for text_module")
@@ -240,33 +283,45 @@ def do_assert_malformed(command, store, module, all_modules, registered_modules)
 
     if command.file_path:
         with pytest.raises(MalformedModule):
-            instantiate_module_from_wasm_file(command.file_path, store, registered_modules)
+            instantiate_module_from_wasm_file(command.file_path, runtime)
     else:
         raise Exception("Unhandled")
 
 
-def do_assert_exhaustion(command, store, module, all_modules, registered_modules):
+def do_assert_exhaustion(command: AssertExhaustion,
+                         module: CurrentModule,
+                         all_modules: AllModules,
+                         runtime: Runtime) -> None:
     if hasattr(command, 'module'):
         raise Exception("Unhandled")
 
     if command.action:
         with pytest.raises(Exhaustion):
-            run_opcode_action(command, store, module, all_modules, registered_modules)
+            run_opcode_action(command, module, all_modules, runtime)
     else:
         raise Exception("Unhandled")
 
 
-def do_assert_canonical_nan(command, store, module, all_modules, registered_modules):
-    # Not implemented
+def do_assert_canonical_nan(command: AssertReturnCanonicalNan,
+                            module: CurrentModule,
+                            all_modules: AllModules,
+                            runtime: Runtime) -> None:
+    # Not yet implemented
     pass
 
 
-def do_assert_arithmetic_nan(command, store, module, all_modules, registered_modules):
-    # Not implemented
+def do_assert_arithmetic_nan(command: AssertReturnArithmeticNan,
+                             module: CurrentModule,
+                             all_modules: AllModules,
+                             runtime: Runtime) -> None:
+    # Not yet implemented
     pass
 
 
-def do_assert_unlinkable(command, store, module, all_modules, registered_modules):
+def do_assert_unlinkable(command: AssertUnlinkable,
+                         module: CurrentModule,
+                         all_modules: AllModules,
+                         runtime: Runtime) -> None:
     if command.module_type == 'text':
         assert not command.file_path.exists()
         logger.info("Skipping command for text_module")
@@ -276,52 +331,62 @@ def do_assert_unlinkable(command, store, module, all_modules, registered_modules
 
     if command.file_path:
         with pytest.raises(Unlinkable):
-            instantiate_module_from_wasm_file(command.file_path, store, registered_modules)
+            instantiate_module_from_wasm_file(command.file_path, runtime)
     else:
         raise Exception("Unhandled")
 
 
-def do_register(command, store, module, all_modules, registered_modules):
+def do_register(command: Register,
+                module: CurrentModule,
+                all_modules: AllModules,
+                runtime: Runtime) -> None:
     if command.name is None:
-        registered_modules[command.as_] = module
+        if module is None:
+            raise Exception("Invariant")
+        runtime.register_module(command.as_, module)
     else:
-        registered_modules[command.as_] = all_modules[command.name]
+        runtime.register_module(command.as_, all_modules[command.name])
 
 
-def do_action_command(command, store, module, all_modules, registered_modules):
-    run_opcode_action(command, store, module, all_modules, registered_modules)
-
-
-def do_assert_uninstantiable(command, store, module, all_modules, registered_modules):
+def do_assert_uninstantiable(command: AssertUninstantiable,
+                             module: CurrentModule,
+                             all_modules: AllModules,
+                             runtime: Runtime) -> None:
     with pytest.raises(Trap):
-        instantiate_module_from_wasm_file(command.file_path, store, registered_modules)
+        instantiate_module_from_wasm_file(command.file_path, runtime)
 
 
-def get_command_fn(command):
+CommandFn = Callable[
+    [TAnyCommand, CurrentModule, AllModules, Runtime],
+    Any,
+]
+
+
+def get_command_fn(command: TAnyCommand) -> CommandFn:
     if isinstance(command, ModuleCommand):
-        return do_module
+        return do_module  # type: ignore
     elif isinstance(command, AssertReturnCommand):
-        return do_assert_return
+        return do_assert_return  # type: ignore
     elif isinstance(command, AssertInvalidCommand):
-        return do_assert_invalid
+        return do_assert_invalid  # type: ignore
     elif isinstance(command, AssertExhaustion):
-        return do_assert_exhaustion
+        return do_assert_exhaustion  # type: ignore
     elif isinstance(command, AssertMalformed):
-        return do_assert_malformed
+        return do_assert_malformed  # type: ignore
     elif isinstance(command, AssertTrap):
-        return do_assert_trap
+        return do_assert_trap  # type: ignore
     elif isinstance(command, AssertReturnCanonicalNan):
-        return do_assert_canonical_nan
+        return do_assert_canonical_nan  # type: ignore
     elif isinstance(command, AssertReturnArithmeticNan):
-        return do_assert_arithmetic_nan
+        return do_assert_arithmetic_nan  # type: ignore
     elif isinstance(command, AssertUnlinkable):
-        return do_assert_unlinkable
+        return do_assert_unlinkable  # type: ignore
     elif isinstance(command, Register):
-        return do_register
+        return do_register  # type: ignore
     elif isinstance(command, ActionCommand):
-        return do_action_command
+        return run_opcode_action  # type: ignore
     elif isinstance(command, AssertUninstantiable):
-        return do_assert_uninstantiable
+        return do_assert_uninstantiable  # type: ignore
     else:
         raise AssertionError(f"Unsupported module type: {type(command)}")
 
@@ -330,7 +395,7 @@ def get_command_fn(command):
 # currently not passing.  This list should be empty once the library has been
 # properly refactored but for now they are skipped to allow for incremental
 # improvement to the library.
-SKIP_COMMANDS = {
+SKIP_COMMANDS: Dict[str, Dict[int, Type[Exception]]] = {
     'float_exprs.wast': {
         # Incorrectly implemented floating point operations.
         506: AssertionError,
@@ -367,7 +432,7 @@ SKIP_COMMANDS = {
 }
 
 
-def run_fixture_test(fixture_path, store, all_modules, registered_modules):
+def run_fixture_test(fixture_path: Path, runtime: Runtime) -> None:
     with fixture_path.open('r') as fixture_file:
         raw_fixture = json.load(fixture_file)
 
@@ -378,6 +443,8 @@ def run_fixture_test(fixture_path, store, all_modules, registered_modules):
 
     logger.info("Finished test fixture: %s", fixture.file_path.name)
 
+    all_modules = copy.copy(runtime.modules)
+
     for idx, command in enumerate(fixture.commands):
         logger.debug("running command: line=%d  type=%s", command.line, str(type(command)))
 
@@ -386,9 +453,9 @@ def run_fixture_test(fixture_path, store, all_modules, registered_modules):
         if command.line in skip_info:
             expected_err = skip_info[command.line]
             with pytest.raises(expected_err):
-                command_fn(command, store, module, all_modules, registered_modules)
+                command_fn(command, module, all_modules, runtime)
         else:
-            result = command_fn(command, store, module, all_modules, registered_modules)
+            result = command_fn(command, module, all_modules, runtime)
 
             if result:
                 module = result

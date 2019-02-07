@@ -19,7 +19,7 @@ from .expressions import (
 
 
 def validate_data_segment(context: Context, data_segment: DataSegment) -> None:
-    context.validate_mem_idx(data_segment.mem_idx)
+    context.validate_mem_idx(data_segment.memory_idx)
 
     expected_result_type = (ValType.i32,)
     with context.expression_context() as ctx:

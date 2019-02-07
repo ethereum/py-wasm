@@ -4,6 +4,9 @@ from .configuration import (  # noqa: F401
 from .instructions import (  # noqa: F401
     InstructionSequence,
 )
+from .runtime import (  # noqa: F401
+    Runtime,
+)
 from .stack import (  # noqa: F401
     BaseStack,
     Frame,

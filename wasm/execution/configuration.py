@@ -32,6 +32,10 @@ class BaseConfiguration(ABC):
         self.store = store
         self.result_stack = OperandStack()
 
+    @abstractmethod
+    def execute(self) -> Tuple[TValue, ...]:
+        pass
+
     @property
     @abstractmethod
     def frame(self) -> Frame:
@@ -124,6 +128,23 @@ class Configuration(BaseConfiguration):
     def __init__(self, store: Store) -> None:
         super().__init__(store)
         self.frame_stack = FrameStack()
+
+    def execute(self) -> Tuple[TValue, ...]:
+        # TODO: unwrap import once logic functions move out of wasm.main
+        from wasm.main import opcode2exec
+
+        while self.has_active_frame:
+            instruction = next(self.instructions)
+
+            logic_fn = opcode2exec[instruction.opcode][0]
+            logic_fn(self)
+
+        if len(self.result_stack) > 1:
+            raise Exception("Invariant: The WASM spec only allows singular return values.")
+        elif len(self.result_stack) == 1:
+            return (self.result_stack.pop(),)
+        else:
+            return tuple()
 
     @property
     def frame(self) -> Frame:
