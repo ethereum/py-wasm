@@ -67,19 +67,7 @@ AllModules = Dict[str, ModuleInstance]
 
 def instantiate_module_from_wasm_file(file_path: Path,
                                       runtime: Runtime) -> ModuleInstance:
-    logger.debug("Loading wasm module from file: %s", file_path.name)
-
-    if file_path.suffix != ".wasm":
-        logger.debug("Unsupported file type for wasm module: %s", file_path.suffix)
-        raise Exception("Unsupported file type: {file_path.suffix}")
-
-    with file_path.open("rb") as wasm_module_file:
-        # memoryview doesn't make copy, bytearray may require copy
-        wasmbytes = memoryview(wasm_module_file.read())
-        module = wasm.decode_module(wasmbytes)
-
-    wasm.validate_module(module)
-
+    module = runtime.load_module(file_path)
     module_instance, _ = runtime.instantiate_module(module)
 
     return module_instance
@@ -173,10 +161,10 @@ def run_opcode_action_invoke(action: Action,
         if type_.is_float_type:
             logger.info("Floating point not yet supported: %s", action)
             raise FloatingPointNotImplemented("Floating point not yet implemented")
-        args.append((type_, value))
+        args.append(value)
 
     # invoke func
-    _, ret = wasm.invoke_func(runtime.store, funcaddr, tuple(args))
+    ret = wasm.invoke_func(runtime.store, funcaddr, tuple(args))
 
     return ret
 

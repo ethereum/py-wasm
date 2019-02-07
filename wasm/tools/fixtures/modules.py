@@ -1,4 +1,7 @@
 import logging
+from typing import (
+    Tuple,
+)
 
 from wasm.datatypes import (
     ExportInstance,
@@ -19,6 +22,7 @@ from wasm.datatypes import (
 from wasm.typing import (
     Float32,
     Float64,
+    TValue,
     UInt32,
 )
 
@@ -26,33 +30,33 @@ from wasm.typing import (
 def instantiate_spectest_module(store: Store) -> ModuleInstance:
     logger = logging.getLogger("wasm.tools.fixtures.modules.spectest")
 
-    def spectest__print_i32(store, arg):
-        logger.debug('print_i32: %s', arg)
-        return store, []
+    def spectest__print_i32(store: Store, args: Tuple[TValue, ...]) -> Tuple[TValue, ...]:
+        logger.debug('print_i32: %s', args)
+        return tuple()
 
-    def spectest__print_i64(store, arg):
-        logger.debug('print_i64: %s', arg)
-        return store, []
+    def spectest__print_i64(store: Store, args: Tuple[TValue, ...]) -> Tuple[TValue, ...]:
+        logger.debug('print_i64: %s', args)
+        return tuple()
 
-    def spectest__print_f32(store, arg):
-        logger.debug('print_f32: %s', arg)
-        return store, []
+    def spectest__print_f32(store: Store, args: Tuple[TValue, ...]) -> Tuple[TValue, ...]:
+        logger.debug('print_f32: %s', args)
+        return tuple()
 
-    def spectest__print_f64(store, arg):
-        logger.debug('print_f64: %s', arg)
-        return store, []
+    def spectest__print_f64(store: Store, args: Tuple[TValue, ...]) -> Tuple[TValue, ...]:
+        logger.debug('print_f64: %s', args)
+        return tuple()
 
-    def spectest__print_i32_f32(store, arg):
-        logger.debug('print_i32_f32: %s', arg)
-        return store, []
+    def spectest__print_i32_f32(store: Store, args: Tuple[TValue, ...]) -> Tuple[TValue, ...]:
+        logger.debug('print_i32_f32: %s', args)
+        return tuple()
 
-    def spectest__print_f64_f64(store, arg):
-        logger.debug('print_f64_f64: %s', arg)
-        return store, []
+    def spectest__print_f64_f64(store: Store, args: Tuple[TValue, ...]) -> Tuple[TValue, ...]:
+        logger.debug('print_f64_f64: %s', args)
+        return tuple()
 
-    def spectest__print(store, arg):
-        logger.debug('print: %s', arg)
-        return store, []
+    def spectest__print(store: Store, args: Tuple[TValue, ...]) -> Tuple[TValue, ...]:
+        logger.debug('print: %s', args)
+        return tuple()
 
     store.allocate_host_function(FunctionType((ValType.i32,), ()), spectest__print_i32)
     store.allocate_host_function(FunctionType((ValType.i64,), ()), spectest__print_i64)
@@ -112,27 +116,27 @@ def instantiate_spectest_module(store: Store) -> ModuleInstance:
 
 
 # this module called "wast" is used by import.wast to test for assert_unlinkable
-def instantiate_test_module(store):
-    def test__func(store, arg):
-        pass
+def instantiate_test_module(store: Store) -> ModuleInstance:
+    def test__func(store: Store, args: Tuple[TValue, ...]) -> Tuple[TValue, ...]:
+        return tuple()
 
-    def test__func_i32(store, arg):
-        pass
+    def test__func_i32(store: Store, args: Tuple[TValue, ...]) -> Tuple[TValue, ...]:
+        return tuple()
 
-    def test__func_f32(store, arg):
-        pass
+    def test__func_f32(store: Store, args: Tuple[TValue, ...]) -> Tuple[TValue, ...]:
+        return tuple()
 
-    def test__func__i32(store, arg):
-        pass
+    def test__func__i32(store: Store, args: Tuple[TValue, ...]) -> Tuple[TValue, ...]:
+        return tuple()
 
-    def test__func__f32(store, arg):
-        pass
+    def test__func__f32(store: Store, args: Tuple[TValue, ...]) -> Tuple[TValue, ...]:
+        return tuple()
 
-    def test__func_i32_i32(store, arg):
-        pass
+    def test__func_i32_i32(store: Store, args: Tuple[TValue, ...]) -> Tuple[TValue, ...]:
+        return tuple()
 
-    def test__func_i64_i64(store, arg):
-        pass
+    def test__func_i64_i64(store: Store, args: Tuple[TValue, ...]) -> Tuple[TValue, ...]:
+        return tuple()
 
     store.allocate_host_function(FunctionType((), ()), test__func)
     store.allocate_host_function(FunctionType((ValType.i32,), ()), test__func_i32)

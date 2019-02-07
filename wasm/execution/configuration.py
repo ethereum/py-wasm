@@ -196,11 +196,17 @@ class Configuration(BaseConfiguration):
     def execute(self) -> Tuple[TValue, ...]:
         # TODO: unwrap import once logic functions move out of wasm.main
         from wasm.main import opcode2exec
+        from wasm.logic import OPCODE_TO_LOGIC_FN
 
         while self.has_active_frame:
             instruction = next(self.instructions)
 
-            logic_fn = opcode2exec[instruction.opcode][0]
+            if instruction.opcode in OPCODE_TO_LOGIC_FN:
+                assert instruction.opcode not in opcode2exec
+                logic_fn = OPCODE_TO_LOGIC_FN[instruction.opcode]
+            else:
+                logic_fn = opcode2exec[instruction.opcode][0]
+
             logic_fn(self)
 
         if len(self.result_stack) > 1:
