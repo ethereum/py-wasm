@@ -9,7 +9,7 @@ from wasm.datatypes import (
 from wasm.exceptions import (
     ValidationError,
 )
-from wasm.validation import (
+from wasm.validation.tables import (
     validate_table,
 )
 
