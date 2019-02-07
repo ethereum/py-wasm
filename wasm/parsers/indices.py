@@ -1,4 +1,4 @@
-import io
+from typing import IO
 
 from wasm.datatypes import (
     FunctionIdx,
@@ -15,36 +15,36 @@ from .integers import (
 )
 
 
-def parse_function_idx(stream: io.BytesIO) -> FunctionIdx:
+def parse_function_idx(stream: IO[bytes]) -> FunctionIdx:
     raw_idx = parse_u32(stream)
     return FunctionIdx(raw_idx)
 
 
-def parse_global_idx(stream: io.BytesIO) -> GlobalIdx:
+def parse_global_idx(stream: IO[bytes]) -> GlobalIdx:
     raw_idx = parse_u32(stream)
     return GlobalIdx(raw_idx)
 
 
-def parse_label_idx(stream: io.BytesIO) -> LabelIdx:
+def parse_label_idx(stream: IO[bytes]) -> LabelIdx:
     raw_idx = parse_u32(stream)
     return LabelIdx(raw_idx)
 
 
-def parse_local_idx(stream: io.BytesIO) -> LocalIdx:
+def parse_local_idx(stream: IO[bytes]) -> LocalIdx:
     raw_idx = parse_u32(stream)
     return LocalIdx(raw_idx)
 
 
-def parse_memory_idx(stream: io.BytesIO) -> MemoryIdx:
+def parse_memory_idx(stream: IO[bytes]) -> MemoryIdx:
     raw_idx = parse_u32(stream)
     return MemoryIdx(raw_idx)
 
 
-def parse_table_idx(stream: io.BytesIO) -> TableIdx:
+def parse_table_idx(stream: IO[bytes]) -> TableIdx:
     raw_idx = parse_u32(stream)
     return TableIdx(raw_idx)
 
 
-def parse_type_idx(stream: io.BytesIO) -> TypeIdx:
+def parse_type_idx(stream: IO[bytes]) -> TypeIdx:
     raw_idx = parse_u32(stream)
     return TypeIdx(raw_idx)

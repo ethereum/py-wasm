@@ -1,5 +1,5 @@
-import io
 from typing import (
+    IO,
     Iterable,
     Tuple,
     cast,
@@ -17,11 +17,11 @@ from .instructions import (
 )
 
 
-def parse_expression(stream: io.BytesIO) -> Tuple[BaseInstruction, ...]:
+def parse_expression(stream: IO[bytes]) -> Tuple[BaseInstruction, ...]:
     return tuple(_parse_expression(stream))
 
 
-def _parse_expression(stream: io.BytesIO) -> Iterable[BaseInstruction]:
+def _parse_expression(stream: IO[bytes]) -> Iterable[BaseInstruction]:
     while True:
         instruction = cast(BaseInstruction, parse_instruction(stream))
 

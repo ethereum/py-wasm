@@ -1,4 +1,4 @@
-import io
+from typing import IO
 
 from wasm.datatypes import (
     Limits,
@@ -15,7 +15,7 @@ from .integers import (
 )
 
 
-def parse_limits(stream: io.BytesIO) -> Limits:
+def parse_limits(stream: IO[bytes]) -> Limits:
     flag = parse_single_byte(stream)
 
     if flag == 0x0:

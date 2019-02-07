@@ -1,5 +1,5 @@
-import io
 from typing import (
+    IO,
     Union,
 )
 
@@ -30,7 +30,7 @@ from .text import (
 TExportDesc = Union[FunctionIdx, GlobalIdx, MemoryIdx, TableIdx]
 
 
-def parse_export_descriptor(stream: io.BytesIO) -> TExportDesc:
+def parse_export_descriptor(stream: IO[bytes]) -> TExportDesc:
     flag = parse_single_byte(stream)
 
     if flag == 0x00:
@@ -47,7 +47,7 @@ def parse_export_descriptor(stream: io.BytesIO) -> TExportDesc:
         )
 
 
-def parse_export(stream: io.BytesIO) -> Export:
+def parse_export(stream: IO[bytes]) -> Export:
     name = parse_text(stream)
     descriptor = parse_export_descriptor(stream)
     return Export(name, descriptor)

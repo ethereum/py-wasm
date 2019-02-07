@@ -1,4 +1,4 @@
-import io
+from typing import IO
 
 from wasm import (
     constants,
@@ -23,7 +23,7 @@ from .leb128 import (
 )
 
 
-def parse_s32(stream: io.BytesIO) -> SInt32:
+def parse_s32(stream: IO[bytes]) -> SInt32:
     start_pos = stream.tell()
     value = parse_signed_leb128(stream)
     end_pos = stream.tell()
@@ -48,7 +48,7 @@ def parse_s32(stream: io.BytesIO) -> SInt32:
         raise Exception("Invariant")
 
 
-def parse_s64(stream: io.BytesIO) -> SInt64:
+def parse_s64(stream: IO[bytes]) -> SInt64:
     start_pos = stream.tell()
     value = parse_signed_leb128(stream)
     end_pos = stream.tell()
@@ -73,7 +73,7 @@ def parse_s64(stream: io.BytesIO) -> SInt64:
         raise Exception("Invariant")
 
 
-def parse_u32(stream: io.BytesIO) -> UInt32:
+def parse_u32(stream: IO[bytes]) -> UInt32:
     start_pos = stream.tell()
     value = parse_unsigned_leb128(stream)
     end_pos = stream.tell()
@@ -98,7 +98,7 @@ def parse_u32(stream: io.BytesIO) -> UInt32:
         raise Exception("Invariant")
 
 
-def parse_u64(stream: io.BytesIO) -> UInt64:
+def parse_u64(stream: IO[bytes]) -> UInt64:
     start_pos = stream.tell()
     value = parse_unsigned_leb128(stream)
     end_pos = stream.tell()
@@ -123,13 +123,13 @@ def parse_u64(stream: io.BytesIO) -> UInt64:
         raise Exception("Invariant")
 
 
-def parse_i32(stream: io.BytesIO) -> UInt32:
+def parse_i32(stream: IO[bytes]) -> UInt32:
     value_s = parse_s32(stream)
     value = s32_to_u32(value_s)
     return value
 
 
-def parse_i64(stream: io.BytesIO) -> UInt64:
+def parse_i64(stream: IO[bytes]) -> UInt64:
     value_s = parse_s64(stream)
     value = s64_to_u64(value_s)
     return value

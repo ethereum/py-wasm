@@ -1,4 +1,4 @@
-import io
+from typing import IO
 
 from wasm.instructions import (
     BinOp,
@@ -33,7 +33,7 @@ from .integers import (
 
 
 def parse_numeric_instruction(opcode: BinaryOpcode,
-                              stream: io.BytesIO) -> Instruction:
+                              stream: IO[bytes]) -> Instruction:
     if opcode.is_numeric_constant:
         return parse_numeric_constant_instruction(opcode, stream)
     elif opcode.is_relop:
@@ -51,7 +51,7 @@ def parse_numeric_instruction(opcode: BinaryOpcode,
 
 
 def parse_numeric_constant_instruction(opcode: BinaryOpcode,
-                                       stream: io.BytesIO) -> Instruction:
+                                       stream: IO[bytes]) -> Instruction:
     if opcode is BinaryOpcode.I32_CONST:
         return I32Const.from_opcode(opcode, parse_i32(stream))
     elif opcode is BinaryOpcode.I64_CONST:

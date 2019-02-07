@@ -1,4 +1,4 @@
-import io
+from typing import IO
 
 from wasm.exceptions import (
     ParseError,
@@ -12,7 +12,7 @@ from .integers import (
 )
 
 
-def parse_single_byte(stream: io.BytesIO) -> UInt8:
+def parse_single_byte(stream: IO[bytes]) -> UInt8:
     byte = stream.read(1)
 
     if byte:
@@ -21,7 +21,7 @@ def parse_single_byte(stream: io.BytesIO) -> UInt8:
         raise ParseError("Unexpected end of stream")
 
 
-def parse_bytes(stream: io.BytesIO) -> bytes:
+def parse_bytes(stream: IO[bytes]) -> bytes:
     size = parse_u32(stream)
     data = stream.read(size)
 

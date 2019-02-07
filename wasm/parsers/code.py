@@ -1,4 +1,4 @@
-import io
+from typing import IO
 
 from wasm import (
     constants,
@@ -25,13 +25,13 @@ from .vector import (
 )
 
 
-def parse_locals(stream: io.BytesIO) -> LocalsMeta:
+def parse_locals(stream: IO[bytes]) -> LocalsMeta:
     num = parse_u32(stream)
     valtype = parse_valtype(stream)
     return LocalsMeta(num, valtype)
 
 
-def parse_code(stream: io.BytesIO) -> Code:
+def parse_code(stream: IO[bytes]) -> Code:
     size = parse_u32(stream)
     start_pos = stream.tell()
     expected_end_pos = start_pos + size

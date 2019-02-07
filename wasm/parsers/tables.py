@@ -1,5 +1,5 @@
-import io
 from typing import (
+    IO,
     Type,
 )
 
@@ -20,7 +20,7 @@ from .limits import (
 )
 
 
-def parse_table_element_type(stream: io.BytesIO) -> Type[FunctionAddress]:
+def parse_table_element_type(stream: IO[bytes]) -> Type[FunctionAddress]:
     type_flag = parse_single_byte(stream)
 
     if type_flag == 0x70:
@@ -31,12 +31,12 @@ def parse_table_element_type(stream: io.BytesIO) -> Type[FunctionAddress]:
         )
 
 
-def parse_table_type(stream: io.BytesIO) -> TableType:
+def parse_table_type(stream: IO[bytes]) -> TableType:
     element_type = parse_table_element_type(stream)
     limits = parse_limits(stream)
     return TableType(limits, element_type)
 
 
-def parse_table(stream: io.BytesIO) -> Table:
+def parse_table(stream: IO[bytes]) -> Table:
     table_type = parse_table_type(stream)
     return Table(table_type)

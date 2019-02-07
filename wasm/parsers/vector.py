@@ -1,5 +1,5 @@
-import io
 from typing import (
+    IO,
     Callable,
     Iterable,
     Tuple,
@@ -20,8 +20,8 @@ from .integers import (
 TItem = TypeVar('TItem')
 
 
-def parse_vector(sub_parser: Callable[[io.BytesIO], TItem],
-                 stream: io.BytesIO,
+def parse_vector(sub_parser: Callable[[IO[bytes]], TItem],
+                 stream: IO[bytes],
                  ) -> Tuple[TItem, ...]:
     vector_size = parse_u32(stream)
     try:
@@ -30,9 +30,9 @@ def parse_vector(sub_parser: Callable[[io.BytesIO], TItem],
         raise ParseError(f"Error parsing vector: {err}") from err
 
 
-def _parse_vector(sub_parser: Callable[[io.BytesIO], TItem],
+def _parse_vector(sub_parser: Callable[[IO[bytes]], TItem],
                   vector_size: UInt32,
-                  stream: io.BytesIO,
+                  stream: IO[bytes],
                   ) -> Iterable[TItem]:
     for _ in range(vector_size):
         yield sub_parser(stream)

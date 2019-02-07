@@ -1,9 +1,9 @@
 import functools
-import io
 import itertools
 import math
 import operator
 from typing import (
+    IO,
     Iterable,
 )
 
@@ -15,7 +15,7 @@ SIGN_MASK = 2**6
 REMOVE_SIGN_MASK = 2**6 - 1
 
 
-def parse_signed_leb128(stream: io.BytesIO) -> int:
+def parse_signed_leb128(stream: IO[bytes]) -> int:
     """
     https://en.wikipedia.org/wiki/LEB128
     """
@@ -39,7 +39,7 @@ LOW_MASK = 2**7 - 1
 HIGH_MASK = 2**7
 
 
-def parse_unsigned_leb128(stream: io.BytesIO) -> int:
+def parse_unsigned_leb128(stream: IO[bytes]) -> int:
     """
     https://en.wikipedia.org/wiki/LEB128
     """
@@ -55,7 +55,7 @@ def parse_unsigned_leb128(stream: io.BytesIO) -> int:
 SHIFT_64_BIT_MAX = int(math.ceil(64 / 7)) * 7
 
 
-def _parse_unsigned_leb128(stream: io.BytesIO) -> Iterable[int]:
+def _parse_unsigned_leb128(stream: IO[bytes]) -> Iterable[int]:
     for shift in itertools.count(0, 7):
         if shift > SHIFT_64_BIT_MAX:
             raise Exception("TODO: better exception msg: Integer is too large...")

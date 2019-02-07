@@ -1,5 +1,5 @@
-import io
 from typing import (
+    IO,
     Iterable,
     Tuple,
     cast,
@@ -46,7 +46,7 @@ from .vector import (
 
 
 def parse_control_instruction(opcode: BinaryOpcode,
-                              stream: io.BytesIO) -> Instruction:
+                              stream: IO[bytes]) -> Instruction:
     if opcode is BinaryOpcode.UNREACHABLE:
         return Unreachable()
     elif opcode is BinaryOpcode.NOP:
@@ -77,18 +77,18 @@ def parse_control_instruction(opcode: BinaryOpcode,
         raise Exception(f"Unhandled: {opcode}")
 
 
-def parse_block_instruction(stream: io.BytesIO) -> Block:
+def parse_block_instruction(stream: IO[bytes]) -> Block:
     result_type = parse_blocktype(stream)
     instructions = parse_inner_block_instructions(stream)
 
     return Block(result_type, instructions)
 
 
-def parse_inner_block_instructions(stream: io.BytesIO) -> Tuple[BaseInstruction, ...]:
+def parse_inner_block_instructions(stream: IO[bytes]) -> Tuple[BaseInstruction, ...]:
     return tuple(_parse_inner_block_instructions(stream))
 
 
-def _parse_inner_block_instructions(stream: io.BytesIO) -> Iterable[BaseInstruction]:
+def _parse_inner_block_instructions(stream: IO[bytes]) -> Iterable[BaseInstruction]:
     # recursive parsing
     from wasm.parsers.instructions import parse_instruction  # noqa: F401
 
@@ -99,14 +99,14 @@ def _parse_inner_block_instructions(stream: io.BytesIO) -> Iterable[BaseInstruct
             break
 
 
-def parse_loop_instruction(stream: io.BytesIO) -> Loop:
+def parse_loop_instruction(stream: IO[bytes]) -> Loop:
     result_type = parse_blocktype(stream)
     instructions = parse_inner_block_instructions(stream)
 
     return Loop(result_type, instructions)
 
 
-def parse_if_instruction(stream: io.BytesIO) -> If:
+def parse_if_instruction(stream: IO[bytes]) -> If:
     result_type = parse_blocktype(stream)
 
     all_instructions = parse_inner_block_instructions(stream)
@@ -131,29 +131,29 @@ def parse_if_instruction(stream: io.BytesIO) -> If:
     )
 
 
-def parse_br_instruction(stream: io.BytesIO) -> Br:
+def parse_br_instruction(stream: IO[bytes]) -> Br:
     label = parse_label_idx(stream)
     return Br(label)
 
 
-def parse_br_if_instruction(stream: io.BytesIO) -> BrIf:
+def parse_br_if_instruction(stream: IO[bytes]) -> BrIf:
     label = parse_label_idx(stream)
     return BrIf(label)
 
 
-def parse_br_table_instruction(stream: io.BytesIO) -> BrTable:
+def parse_br_table_instruction(stream: IO[bytes]) -> BrTable:
     labels = parse_vector(parse_label_idx, stream)
     default_label = parse_label_idx(stream)
 
     return BrTable(labels, default_label)
 
 
-def parse_call_instruction(stream: io.BytesIO) -> Call:
+def parse_call_instruction(stream: IO[bytes]) -> Call:
     function_idx = parse_function_idx(stream)
     return Call(function_idx)
 
 
-def parse_call_indirect_instruction(stream: io.BytesIO) -> CallIndirect:
+def parse_call_indirect_instruction(stream: IO[bytes]) -> CallIndirect:
     type_idx = parse_type_idx(stream)
     parse_null_byte(stream)
 
