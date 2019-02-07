@@ -20,8 +20,12 @@ from wasm._utils.numeric import (
         (s64_to_u64, 0, 0),
         (s32_to_u32, 1, 1),
         (s64_to_u64, 1, 1),
+        (s32_to_u32, -1, constants.UINT32_MAX),
+        (s64_to_u64, -1, constants.UINT64_MAX),
         (s32_to_u32, constants.SINT32_MIN, constants.SINT32_CEIL),
         (s64_to_u64, constants.SINT64_MIN, constants.SINT64_CEIL),
+        (s32_to_u32, constants.SINT32_MAX, constants.SINT32_MAX),
+        (s64_to_u64, constants.SINT64_MAX, constants.SINT64_MAX),
     ),
 )
 def test_signed_to_unsigned(convert_fn, value, expected):
