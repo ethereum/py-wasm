@@ -140,7 +140,6 @@ def validate_module(module: Module) -> Tuple[Tuple[TExtern, ...], Tuple[TExtern,
     import_memory_types = get_import_memory_types(all_import_types)
     import_global_types = get_import_global_types(all_import_types)
 
-    # let C and Cprime be contexts
     context = Context(
         types=module.types,
         functions=import_function_types + module_function_types,
@@ -153,7 +152,6 @@ def validate_module(module: Module) -> Tuple[Tuple[TExtern, ...], Tuple[TExtern,
 
     )
 
-    # under the context C
     for functypei in module.types:
         validate_function_type(functypei)
 
