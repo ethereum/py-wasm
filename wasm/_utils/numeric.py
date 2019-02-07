@@ -21,3 +21,17 @@ def s64_to_u64(value: SInt64) -> UInt64:
         return UInt64(value + constants.UINT64_CEIL)
     else:
         return UInt64(value)
+
+
+def u32_to_s32(value: UInt32) -> SInt32:
+    if value > constants.SINT32_MAX:
+        return SInt32(value - constants.UINT32_CEIL)
+    else:
+        return SInt32(value)
+
+
+def u64_to_s64(value: UInt64) -> SInt64:
+    if value > constants.SINT64_MAX:
+        return SInt64(value - constants.UINT64_CEIL)
+    else:
+        return SInt64(value)
