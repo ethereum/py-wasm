@@ -106,7 +106,7 @@ def get_import_type(module: Module, descriptor: TImportDesc) -> TExtern:
 
 
 def validate_function_types(module: Module) -> None:
-    # This validation is explicitely in the spec but it gives us strong
+    # This validation is explicitly in the spec but it gives us strong
     # guarantees about indexing into the module types to populate the function
     # types.
     for function in module.funcs:
