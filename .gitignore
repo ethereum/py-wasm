@@ -109,3 +109,6 @@ fabric.properties
 
 # coverage
 htmlcov/**
+
+# CProfile
+prof/**
