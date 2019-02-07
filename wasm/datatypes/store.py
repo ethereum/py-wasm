@@ -1,4 +1,5 @@
 from typing import (
+    TYPE_CHECKING,
     Iterable,
     List,
     Tuple,
@@ -12,7 +13,6 @@ from wasm.exceptions import (
     ValidationError,
 )
 from wasm.typing import (
-    HostFunctionCallable,
     TValue,
     UInt32,
 )
@@ -27,6 +27,7 @@ from .function import (
     Function,
     FunctionType,
     HostFunction,
+    HostFunctionCallable,
 )
 from .globals import (
     GlobalInstance,
@@ -50,6 +51,12 @@ from .table import (
     TableInstance,
     TableType,
 )
+
+if TYPE_CHECKING:
+    from wasm.execution import (  # noqa: F401
+        Configuration,
+    )
+
 
 TAddress = Union[FunctionAddress, GlobalAddress, MemoryAddress, TableAddress]
 TExtern = Union[FunctionType, TableType, MemoryType, GlobalType]

@@ -1,6 +1,7 @@
 from typing import (
     NamedTuple,
     Union,
+    cast,
 )
 
 from .addresses import (
@@ -78,13 +79,29 @@ class ExportInstance(NamedTuple):
         return isinstance(self.value, FunctionAddress)
 
     @property
+    def function_address(self) -> FunctionAddress:
+        return cast(FunctionAddress, self.value)
+
+    @property
     def is_global(self):
         return isinstance(self.value, GlobalAddress)
+
+    @property
+    def global_address(self) -> GlobalAddress:
+        return cast(GlobalAddress, self.value)
 
     @property
     def is_memory(self):
         return isinstance(self.value, MemoryAddress)
 
     @property
+    def memory_address(self) -> MemoryAddress:
+        return cast(MemoryAddress, self.value)
+
+    @property
     def is_table(self):
         return isinstance(self.value, TableAddress)
+
+    @property
+    def table_address(self) -> TableAddress:
+        return cast(TableAddress, self.value)

@@ -11,9 +11,9 @@ from wasm.typing import (
     Float32,
     Float64,
     TValue,
+    UInt8,
     UInt32,
     UInt64,
-    UInt8,
 )
 
 from .bit_size import (

@@ -1,18 +1,26 @@
 import struct
+from typing import (
+    Union,
+)
+
+from wasm.typing import (
+    Float32,
+    Float64,
+)
 
 
-def int_to_float(num_bits: int, value: int) -> float:
+def int_to_float(num_bits: int, value: int) -> Union[Float32, Float64]:
     """
     Convert an integer to the equivalent floating point value.
     """
+    value_as_bytes = value.to_bytes(num_bits // 8, 'big')
+
     if num_bits == 32:
-        unpack_fmt = '>f'
+        return Float32(struct.unpack('>f', value_as_bytes)[0])
     elif num_bits == 64:
-        unpack_fmt = '>d'
+        return Float32(struct.unpack('>d', value_as_bytes)[0])
     else:
         raise Exception(f"Unhandled bit size: {num_bits}")
-
-    return struct.unpack(unpack_fmt, value.to_bytes(num_bits // 8, 'big'))[0]
 
 
 def get_bit_size(_type: str) -> int:

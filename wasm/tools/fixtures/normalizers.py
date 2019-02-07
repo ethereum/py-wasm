@@ -18,6 +18,11 @@ from mypy_extensions import (
 from wasm.datatypes import (
     ValType,
 )
+from wasm.typing import (
+    TValue,
+    UInt32,
+    UInt64,
+)
 
 from .datatypes import (
     Action,
@@ -73,21 +78,21 @@ def normalize_argument(raw_argument: RawCommand) -> Argument:
         raise Exception(f"Unexpected keys: {extra_keys}")
 
     raw_type = raw_argument['type']
-    type_ = ValType.from_str(raw_type)
+    valtype = ValType.from_str(raw_type)
 
-    value: Union[int, float]
+    value: TValue
 
-    if type_.is_integer_type:
-        value = int(raw_argument['value'])
-    elif type_ is ValType.f32:
-        value = int_to_float(32, int(raw_argument['value']))
-    elif type_ is ValType.f64:
-        value = int_to_float(64, int(raw_argument['value']))
+    if valtype is ValType.i32:
+        value = UInt32(int(raw_argument['value']))
+    elif valtype is ValType.i64:
+        value = UInt64(int(raw_argument['value']))
+    elif valtype.is_float_type:
+        value = int_to_float(valtype.bit_size.value, int(raw_argument['value']))
     else:
-        raise Exception(f"Unhandled type: {type_} | value: {raw_argument['value']}")
+        raise Exception(f"Unhandled type: {valtype} | value: {raw_argument['value']}")
 
     return Argument(
-        type=type_,
+        valtype=valtype,
         value=value,
     )
 
@@ -136,24 +141,24 @@ def normalize_expected(raw_expected: RawCommand) -> Expected:
         raise Exception(f"Unexpected keys: {extra_keys}")
 
     raw_type = raw_expected['type']
-    type_ = ValType.from_str(raw_type)
+    valtype = ValType.from_str(raw_type)
 
     value: Optional[Union[int, float]]
 
     if 'value' in raw_expected:
-        if type_.is_integer_type:
-            value = int(raw_expected['value'])
-        elif type_ is ValType.f32:
-            value = int_to_float(32, int(raw_expected['value']))
-        elif type_ is ValType.f64:
-            value = int_to_float(64, int(raw_expected['value']))
+        if valtype is ValType.i32:
+            value = UInt32(int(raw_expected['value']))
+        elif valtype is ValType.i64:
+            value = UInt64(int(raw_expected['value']))
+        elif valtype.is_float_type:
+            value = int_to_float(valtype.bit_size.value, int(raw_expected['value']))
         else:
-            raise Exception(f"Unhandled type: {type_} | value: {raw_expected['value']}")
+            raise Exception(f"Unhandled type: {valtype} | value: {raw_expected['value']}")
     else:
         value = None
 
     return Expected(
-        type=type_,
+        valtype=valtype,
         value=value,
     )
 

@@ -1,13 +1,7 @@
 from typing import (
-    Any,
-    Callable,
     NewType,
-    Tuple,
     Union,
 )
-
-HostFunctionCallable = Callable[[Any, Any], Tuple[Any, Any]]
-
 
 UInt8 = NewType('UInt8', int)
 UInt32 = NewType('UInt32', int)

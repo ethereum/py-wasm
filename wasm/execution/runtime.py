@@ -1,3 +1,6 @@
+from pathlib import (
+    Path,
+)
 from typing import (
     Dict,
     Iterator,
@@ -11,7 +14,9 @@ from wasm.datatypes import (
     DataSegment,
     ElementSegment,
     FunctionAddress,
+    FunctionInstance,
     GlobalAddress,
+    HostFunction,
     Import,
     MemoryAddress,
     Module,
@@ -21,8 +26,13 @@ from wasm.datatypes import (
 )
 from wasm.exceptions import (
     InvalidModule,
+    MalformedModule,
+    ParseError,
     Unlinkable,
     ValidationError,
+)
+from wasm.parsers import (
+    parse_module,
 )
 from wasm.typing import (
     TValue,
@@ -166,6 +176,23 @@ class Runtime:
     def get_import_addresses(self, imports: Tuple[Import, ...]) -> Tuple[TAddress, ...]:
         return tuple(_get_import_addresses(self, imports))
 
+    def load_module(self, file_path: Path) -> Module:
+        if file_path.suffix != ".wasm":
+            raise Exception("Unsupported file type: {file_path.suffix}")
+
+        with file_path.open("rb") as wasm_file:
+            try:
+                module = parse_module(wasm_file)
+            except ParseError as err:
+                raise MalformedModule from err
+
+        try:
+            validate_module(module)
+        except ValidationError as err:
+            raise InvalidModule from err
+
+        return module
+
     def instantiate_module(self,
                            module: Module,
                            ) -> Tuple[ModuleInstance, Optional[Tuple[TValue, ...]]]:
@@ -242,10 +269,41 @@ class Runtime:
 
         if module.start is not None:
             function_address = module_instance.func_addrs[module.start.function_idx]
-            # TODO: remove inline import
-            from wasm.main import spec_invoke
-            result = spec_invoke(self.store, function_address)
+            result = self.invoke_function(function_address)
         else:
             result = None
 
         return module_instance, result
+
+    def invoke_function(self,
+                        function_address: FunctionAddress,
+                        function_args: Tuple[TValue, ...] = None,) -> Tuple[TValue, ...]:
+        try:
+            function = self.store.funcs[function_address]
+        except IndexError:
+            raise TypeError(
+                f"Function address out of range: {function_address} >= "
+                f"{len(self.store.funcs)}"
+            )
+        # 4
+        if function_args is None:
+            function_args = tuple()
+
+        # 5
+        for arg, valtype in zip(function_args, function.type.params):
+            valtype.validate_arg(arg)
+
+        # 6
+        # 7
+        config = Configuration(self.store)
+
+        if isinstance(function, FunctionInstance):
+            from wasm.logic.control import _setup_function_invocation
+            _setup_function_invocation(config, function_address, function_args)
+            ret = config.execute()
+            return ret
+        elif isinstance(function, HostFunction):
+            ret = function.hostcode(config, function_args)
+            return ret
+        else:
+            raise Exception(f"Invariant: unknown function type: {type(function)}")

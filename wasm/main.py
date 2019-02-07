@@ -1,14 +1,10 @@
-import io
 import logging
 import math
 import struct
 from typing import (
     Callable,
     Dict,
-    List,
-    NamedTuple,
     Tuple,
-    Type,
     Union,
     cast,
 )
@@ -17,49 +13,26 @@ from wasm import (
     constants,
 )
 from wasm.datatypes import (
-    FunctionAddress,
-    FunctionInstance,
     GlobalInstance,
-    HostFunction,
-    LabelIdx,
     MemoryInstance,
-    ModuleInstance,
     Mutability,
-    Store,
     ValType,
 )
 from wasm.exceptions import (
-    Exhaustion,
-    InvalidModule,
-    MalformedModule,
-    ParseError,
     Trap,
     ValidationError,
 )
 from wasm.execution import (
     Configuration,
-    Frame,
-    InstructionSequence,
-    Label,
-    OperandStack,
 )
 from wasm.instructions import (
     BaseInstruction,
     BinOp,
-    Block,
-    Br,
-    BrIf,
-    BrTable,
-    Call,
-    CallIndirect,
     Convert,
     Demote,
-    End,
     Extend,
     GlobalOp,
-    If,
     LocalOp,
-    Loop,
     MemoryOp,
     Promote,
     Reinterpret,
@@ -71,16 +44,8 @@ from wasm.instructions import (
 from wasm.opcodes import (
     BinaryOpcode,
 )
-from wasm.parsers import (
-    parse_module,
-)
 from wasm.typing import (
-    Float32,
-    TValue,
     UInt32,
-)
-from wasm.validation import (
-    validate_module as _validate_module,
 )
 
 logger = logging.getLogger('wasm.spec')
@@ -1264,23 +1229,6 @@ def spec_t2cvtopt1(config: Configuration) -> None:
 # 4.4.2 PARAMETRIC INSTRUCTIONS
 
 
-def spec_drop(config: Configuration) -> None:
-    logger.debug("spec_drop()")
-
-    config.pop_operand()
-
-
-def spec_select(config: Configuration) -> None:
-    logger.debug("spec_select()")
-
-    c, val1, val2 = config.pop3_operands()
-
-    if c:
-        config.push_operand(val2)
-    else:
-        config.push_operand(val1)
-
-
 # 4.4.3 VARIABLE INSTRUCTIONS
 
 
@@ -1453,281 +1401,10 @@ def spec_memorygrow(config: Configuration) -> None:
 """
 
 
-def spec_nop(config):
-    logger.debug("spec_nop()")
-
-
-def spec_unreachable(config):
-    logger.debug("spec_unreachable()")
-
-    raise Trap("trap")
-
-
-def spec_block(config):
-    logger.debug("spec_block()")
-
-    block = cast(Block, config.instructions.current)
-    # 1
-    # 2
-    L = Label(
-        arity=len(block.result_type),
-        instructions=InstructionSequence(block.instructions),
-        is_loop=False,
-    )
-
-    # 3
-    spec_enter_block(config, L)
-
-
-def spec_loop(config: Configuration) -> None:
-    logger.debug("spec_loop()")
-
-    instruction = cast(Loop, config.instructions.current)
-    # 1
-    L = Label(
-        arity=0,
-        instructions=InstructionSequence(instruction.instructions),
-        is_loop=True,
-    )
-    # 2
-    spec_enter_block(config, L)
-
-
-def spec_if(config: Configuration) -> None:
-    logger.debug("spec_if()")
-
-    # 2
-    c = config.pop_operand()
-    # 3
-    instruction = cast(If, config.instructions.current)
-    result_type = instruction.result_type
-
-    n = len(result_type)
-    # 4
-    if c:
-        L = Label(
-            arity=n,
-            instructions=InstructionSequence(instruction.instructions),
-            is_loop=False,
-        )
-    else:
-        L = Label(
-            arity=n,
-            instructions=InstructionSequence(instruction.else_instructions),
-            is_loop=False,
-        )
-
-    spec_enter_block(config, L)
-
-
-def spec_br(config: Configuration, label_idx: LabelIdx = None) -> None:
-    logger.debug('spec_br(%s)', label_idx)
-
-    instruction = cast(Union[Br, BrIf], config.instructions.current)
-
-    if label_idx is None:
-        label_idx = instruction.label_idx
-
-    # 2
-    L = config.get_by_label_idx(label_idx)
-    logger.info('BR: arity: %d', L.arity)
-    # 3
-    # 5
-    # 6
-    valn = tuple(config.pop_operand() for _ in range(L.arity))
-
-    if L.is_loop:
-        for _ in range(label_idx):
-            config.pop_label()
-        assert config.active_label is L
-        config.instructions.seek(0)
-    else:
-        for _ in range(label_idx + 1):
-            config.pop_label()
-    # 7
-    for value in valn:
-        config.push_operand(value)
-    # 8
-
-
-def spec_br_if(config: Configuration) -> None:
-    logger.debug('spec_br_if()')
-
-    instruction = cast(BrIf, config.instructions.current)
-    # 2
-    c = config.pop_operand()
-    # 3
-    if c:
-        spec_br(config, instruction.label_idx)
-    # 4
-
-
-def spec_br_table(config):
-    logger.debug('spec_br_table()')
-
-    instruction = cast(BrTable, config.instructions.current)
-    lstar = instruction.label_indices
-    lN = instruction.default_idx
-    # 2
-    i = config.pop_operand()
-    # 3
-    if i < len(lstar):
-        li = lstar[i]
-        spec_br(config, li)
-    # 4
-    else:
-        spec_br(config, lN)
-
-
-def spec_return(config: Configuration) -> None:
-    logger.debug('spec_return()')
-
-    # 1
-    # 2
-    n = config.frame.arity
-    # 4
-    # 6
-    valn = list(reversed([
-        config.pop_operand()
-        for _ in range(n)
-    ]))
-
-    # 8
-    config.pop_frame()
-    # 9
-    for value in valn:
-        config.push_operand(value)
-
-
-def spec_call(config: Configuration) -> None:
-    logger.debug('spec_call()')
-
-    instruction = cast(Call, config.instructions.current)
-    # 1
-    # 3
-    addr = config.frame.module.func_addrs[instruction.function_idx]
-    # 4
-    spec_invoke_function_address(config, addr)
-
-
-def spec_call_indirect(config: Configuration) -> None:
-    logger.debug('spec_call_indirect()')
-
-    S = config.store
-    # 1
-    # 3
-    ta = config.frame.module.table_addrs[0]
-    # 5
-    tab = S.tables[ta]
-    # 7
-    instruction = cast(CallIndirect, config.instructions.current)
-    ftexpect = config.frame.module.types[instruction.type_idx]
-    # 9
-    i = int(config.pop_operand())
-    # 10
-    if len(tab.elem) <= i:
-        raise Trap("trap")
-    # 11
-    if tab.elem[i] is None:
-        raise Trap("trap")
-    # 12
-    addr = tab.elem[i]
-    if addr is None:
-        raise Exception("Invalid: TODO")
-    # 14
-    f = S.funcs[addr]
-    # 15
-    ftactual = f.type
-    # 16
-    if ftexpect != ftactual:
-        raise Trap("trap")
-    # 17
-    spec_invoke_function_address(config, addr)
-
-
 # 4.4.6 BLOCKS
 
 
-def spec_enter_block(config: Configuration, L: Label) -> None:
-    logger.debug('spec_enter_block(%s)', L)
-
-    config.push_label(L)
-
-
-def spec_exit_block(config):
-    logger.debug('spec_exit_block(%s)', config.active_label)
-
-    L = config.pop_label()
-    for val in L.operand_stack:
-        config.push_operand(val)
-
-
 # 4.4.7 FUNCTION CALLS
-
-def spec_invoke_function_address(config: Configuration,
-                                 func_addr: FunctionAddress = None,
-                                 ) -> None:
-    logger.debug('spec_invoke_function_address(%s)', func_addr)
-
-    S = config.store
-    if config.frame_stack_size > 1024:
-        # TODO: this is not part of spec, but this is required to pass tests.
-        # Tests pass with limit 10000, maybe more
-        raise Exhaustion("Function length greater than 1024")
-
-    if func_addr is None:
-        if isinstance(config.instructions.current, InvokeInstruction):
-            func_addr = config.instructions.current.func_addr
-        else:
-            raise TypeError(
-                "No function address was provided and cannot get address from "
-                "instruction."
-            )
-
-    # 2
-    f = S.funcs[func_addr]
-    # 3
-    t1n, t2m = f.type
-    if isinstance(f, FunctionInstance):
-        # 5
-        tstar = f.code.locals
-        # 6
-        instrstarend = f.code.body
-        # 8
-        valn = list(reversed([
-            config.pop_operand()
-            for _ in range(len(t1n))
-        ]))
-        # 9
-        val0star: List[TValue] = []
-        for valtype in tstar:
-            if valtype.is_integer_type:
-                val0star.append(UInt32(0))
-            elif valtype.is_float_type:
-                val0star.append(Float32(0.0))
-            else:
-                raise Exception(f"Invariant: unkown type '{valtype}'")
-        # 10 & 11
-        blockinstrstarendend = InstructionSequence(
-            Block.wrap_with_end(t2m, instrstarend)
-        )
-        F = Frame(
-            module=f.module,
-            locals=valn + val0star,
-            instructions=blockinstrstarendend,
-            arity=len(t2m),
-        )
-        config.push_frame(F)
-    elif isinstance(f, HostFunction):
-        valn = [config.pop_operand() for _ in range(len(t1n))]
-        _, ret = f.hostcode(S, valn)
-        if len(ret) > 1:
-            raise Exception("Invariant")
-        elif ret:
-            config.push_operand(ret[0])
-    else:
-        raise Exception("Invariant: unreachable code path")
-
 
 def spec_return_from_func(config: Configuration) -> None:
     logger.debug('spec_return_from_func()')
@@ -1746,51 +1423,28 @@ def spec_return_from_func(config: Configuration) -> None:
             config.result_stack.push(arg)
 
 
-def spec_end(config: Configuration) -> None:
-    logger.debug('spec_end()')
-
-    if config.has_active_label:
-        spec_exit_block(config)
-    elif config.has_active_frame:
-        spec_return_from_func(config)
-    else:
-        raise Exception("Invariant?")
-
-
 # 4.4.8 EXPRESSIONS
-
-
-class InvokeOp:
-    text = 'invoke'
-
-
-class InvokeInstruction(NamedTuple):
-    func_addr: FunctionAddress
-
-    @property
-    def opcode(self) -> Type[InvokeOp]:
-        return InvokeOp
 
 
 # Map each opcode to the function(s) to invoke when it is encountered. For
 # opcodes with two functions, the second function is called by the first
 # function.
-opcode2exec: Dict[Union[Type[InvokeOp], BinaryOpcode], Tuple[Callable, ...]] = {
-    BinaryOpcode.UNREACHABLE: (spec_unreachable,),
-    BinaryOpcode.NOP: (spec_nop,),
-    BinaryOpcode.BLOCK: (spec_block,),  # blocktype in* end
-    BinaryOpcode.LOOP: (spec_loop,),  # blocktype in* end
-    BinaryOpcode.IF: (spec_if,),  # blocktype in1* else? in2* end
-    BinaryOpcode.ELSE: (spec_end,),  # in2*
-    BinaryOpcode.END: (spec_end,),
-    BinaryOpcode.BR: (spec_br,),  # labelidx
-    BinaryOpcode.BR_IF: (spec_br_if,),  # labelidx
-    BinaryOpcode.BR_TABLE: (spec_br_table,),  # labelidx* labelidx
-    BinaryOpcode.RETURN: (spec_return,),
-    BinaryOpcode.CALL: (spec_call,),  # funcidx
-    BinaryOpcode.CALL_INDIRECT: (spec_call_indirect,),  # typeidx 0x00
-    BinaryOpcode.DROP: (spec_drop,),
-    BinaryOpcode.SELECT: (spec_select,),
+opcode2exec: Dict[BinaryOpcode, Tuple[Callable, ...]] = {
+    # BinaryOpcode.UNREACHABLE: (spec_unreachable,),
+    # BinaryOpcode.NOP: (spec_nop,),
+    # BinaryOpcode.BLOCK: (spec_block,),  # blocktype in* end
+    # BinaryOpcode.LOOP: (spec_loop,),  # blocktype in* end
+    # BinaryOpcode.IF: (spec_if,),  # blocktype in1* else? in2* end
+    # BinaryOpcode.ELSE: (spec_end,),  # in2*
+    # BinaryOpcode.END: (spec_end,),
+    # BinaryOpcode.BR: (spec_br,),  # labelidx
+    # BinaryOpcode.BR_IF: (spec_br_if,),  # labelidx
+    # BinaryOpcode.BR_TABLE: (spec_br_table,),  # labelidx* labelidx
+    # BinaryOpcode.RETURN: (spec_return,),
+    # BinaryOpcode.CALL: (spec_call,),  # funcidx
+    # BinaryOpcode.CALL_INDIRECT: (spec_call_indirect,),  # typeidx 0x00
+    # BinaryOpcode.DROP: (spec_drop,),
+    # BinaryOpcode.SELECT: (spec_select,),
     BinaryOpcode.GET_LOCAL: (spec_get_local,),  # localidx
     BinaryOpcode.SET_LOCAL: (spec_set_local,),  # localidx
     BinaryOpcode.TEE_LOCAL: (spec_tee_local,),  # localidx
@@ -1948,8 +1602,6 @@ opcode2exec: Dict[Union[Type[InvokeOp], BinaryOpcode], Tuple[Callable, ...]] = {
     BinaryOpcode.I64_REINTERPRET_F64: (spec_t2cvtopt1, spec_reinterprett1t2),
     BinaryOpcode.F32_REINTERPRET_I32: (spec_t2cvtopt1, spec_reinterprett1t2),
     BinaryOpcode.F64_REINTERPRET_I64: (spec_t2cvtopt1, spec_reinterprett1t2),
-    # special case
-    InvokeOp: (spec_invoke_function_address,),
 }
 
 
@@ -1992,59 +1644,6 @@ def spec_growmem(meminst: MemoryInstance, n: UInt32) -> None:
 # 4.5.5 INVOCATION
 
 # valn looks like [["i32.const",3],["i32.const",199], ...]
-def spec_invoke(S: Store,
-                funcaddr: FunctionAddress,
-                valn: Tuple[Tuple[ValType, TValue], ...] = None,
-                ) -> Tuple[TValue, ...]:
-    logger.debug('spec_invoke()')
-
-    # 1
-    if len(S.funcs) < funcaddr or funcaddr < 0:
-        raise Exception("bad address")
-    # 2
-    funcinst = S.funcs[funcaddr]
-    # 5
-    t1n, t2m = funcinst.type
-    # 4
-    if valn is None:
-        valn = tuple()
-
-    if len(valn) != len(t1n):
-        raise Exception("wrong number of arguments")
-    # 5
-    for ti, (valt, val) in zip(t1n, valn):
-        if ti is not valt:
-            raise Exception("argument type mismatch")
-
-    # 6
-    # 7
-    if isinstance(funcinst, FunctionInstance):
-        F = Frame(
-            module=ModuleInstance((), (), (), (), (), ()),
-            locals=[],
-            instructions=InstructionSequence(cast(
-                Tuple[BaseInstruction, ...],
-                (InvokeInstruction(funcaddr), End()),
-            )),
-            arity=len(t2m),
-        )
-        config = Configuration(store=S)
-        config.push_frame(F)
-        for _, arg in valn:
-            config.push_operand(arg)
-
-        valresm = config.execute()
-        assert valresm is not None
-        return valresm
-    elif isinstance(funcinst, HostFunction):
-        operand_stack = OperandStack()
-        for _, arg in valn:
-            operand_stack.push(arg)
-        S, valresm = funcinst.hostcode(S, operand_stack)
-        assert valresm is not None
-        return valresm
-    else:
-        raise Exception(f"Invariant: unknown function type: {type(funcinst)}")
 
 
 ###################
@@ -2182,30 +1781,10 @@ def spec_invoke(S: Store,
 # 7.1.2 MODULES
 
 
-def decode_module(bytestar):
-    stream = io.BytesIO(bytestar)
-    try:
-        return parse_module(stream)
-    except ParseError as err:
-        raise MalformedModule from err
-
-
-def validate_module(module):
-    try:
-        _validate_module(module)
-    except ValidationError as err:
-        raise InvalidModule from err
-
-
 # 7.1.3 EXPORTS
 
 
 # 7.1.4 FUNCTIONS
-
-
-def invoke_func(store, funcaddr, valstar):
-    ret = spec_invoke(store, funcaddr, valstar)
-    return store, ret
 
 
 # 7.1.4 TABLES
