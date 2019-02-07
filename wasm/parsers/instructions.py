@@ -1,4 +1,4 @@
-import io
+from typing import IO
 
 from wasm.exceptions import (
     MalformedModule,
@@ -27,7 +27,7 @@ from .variable import (
 )
 
 
-def parse_instruction(stream: io.BytesIO) -> Instruction:
+def parse_instruction(stream: IO[bytes]) -> Instruction:
     opcode_byte = stream.read(1)
 
     try:

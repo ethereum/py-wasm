@@ -1,4 +1,4 @@
-import io
+from typing import IO
 
 from wasm.datatypes import (
     DataSegment,
@@ -15,7 +15,7 @@ from .indices import (
 )
 
 
-def parse_data_segment(stream: io.BytesIO) -> DataSegment:
+def parse_data_segment(stream: IO[bytes]) -> DataSegment:
     memory_idx = parse_memory_idx(stream)
     offset = parse_expression(stream)
     init = parse_bytes(stream)

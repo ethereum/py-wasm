@@ -1,4 +1,4 @@
-import io
+from typing import IO
 
 from wasm.datatypes import (
     Memory,
@@ -27,7 +27,7 @@ from .null import (
 
 
 def parse_memory_instruction(opcode: BinaryOpcode,
-                             stream: io.BytesIO) -> Instruction:
+                             stream: IO[bytes]) -> Instruction:
     if opcode.is_memory_access:
         memarg = parse_memarg(stream)
 
@@ -42,17 +42,17 @@ def parse_memory_instruction(opcode: BinaryOpcode,
         raise Exception("Invariant")
 
 
-def parse_memarg(stream: io.BytesIO) -> MemoryArg:
+def parse_memarg(stream: IO[bytes]) -> MemoryArg:
     align = parse_u32(stream)
     offset = parse_u32(stream)
     return MemoryArg(offset, align)
 
 
-def parse_memory_type(stream: io.BytesIO) -> MemoryType:
+def parse_memory_type(stream: IO[bytes]) -> MemoryType:
     limits = parse_limits(stream)
     return MemoryType(limits.min, limits.max)
 
 
-def parse_memory(stream: io.BytesIO) -> Memory:
+def parse_memory(stream: IO[bytes]) -> Memory:
     memory_type = parse_memory_type(stream)
     return Memory(memory_type)

@@ -1,4 +1,4 @@
-import io
+from typing import IO
 
 from wasm.exceptions import (
     MalformedModule,
@@ -6,7 +6,7 @@ from wasm.exceptions import (
 )
 
 
-def parse_null_byte(stream: io.BytesIO) -> None:
+def parse_null_byte(stream: IO[bytes]) -> None:
     byte = stream.read(1)
     if byte == b'\x00':
         return

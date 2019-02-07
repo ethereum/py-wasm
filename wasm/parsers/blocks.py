@@ -1,5 +1,5 @@
-import io
 from typing import (
+    IO,
     Tuple,
 )
 
@@ -15,7 +15,7 @@ from .byte import (
 )
 
 
-def parse_blocktype(stream: io.BytesIO) -> Tuple[ValType, ...]:
+def parse_blocktype(stream: IO[bytes]) -> Tuple[ValType, ...]:
     byte = parse_single_byte(stream)
     if byte == 0x40:
         return tuple()

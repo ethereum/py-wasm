@@ -1,4 +1,4 @@
-import io
+from typing import IO
 
 from wasm.exceptions import (
     MalformedModule,
@@ -10,7 +10,7 @@ from .integers import (
 )
 
 
-def parse_text(stream: io.BytesIO) -> str:
+def parse_text(stream: IO[bytes]) -> str:
     encoded_name_length = parse_u32(stream)
     encoded_name = stream.read(encoded_name_length)
 

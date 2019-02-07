@@ -1,4 +1,4 @@
-import io
+from typing import IO
 
 from wasm.datatypes import (
     FunctionType,
@@ -22,7 +22,7 @@ from .vector import (
 )
 
 
-def parse_function_type(stream: io.BytesIO) -> FunctionType:
+def parse_function_type(stream: IO[bytes]) -> FunctionType:
     flag = parse_single_byte(stream)
 
     if flag != 0x60:
@@ -36,6 +36,6 @@ def parse_function_type(stream: io.BytesIO) -> FunctionType:
     return FunctionType(params, results)
 
 
-def parse_start_function(stream: io.BytesIO) -> StartFunction:
+def parse_start_function(stream: IO[bytes]) -> StartFunction:
     function_idx = parse_function_idx(stream)
     return StartFunction(function_idx)

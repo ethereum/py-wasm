@@ -1,4 +1,4 @@
-import io
+from typing import IO
 
 from wasm.datatypes import (
     ValType,
@@ -12,7 +12,7 @@ from .byte import (
 )
 
 
-def parse_valtype(stream: io.BytesIO) -> ValType:
+def parse_valtype(stream: IO[bytes]) -> ValType:
     byte = parse_single_byte(stream)
 
     try:

@@ -1,4 +1,4 @@
-import io
+from typing import IO
 
 from wasm.datatypes import (
     Mutability,
@@ -12,7 +12,7 @@ from .byte import (
 )
 
 
-def parse_mut(stream: io.BytesIO) -> Mutability:
+def parse_mut(stream: IO[bytes]) -> Mutability:
     byte = parse_single_byte(stream)
 
     try:

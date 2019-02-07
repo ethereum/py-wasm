@@ -1,4 +1,4 @@
-import io
+from typing import IO
 
 from wasm.datatypes import (
     Function,
@@ -19,7 +19,7 @@ from .version import (
 )
 
 
-def parse_module(stream: io.BytesIO) -> Module:
+def parse_module(stream: IO[bytes]) -> Module:
     # `parse_magic` both parses and validates the 4-byte *magic* preamble.
     # Curretly we simply discard this value.
     parse_magic(stream)

@@ -1,4 +1,4 @@
-import io
+from typing import IO
 
 from wasm.datatypes import (
     Global,
@@ -16,13 +16,13 @@ from .valtype import (
 )
 
 
-def parse_global_type(stream: io.BytesIO) -> GlobalType:
+def parse_global_type(stream: IO[bytes]) -> GlobalType:
     valtype = parse_valtype(stream)
     mut = parse_mut(stream)
     return GlobalType(mut, valtype)
 
 
-def parse_global(stream: io.BytesIO) -> Global:
+def parse_global(stream: IO[bytes]) -> Global:
     global_type = parse_global_type(stream)
     init = parse_expression(stream)
     return Global(global_type, init)

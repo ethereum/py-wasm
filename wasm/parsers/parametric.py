@@ -1,4 +1,4 @@
-import io
+from typing import IO
 
 from wasm.instructions import (
     Drop,
@@ -11,7 +11,7 @@ from wasm.opcodes import (
 
 
 def parse_parametric_instruction(opcode: BinaryOpcode,
-                                 stream: io.BytesIO) -> Instruction:
+                                 stream: IO[bytes]) -> Instruction:
     if opcode is BinaryOpcode.DROP:
         return Drop()
     elif opcode is BinaryOpcode.SELECT:

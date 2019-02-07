@@ -1,5 +1,5 @@
-import io
 from typing import (
+    IO,
     Union,
 )
 
@@ -36,7 +36,7 @@ from .text import (
 TImportDesc = Union[TypeIdx, GlobalType, MemoryType, TableType]
 
 
-def parse_import_descriptor(stream: io.BytesIO) -> TImportDesc:
+def parse_import_descriptor(stream: IO[bytes]) -> TImportDesc:
     type_flag = parse_single_byte(stream)
 
     if type_flag == 0x00:
@@ -53,7 +53,7 @@ def parse_import_descriptor(stream: io.BytesIO) -> TImportDesc:
         )
 
 
-def parse_import(stream: io.BytesIO) -> Import:
+def parse_import(stream: IO[bytes]) -> Import:
     module = parse_text(stream)
     name = parse_text(stream)
     descriptor = parse_import_descriptor(stream)

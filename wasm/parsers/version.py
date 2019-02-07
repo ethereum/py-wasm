@@ -1,5 +1,5 @@
-import io
 from typing import (
+    IO,
     Tuple,
 )
 
@@ -22,7 +22,7 @@ KNOWN_VERSIONS = {
 }
 
 
-def parse_version(stream: io.BytesIO) -> Tuple[UInt8, UInt8, UInt8, UInt8]:
+def parse_version(stream: IO[bytes]) -> Tuple[UInt8, UInt8, UInt8, UInt8]:
     """
     https://webassembly.github.io/spec/core/bikeshed/index.html#binary-version
     """
