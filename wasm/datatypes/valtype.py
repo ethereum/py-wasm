@@ -1,6 +1,18 @@
 import enum
+import sys
 
+from wasm import (
+    constants,
+)
+from wasm.exceptions import (
+    ValidationError,
+)
 from wasm.typing import (
+    Float32,
+    Float64,
+    TValue,
+    UInt32,
+    UInt64,
     UInt8,
 )
 
@@ -101,3 +113,34 @@ class ValType(enum.Enum):
             raise ValueError(
                 f"Invalid bit size.  Must be 32 or 64: Got {num_bits}"
             )
+
+    def validate_arg(self, arg):
+        if self is self.i32:
+            bounds = (0, constants.UINT32_MAX)
+            type_ = int
+        elif self is self.i64:
+            bounds = (0, constants.UINT64_MAX)
+            type_ = int
+        elif self in {self.f32, self.f64}:
+            # TODO: proper bounds
+            bounds = (sys.float_info.min, sys.float_info.max)
+            type_ = float
+        else:
+            raise Exception("Invariant")
+
+        lower, upper = bounds
+        if not isinstance(arg, type_) or arg < lower or arg > upper:
+            raise ValidationError(f"Invalid argument for {self.value}: {arg}")
+
+    @property
+    def zero_value(self) -> TValue:
+        if self is self.i32:
+            return UInt32(0)
+        elif self is self.i64:
+            return UInt64(0)
+        elif self is self.f32:
+            return Float32(0)
+        elif self is self.f64:
+            return Float64(0)
+        else:
+            raise Exception("Invariant")
