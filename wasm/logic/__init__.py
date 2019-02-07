@@ -10,6 +10,7 @@ from wasm.opcodes import (
 
 from . import control
 from . import numeric
+from . import parametric
 from . import variable
 
 if TYPE_CHECKING:
@@ -32,8 +33,8 @@ OPCODE_TO_LOGIC_FN: Dict[BinaryOpcode, Callable[['Configuration'], None]] = {
     BinaryOpcode.RETURN: control.return_op,
     BinaryOpcode.CALL: control.call_op,
     BinaryOpcode.CALL_INDIRECT: control.call_indirect_op,
-    BinaryOpcode.DROP: control.drop_op,
-    BinaryOpcode.SELECT: control.select_op,
+    BinaryOpcode.DROP: parametric.drop_op,
+    BinaryOpcode.SELECT: parametric.select_op,
     BinaryOpcode.GET_LOCAL: variable.get_local_op,
     BinaryOpcode.SET_LOCAL: variable.set_local_op,
     BinaryOpcode.TEE_LOCAL: variable.tee_local_op,
