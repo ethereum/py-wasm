@@ -3,6 +3,7 @@ from collections.abc import (
 )
 from typing import (
     Generic,
+    Iterable,
     Iterator,
     List,
     Tuple,
@@ -58,3 +59,6 @@ class BaseStack(Sequence, Generic[TStackItem]):
 
     def peek(self) -> TStackItem:
         return self._stack[-1]
+
+    def extend(self, values: Iterable[TStackItem]) -> None:
+        self._stack.extend(values)

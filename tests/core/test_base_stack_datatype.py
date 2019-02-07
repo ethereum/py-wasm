@@ -89,3 +89,17 @@ def test_stack_iterable_casting(stack):
     stack.push('c')
 
     assert tuple(stack) == ('a', 'b', 'c')
+
+
+def test_stack_extend(stack):
+    stack.push('a')
+    stack.push('b')
+    stack.push('c')
+    stack.extend(('d', 'e', 'f'))
+
+    assert stack.pop() == 'f'
+    assert stack.pop() == 'e'
+    assert stack.pop() == 'd'
+    assert stack.pop() == 'c'
+    assert stack.pop() == 'b'
+    assert stack.pop() == 'a'
