@@ -13,9 +13,7 @@ from wasm import (
     constants,
 )
 from wasm.datatypes import (
-    GlobalInstance,
     MemoryInstance,
-    Mutability,
     ValType,
 )
 from wasm.exceptions import (
@@ -31,8 +29,6 @@ from wasm.instructions import (
     Convert,
     Demote,
     Extend,
-    GlobalOp,
-    LocalOp,
     MemoryOp,
     Promote,
     Reinterpret,
@@ -963,54 +959,6 @@ def spec_t2cvtopt1(config: Configuration) -> None:
 # 4.4.3 VARIABLE INSTRUCTIONS
 
 
-def spec_get_local(config: Configuration) -> None:
-    logger.debug("spec_get_local()")
-
-    instruction = cast(LocalOp, config.instructions.current)
-    val = config.frame.locals[instruction.local_idx]
-    config.push_operand(val)
-
-
-def spec_set_local(config: Configuration) -> None:
-    logger.debug("spec_set_local()")
-
-    instruction = cast(LocalOp, config.instructions.current)
-    val = config.pop_operand()
-    config.frame.locals[instruction.local_idx] = val
-
-
-def spec_tee_local(config: Configuration) -> None:
-    logger.debug("spec_tee_local()")
-
-    val = config.pop_operand()
-    config.push_operand(val)
-    config.push_operand(val)
-    spec_set_local(config)
-
-
-def spec_get_global(config: Configuration) -> None:
-    logger.debug("spec_get_global()")
-
-    S = config.store
-    instruction = cast(GlobalOp, config.instructions.current)
-    a = config.frame.module.global_addrs[instruction.global_idx]
-    glob = S.globals[a]
-    config.push_operand(glob.value)
-
-
-def spec_set_global(config):
-    logger.debug("spec_set_global()")
-
-    S = config.store
-    instruction = cast(GlobalOp, config.instructions.current)
-    a = config.frame.module.global_addrs[instruction.global_idx]
-    glob = S.globals[a]
-    if glob.mut is not Mutability.var:
-        raise Exception("Attempt to set immutable global")
-    val = config.pop_operand()
-    S.globals[a] = GlobalInstance(glob.valtype, val, glob.mut)
-
-
 # 4.4.4 MEMORY INSTRUCTIONS
 
 # this is for both t.load and t.loadN_sx
@@ -1176,11 +1124,11 @@ opcode2exec: Dict[BinaryOpcode, Tuple[Callable, ...]] = {
     # BinaryOpcode.CALL_INDIRECT: (spec_call_indirect,),  # typeidx 0x00
     # BinaryOpcode.DROP: (spec_drop,),
     # BinaryOpcode.SELECT: (spec_select,),
-    BinaryOpcode.GET_LOCAL: (spec_get_local,),  # localidx
-    BinaryOpcode.SET_LOCAL: (spec_set_local,),  # localidx
-    BinaryOpcode.TEE_LOCAL: (spec_tee_local,),  # localidx
-    BinaryOpcode.GET_GLOBAL: (spec_get_global,),  # globalidx
-    BinaryOpcode.SET_GLOBAL: (spec_set_global,),  # globalidx
+    # BinaryOpcode.GET_LOCAL: (spec_get_local,),  # localidx
+    # BinaryOpcode.SET_LOCAL: (spec_set_local,),  # localidx
+    # BinaryOpcode.TEE_LOCAL: (spec_tee_local,),  # localidx
+    # BinaryOpcode.GET_GLOBAL: (spec_get_global,),  # globalidx
+    # BinaryOpcode.SET_GLOBAL: (spec_set_global,),  # globalidx
     BinaryOpcode.I32_LOAD: (spec_tload,),  # memarg
     BinaryOpcode.I64_LOAD: (spec_tload,),  # memarg
     BinaryOpcode.F32_LOAD: (spec_tload,),  # memarg

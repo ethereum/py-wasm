@@ -8,8 +8,9 @@ from wasm.opcodes import (
     BinaryOpcode,
 )
 
-from .import numeric
 from . import control
+from . import numeric
+from . import variable
 
 if TYPE_CHECKING:
     from wasm.execution import (  # noqa:
@@ -33,11 +34,11 @@ OPCODE_TO_LOGIC_FN: Dict[BinaryOpcode, Callable[['Configuration'], None]] = {
     BinaryOpcode.CALL_INDIRECT: control.call_indirect_op,
     BinaryOpcode.DROP: control.drop_op,
     BinaryOpcode.SELECT: control.select_op,
-    # BinaryOpcode.GET_LOCAL:
-    # BinaryOpcode.SET_LOCAL:
-    # BinaryOpcode.TEE_LOCAL:
-    # BinaryOpcode.GET_GLOBAL:
-    # BinaryOpcode.SET_GLOBAL:
+    BinaryOpcode.GET_LOCAL: variable.get_local_op,
+    BinaryOpcode.SET_LOCAL: variable.set_local_op,
+    BinaryOpcode.TEE_LOCAL: variable.tee_local_op,
+    BinaryOpcode.GET_GLOBAL: variable.get_global_op,
+    BinaryOpcode.SET_GLOBAL: variable.set_global_op,
     # BinaryOpcode.I32_LOAD:
     # BinaryOpcode.I64_LOAD:
     # BinaryOpcode.F32_LOAD:
