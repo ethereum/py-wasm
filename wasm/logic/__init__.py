@@ -71,8 +71,8 @@ OPCODE_TO_LOGIC_FN: Dict[BinaryOpcode, Callable[['Configuration'], None]] = {
     BinaryOpcode.F32_CONST: numeric.const_op,
     BinaryOpcode.F64_CONST: numeric.const_op,
     BinaryOpcode.I32_EQZ: numeric.ieqz_op,
-    BinaryOpcode.I32_EQ: numeric.ieq_op,
-    BinaryOpcode.I32_NE: numeric.ine_op,
+    BinaryOpcode.I32_EQ: numeric.eq_op,
+    BinaryOpcode.I32_NE: numeric.ne_op,
     BinaryOpcode.I32_LT_S: numeric.i32lts_op,
     BinaryOpcode.I32_LT_U: numeric.iltu_op,
     BinaryOpcode.I32_GT_S: numeric.i32gts_op,
@@ -82,8 +82,8 @@ OPCODE_TO_LOGIC_FN: Dict[BinaryOpcode, Callable[['Configuration'], None]] = {
     BinaryOpcode.I32_GE_S: numeric.i32ges_op,
     BinaryOpcode.I32_GE_U: numeric.igeu_op,
     BinaryOpcode.I64_EQZ: numeric.ieqz_op,
-    BinaryOpcode.I64_EQ: numeric.ieq_op,
-    BinaryOpcode.I64_NE: numeric.ine_op,
+    BinaryOpcode.I64_EQ: numeric.eq_op,
+    BinaryOpcode.I64_NE: numeric.ne_op,
     BinaryOpcode.I64_LT_S: numeric.i64lts_op,
     BinaryOpcode.I64_LT_U: numeric.iltu_op,
     BinaryOpcode.I64_GT_S: numeric.i64gts_op,
@@ -92,18 +92,18 @@ OPCODE_TO_LOGIC_FN: Dict[BinaryOpcode, Callable[['Configuration'], None]] = {
     BinaryOpcode.I64_LE_U: numeric.ileu_op,
     BinaryOpcode.I64_GE_S: numeric.i64ges_op,
     BinaryOpcode.I64_GE_U: numeric.igeu_op,
-    # BinaryOpcode.F32_EQ:
-    # BinaryOpcode.F32_NE:
-    # BinaryOpcode.F32_LT:
-    # BinaryOpcode.F32_GT:
-    # BinaryOpcode.F32_LE:
-    # BinaryOpcode.F32_GE:
-    # BinaryOpcode.F64_EQ:
-    # BinaryOpcode.F64_NE:
-    # BinaryOpcode.F64_LT:
-    # BinaryOpcode.F64_GT:
-    # BinaryOpcode.F64_LE:
-    # BinaryOpcode.F64_GE:
+    BinaryOpcode.F32_EQ: numeric.eq_op,
+    BinaryOpcode.F32_NE: numeric.ne_op,
+    BinaryOpcode.F32_LT: numeric.flt_op,
+    BinaryOpcode.F32_GT: numeric.fgt_op,
+    BinaryOpcode.F32_LE: numeric.fle_op,
+    BinaryOpcode.F32_GE: numeric.fge_op,
+    BinaryOpcode.F64_EQ: numeric.eq_op,
+    BinaryOpcode.F64_NE: numeric.ne_op,
+    BinaryOpcode.F64_LT: numeric.flt_op,
+    BinaryOpcode.F64_GT: numeric.fgt_op,
+    BinaryOpcode.F64_LE: numeric.fle_op,
+    BinaryOpcode.F64_GE: numeric.fge_op,
     BinaryOpcode.I32_CLZ: numeric.i32clz_op,
     BinaryOpcode.I32_CTZ: numeric.i32ctz_op,
     BinaryOpcode.I32_POPCNT: numeric.ipopcnt_op,

@@ -1,5 +1,6 @@
 import decimal
 import logging
+import math
 from typing import (
     Union,
     cast,
@@ -25,6 +26,7 @@ from wasm.instructions import (
     F64Const,
     I32Const,
     I64Const,
+    RelOp,
 )
 from wasm.typing import (
     SInt32,
@@ -56,9 +58,9 @@ def ieqz_op(config: Configuration) -> None:
 
 
 #
-# Integer equality comparisons
+# Equality equality comparisons
 #
-def ieq_op(config: Configuration) -> None:
+def eq_op(config: Configuration) -> None:
     b, a = config.pop2_operands()
     logger.debug("%s(%s, %s)", config.instructions.current.opcode.text, a, b)
 
@@ -68,7 +70,7 @@ def ieq_op(config: Configuration) -> None:
         config.push_operand(UInt32(0))
 
 
-def ine_op(config: Configuration) -> None:
+def ne_op(config: Configuration) -> None:
     b, a = config.pop2_operands()
     logger.debug("%s(%s, %s)", config.instructions.current.opcode.text, a, b)
 
@@ -562,3 +564,74 @@ def i64rotr_op(config: Configuration) -> None:
     upper = a << (64 - shift_size)
 
     config.push_operand(UInt64((upper | lower) % constants.UINT64_CEIL))
+
+
+#
+# Float comparisons
+#
+def flt_op(config):
+    instruction = cast(RelOp, config.instructions.current)
+
+    b, a = config.pop2_f64()
+
+    logger.debug("%s(%s, %s)", instruction.opcode.text, a, b)
+
+    if math.isnan(a) or math.isnan(b):
+        config.push_operand(0)
+    elif math.isinf(a):
+        config.push_operand(UInt32(a == -math.inf))
+    elif math.isinf(b):
+        config.push_operand(UInt32(b == math.inf))
+    else:
+        config.push_operand(UInt32(a < b))
+
+
+def fgt_op(config):
+    instruction = cast(RelOp, config.instructions.current)
+
+    b, a = config.pop2_f64()
+
+    logger.debug("%s(%s, %s)", instruction.opcode.text, a, b)
+
+    if math.isnan(a) or math.isnan(b):
+        config.push_operand(0)
+    elif math.isinf(a):
+        config.push_operand(UInt32(a == math.inf))
+    elif math.isinf(b):
+        config.push_operand(UInt32(b == -math.inf))
+    else:
+        config.push_operand(UInt32(a > b))
+
+
+def fle_op(config):
+    instruction = cast(RelOp, config.instructions.current)
+
+    b, a = config.pop2_f64()
+
+    logger.debug("%s(%s, %s)", instruction.opcode.text, a, b)
+
+    if math.isnan(a) or math.isnan(b):
+        config.push_operand(0)
+    elif math.isinf(a):
+        config.push_operand(UInt32(a == -math.inf))
+    elif math.isinf(b):
+        config.push_operand(UInt32(b == math.inf))
+    else:
+        config.push_operand(UInt32(a <= b))
+
+
+def fge_op(config):
+    instruction = cast(RelOp, config.instructions.current)
+
+    b, a = config.pop2_f64()
+
+    logger.debug("%s(%s, %s)", instruction.opcode.text, a, b)
+
+    if math.isnan(a) or math.isnan(b):
+        config.push_operand(0)
+    elif math.isinf(a):
+        config.push_operand(UInt32(a == math.inf))
+    elif math.isinf(b):
+        config.push_operand(UInt32(b == -math.inf))
+    else:
+        config.push_operand(UInt32(a >= b))

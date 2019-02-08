@@ -636,124 +636,6 @@ def spec_fcopysignN(N, z1, z2):
         return z1
 
 
-def spec_feqN(N, z1, z2):
-    logger.debug("spec_feqN(%s, %s, %s)", N, z1, z2)
-
-    if z1 == z2:
-        return 1
-    else:
-        return 0
-
-
-def spec_fneN(N, z1, z2):
-    logger.debug("spec_fneN(%s, %s, %s)", N, z1, z2)
-
-    if z1 != z2:
-        return 1
-    else:
-        return 0
-
-
-def spec_fltN(N, z1, z2):
-    logger.debug("spec_fltN(%s, %s, %s)", N, z1, z2)
-
-    if math.isnan(z1):
-        return 0
-    elif math.isnan(z2):
-        return 0
-    elif spec_bitsfN(N, z1) == spec_bitsfN(N, z2):
-        return 0
-    elif z1 == math.inf:
-        return 0
-    elif z1 == -math.inf:
-        return 1
-    elif z2 == math.inf:
-        return 1
-    elif z2 == -math.inf:
-        return 0
-    elif z1 == z2 == 0:
-        return 0
-    elif z1 < z2:
-        return 1
-    else:
-        return 0
-
-
-def spec_fgtN(N, z1, z2):
-    logger.debug("spec_fgtN(%s, %s, %s)", N, z1, z2)
-
-    if math.isnan(z1):
-        return 0
-    elif math.isnan(z2):
-        return 0
-    elif spec_bitsfN(N, z1) == spec_bitsfN(N, z2):
-        return 0
-    elif z1 == math.inf:
-        return 1
-    elif z1 == -math.inf:
-        return 0
-    elif z2 == math.inf:
-        return 0
-    elif z2 == -math.inf:
-        return 1
-    elif z1 == z2 == 0:
-        return 0
-    elif z1 > z2:
-        return 1
-    else:
-        return 0
-
-
-def spec_fleN(N, z1, z2):
-    logger.debug("spec_fleN(%s, %s, %s)", N, z1, z2)
-
-    if math.isnan(z1):
-        return 0
-    elif math.isnan(z2):
-        return 0
-    elif spec_bitsfN(N, z1) == spec_bitsfN(N, z2):
-        return 1
-    elif z1 == math.inf:
-        return 0
-    elif z1 == -math.inf:
-        return 1
-    elif z2 == math.inf:
-        return 1
-    elif z2 == -math.inf:
-        return 0
-    elif z1 == z2 == 0:
-        return 1
-    elif z1 <= z2:
-        return 1
-    else:
-        return 0
-
-
-def spec_fgeN(N, z1, z2):
-    logger.debug("spec_fgeN(%s, %s, %s)", N, z1, z2)
-
-    if math.isnan(z1):
-        return 0
-    elif math.isnan(z2):
-        return 0
-    elif spec_bitsfN(N, z1) == spec_bitsfN(N, z2):
-        return 1
-    elif z1 == math.inf:
-        return 1
-    elif z1 == -math.inf:
-        return 0
-    elif z2 == math.inf:
-        return 0
-    elif z2 == -math.inf:
-        return 1
-    elif z1 == z2 == 0:
-        return 1
-    elif z1 >= z2:
-        return 1
-    else:
-        return 0
-
-
 # 4.3.4 CONVERSIONS
 
 
@@ -1039,18 +921,18 @@ opcode2exec: Dict[BinaryOpcode, Tuple[Callable, ...]] = {
     # BinaryOpcode.I64_LE_U: (spec_trelop, spec_ile_uN),
     # BinaryOpcode.I64_GE_S: (spec_trelop, spec_ige_sN),
     # BinaryOpcode.I64_GE_U: (spec_trelop, spec_ige_uN),
-    BinaryOpcode.F32_EQ: (spec_trelop, spec_feqN),
-    BinaryOpcode.F32_NE: (spec_trelop, spec_fneN),
-    BinaryOpcode.F32_LT: (spec_trelop, spec_fltN),
-    BinaryOpcode.F32_GT: (spec_trelop, spec_fgtN),
-    BinaryOpcode.F32_LE: (spec_trelop, spec_fleN),
-    BinaryOpcode.F32_GE: (spec_trelop, spec_fgeN),
-    BinaryOpcode.F64_EQ: (spec_trelop, spec_feqN),
-    BinaryOpcode.F64_NE: (spec_trelop, spec_fneN),
-    BinaryOpcode.F64_LT: (spec_trelop, spec_fltN),
-    BinaryOpcode.F64_GT: (spec_trelop, spec_fgtN),
-    BinaryOpcode.F64_LE: (spec_trelop, spec_fleN),
-    BinaryOpcode.F64_GE: (spec_trelop, spec_fgeN),
+    # BinaryOpcode.F32_EQ: (spec_trelop, spec_feqN),
+    # BinaryOpcode.F32_NE: (spec_trelop, spec_fneN),
+    # BinaryOpcode.F32_LT: (spec_trelop, spec_fltN),
+    # BinaryOpcode.F32_GT: (spec_trelop, spec_fgtN),
+    # BinaryOpcode.F32_LE: (spec_trelop, spec_fleN),
+    # BinaryOpcode.F32_GE: (spec_trelop, spec_fgeN),
+    # BinaryOpcode.F64_EQ: (spec_trelop, spec_feqN),
+    # BinaryOpcode.F64_NE: (spec_trelop, spec_fneN),
+    # BinaryOpcode.F64_LT: (spec_trelop, spec_fltN),
+    # BinaryOpcode.F64_GT: (spec_trelop, spec_fgtN),
+    # BinaryOpcode.F64_LE: (spec_trelop, spec_fleN),
+    # BinaryOpcode.F64_GE: (spec_trelop, spec_fgeN),
     # BinaryOpcode.I32_CLZ: (spec_tunop, spec_iclzN),
     # BinaryOpcode.I32_CTZ: (spec_tunop, spec_ictzN),
     # BinaryOpcode.I32_POPCNT: (spec_tunop, spec_ipopcntN),

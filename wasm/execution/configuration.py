@@ -14,6 +14,7 @@ from wasm.datatypes import (
 )
 from wasm.typing import (
     Float32,
+    Float64,
     TValue,
     UInt32,
     UInt64,
@@ -147,6 +148,21 @@ class BaseConfiguration(ABC):
 
     @abstractmethod
     def pop3_f32(self) -> Tuple[Float32, Float32, Float32]:
+        pass
+
+    #
+    # Pop f64
+    #
+    @abstractmethod
+    def pop_f64(self) -> Float64:
+        pass
+
+    @abstractmethod
+    def pop2_f64(self) -> Tuple[Float64, Float64]:
+        pass
+
+    @abstractmethod
+    def pop3_f64(self) -> Tuple[Float64, Float64, Float64]:
         pass
 
     #
@@ -310,6 +326,20 @@ class Configuration(BaseConfiguration):
     def pop3_f32(self) -> Tuple[Float32, Float32, Float32]:
         a, b, c = self.frame.active_operand_stack.pop3()
         return cast(Float32, a), cast(Float32, b), cast(Float32, c)
+
+    #
+    # Pop f64
+    #
+    def pop_f64(self) -> Float64:
+        return cast(Float64, self.frame.active_operand_stack.pop())
+
+    def pop2_f64(self) -> Tuple[Float64, Float64]:
+        a, b = self.frame.active_operand_stack.pop2()
+        return cast(Float64, a), cast(Float64, b)
+
+    def pop3_f64(self) -> Tuple[Float64, Float64, Float64]:
+        a, b, c = self.frame.active_operand_stack.pop3()
+        return cast(Float64, a), cast(Float64, b), cast(Float64, c)
 
     #
     # Frames

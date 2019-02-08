@@ -16,9 +16,11 @@ FIXTURES_DIR = Path(__file__).parent / "fixtures"
 
 
 def pytest_generate_tests(metafunc):
+    skip_slow_spec = metafunc.config.getoption('skip_slow_spec')
     generate_fixture_tests(
         metafunc=metafunc,
         fixtures_dir=FIXTURES_DIR,
+        skip_slow=skip_slow_spec,
     )
 
 
