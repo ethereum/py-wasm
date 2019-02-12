@@ -16,13 +16,16 @@ FIXTURES_DIR = Path(__file__).parent / "fixtures"
 
 
 def pytest_generate_tests(metafunc):
+    skip_slow_spec = metafunc.config.getoption('skip_slow_spec')
     generate_fixture_tests(
         metafunc=metafunc,
         fixtures_dir=FIXTURES_DIR,
+        skip_slow=skip_slow_spec,
     )
 
 
-def test_json_fixture(fixture_path):
+def test_json_fixture(fixture_path, pytestconfig):
+    stop_after_command_line = pytestconfig.getoption('stop_after_command_line')
     runtime = Runtime()
     # module "spectest" is imported from by many tests
     runtime.register_module(
@@ -34,4 +37,4 @@ def test_json_fixture(fixture_path):
         "test",
         instantiate_test_module(runtime.store),
     )
-    run_fixture_test(fixture_path, runtime)
+    run_fixture_test(fixture_path, runtime, stop_after_command_line)
