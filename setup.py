@@ -32,10 +32,10 @@ extras_require = {
 }
 
 extras_require['dev'] = (
-    extras_require['dev'] +
-    extras_require['test'] +
-    extras_require['lint'] +
-    extras_require['doc']
+    extras_require['dev']
+    + extras_require['test']  # noqa: W503
+    + extras_require['lint']  # noqa: W503
+    + extras_require['doc']  # noqa: W503
 )
 
 setup(
