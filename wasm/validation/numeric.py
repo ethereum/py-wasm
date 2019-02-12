@@ -106,12 +106,12 @@ def validate_extend(ctx: ExpressionContext) -> None:
 
 
 def validate_truncate(instruction: Truncate, ctx: ExpressionContext) -> None:
-    ctx.pop_operand_and_assert_type(instruction.result)
+    ctx.pop_operand_and_assert_type(instruction.from_valtype)
     ctx.operand_stack.push(instruction.valtype)
 
 
 def validate_convert(instruction: Convert, ctx: ExpressionContext) -> None:
-    ctx.pop_operand_and_assert_type(instruction.result)
+    ctx.pop_operand_and_assert_type(instruction.from_valtype)
     ctx.operand_stack.push(instruction.valtype)
 
 
@@ -126,5 +126,5 @@ def validate_demote(ctx: ExpressionContext) -> None:
 
 
 def validate_reinterpret(instruction: Reinterpret, ctx: ExpressionContext) -> None:
-    ctx.pop_operand_and_assert_type(instruction.result)
+    ctx.pop_operand_and_assert_type(instruction.from_valtype)
     ctx.operand_stack.push(instruction.valtype)

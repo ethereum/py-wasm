@@ -1249,7 +1249,7 @@ def spec_t2cvtopt1(config: Configuration) -> None:
 
     instruction = cast(T_t2cvt, config.instructions.current)
     t2 = instruction.valtype
-    t1 = instruction.result
+    t1 = instruction.from_valtype
     op = opcode2exec[instruction.opcode][1]
     c1 = config.pop_operand()
 

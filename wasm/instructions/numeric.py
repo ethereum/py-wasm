@@ -415,7 +415,7 @@ class TestOp(Interned):
 class Wrap(SimpleOp):
     opcode = BinaryOpcode.I32_WRAP_I64
     valtype = ValType.i32
-    result = ValType.i64
+    from_valtype = ValType.i64
 
 
 @register
@@ -423,11 +423,11 @@ class Truncate(Interned):
     def __init__(self,
                  opcode: BinaryOpcode,
                  valtype: ValType,
-                 result: ValType,
+                 from_valtype: ValType,
                  signed: bool) -> None:
         self.opcode = opcode
         self.valtype = valtype
-        self.result = result
+        self.from_valtype = from_valtype
         self.signed = signed
 
     def __str__(self) -> str:
@@ -460,11 +460,11 @@ class Extend(Interned):
     def __init__(self,
                  opcode: BinaryOpcode,
                  valtype: ValType,
-                 result: ValType,
+                 from_valtype: ValType,
                  signed: bool) -> None:
         self.opcode = opcode
         self.valtype = valtype
-        self.result = result
+        self.from_valtype = from_valtype
         self.signed = signed
 
     def __str__(self) -> str:
@@ -484,14 +484,14 @@ class Extend(Interned):
 class Demote(SimpleOp):
     opcode = BinaryOpcode.F32_DEMOTE_F64
     valtype = ValType.f32
-    result = ValType.f64
+    from_valtype = ValType.f64
 
 
 @register
 class Promote(SimpleOp):
     opcode = BinaryOpcode.F64_PROMOTE_F32
     valtype = ValType.f64
-    result = ValType.f32
+    from_valtype = ValType.f32
 
 
 @register
@@ -499,11 +499,11 @@ class Convert(Interned):
     def __init__(self,
                  opcode: BinaryOpcode,
                  valtype: ValType,
-                 result: ValType,
+                 from_valtype: ValType,
                  signed: bool) -> None:
         self.opcode = opcode
         self.valtype = valtype
-        self.result = result
+        self.from_valtype = from_valtype
         self.signed = signed
 
     def __str__(self) -> str:
@@ -536,10 +536,10 @@ class Reinterpret(Interned):
     def __init__(self,
                  opcode: BinaryOpcode,
                  valtype: ValType,
-                 result: ValType) -> None:
+                 from_valtype: ValType) -> None:
         self.opcode = opcode
         self.valtype = valtype
-        self.result = result
+        self.from_valtype = from_valtype
 
     def __str__(self) -> str:
         return self.opcode.text
