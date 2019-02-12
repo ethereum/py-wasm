@@ -287,9 +287,13 @@ class UnOp(Interned):
 
 @register
 class BinOp(Interned):
-    def __init__(self, opcode: BinaryOpcode, valtype: ValType) -> None:
+    def __init__(self,
+                 opcode: BinaryOpcode,
+                 valtype: ValType,
+                 signed: Optional[bool]) -> None:
         self.opcode = opcode
         self.valtype = valtype
+        self.signed = signed
 
     def __str__(self) -> str:
         return self.opcode.text
@@ -298,96 +302,96 @@ class BinOp(Interned):
     def from_opcode(cls, opcode: BinaryOpcode) -> 'BinOp':
         # i32
         if opcode is BinaryOpcode.I32_ADD:
-            return cls(opcode, ValType.i32)
+            return cls(opcode, ValType.i32, None)
         elif opcode is BinaryOpcode.I32_SUB:
-            return cls(opcode, ValType.i32)
+            return cls(opcode, ValType.i32, None)
         elif opcode is BinaryOpcode.I32_MUL:
-            return cls(opcode, ValType.i32)
+            return cls(opcode, ValType.i32, None)
         elif opcode is BinaryOpcode.I32_DIV_S:
-            return cls(opcode, ValType.i32)
+            return cls(opcode, ValType.i32, True)
         elif opcode is BinaryOpcode.I32_DIV_U:
-            return cls(opcode, ValType.i32)
+            return cls(opcode, ValType.i32, False)
         elif opcode is BinaryOpcode.I32_REM_S:
-            return cls(opcode, ValType.i32)
+            return cls(opcode, ValType.i32, True)
         elif opcode is BinaryOpcode.I32_REM_U:
-            return cls(opcode, ValType.i32)
+            return cls(opcode, ValType.i32, False)
         elif opcode is BinaryOpcode.I32_AND:
-            return cls(opcode, ValType.i32)
+            return cls(opcode, ValType.i32, None)
         elif opcode is BinaryOpcode.I32_OR:
-            return cls(opcode, ValType.i32)
+            return cls(opcode, ValType.i32, None)
         elif opcode is BinaryOpcode.I32_XOR:
-            return cls(opcode, ValType.i32)
+            return cls(opcode, ValType.i32, None)
         elif opcode is BinaryOpcode.I32_SHL:
-            return cls(opcode, ValType.i32)
+            return cls(opcode, ValType.i32, None)
         elif opcode is BinaryOpcode.I32_SHR_S:
-            return cls(opcode, ValType.i32)
+            return cls(opcode, ValType.i32, True)
         elif opcode is BinaryOpcode.I32_SHR_U:
-            return cls(opcode, ValType.i32)
+            return cls(opcode, ValType.i32, False)
         elif opcode is BinaryOpcode.I32_ROTL:
-            return cls(opcode, ValType.i32)
+            return cls(opcode, ValType.i32, None)
         elif opcode is BinaryOpcode.I32_ROTR:
-            return cls(opcode, ValType.i32)
+            return cls(opcode, ValType.i32, None)
         # i64
         elif opcode is BinaryOpcode.I64_ADD:
-            return cls(opcode, ValType.i64)
+            return cls(opcode, ValType.i64, None)
         elif opcode is BinaryOpcode.I64_SUB:
-            return cls(opcode, ValType.i64)
+            return cls(opcode, ValType.i64, None)
         elif opcode is BinaryOpcode.I64_MUL:
-            return cls(opcode, ValType.i64)
+            return cls(opcode, ValType.i64, None)
         elif opcode is BinaryOpcode.I64_DIV_S:
-            return cls(opcode, ValType.i64)
+            return cls(opcode, ValType.i64, True)
         elif opcode is BinaryOpcode.I64_DIV_U:
-            return cls(opcode, ValType.i64)
+            return cls(opcode, ValType.i64, False)
         elif opcode is BinaryOpcode.I64_REM_S:
-            return cls(opcode, ValType.i64)
+            return cls(opcode, ValType.i64, True)
         elif opcode is BinaryOpcode.I64_REM_U:
-            return cls(opcode, ValType.i64)
+            return cls(opcode, ValType.i64, False)
         elif opcode is BinaryOpcode.I64_AND:
-            return cls(opcode, ValType.i64)
+            return cls(opcode, ValType.i64, None)
         elif opcode is BinaryOpcode.I64_OR:
-            return cls(opcode, ValType.i64)
+            return cls(opcode, ValType.i64, None)
         elif opcode is BinaryOpcode.I64_XOR:
-            return cls(opcode, ValType.i64)
+            return cls(opcode, ValType.i64, None)
         elif opcode is BinaryOpcode.I64_SHL:
-            return cls(opcode, ValType.i64)
+            return cls(opcode, ValType.i64, None)
         elif opcode is BinaryOpcode.I64_SHR_S:
-            return cls(opcode, ValType.i64)
+            return cls(opcode, ValType.i64, True)
         elif opcode is BinaryOpcode.I64_SHR_U:
-            return cls(opcode, ValType.i64)
+            return cls(opcode, ValType.i64, False)
         elif opcode is BinaryOpcode.I64_ROTL:
-            return cls(opcode, ValType.i64)
+            return cls(opcode, ValType.i64, None)
         elif opcode is BinaryOpcode.I64_ROTR:
-            return cls(opcode, ValType.i64)
+            return cls(opcode, ValType.i64, None)
         # f32
         elif opcode is BinaryOpcode.F32_ADD:
-            return cls(opcode, ValType.f32)
+            return cls(opcode, ValType.f32, None)
         elif opcode is BinaryOpcode.F32_SUB:
-            return cls(opcode, ValType.f32)
+            return cls(opcode, ValType.f32, None)
         elif opcode is BinaryOpcode.F32_MUL:
-            return cls(opcode, ValType.f32)
+            return cls(opcode, ValType.f32, None)
         elif opcode is BinaryOpcode.F32_DIV:
-            return cls(opcode, ValType.f32)
+            return cls(opcode, ValType.f32, None)
         elif opcode is BinaryOpcode.F32_MIN:
-            return cls(opcode, ValType.f32)
+            return cls(opcode, ValType.f32, None)
         elif opcode is BinaryOpcode.F32_MAX:
-            return cls(opcode, ValType.f32)
+            return cls(opcode, ValType.f32, None)
         elif opcode is BinaryOpcode.F32_COPYSIGN:
-            return cls(opcode, ValType.f32)
+            return cls(opcode, ValType.f32, None)
         # f64
         elif opcode is BinaryOpcode.F64_ADD:
-            return cls(opcode, ValType.f64)
+            return cls(opcode, ValType.f64, None)
         elif opcode is BinaryOpcode.F64_SUB:
-            return cls(opcode, ValType.f64)
+            return cls(opcode, ValType.f64, None)
         elif opcode is BinaryOpcode.F64_MUL:
-            return cls(opcode, ValType.f64)
+            return cls(opcode, ValType.f64, None)
         elif opcode is BinaryOpcode.F64_DIV:
-            return cls(opcode, ValType.f64)
+            return cls(opcode, ValType.f64, None)
         elif opcode is BinaryOpcode.F64_MIN:
-            return cls(opcode, ValType.f64)
+            return cls(opcode, ValType.f64, None)
         elif opcode is BinaryOpcode.F64_MAX:
-            return cls(opcode, ValType.f64)
+            return cls(opcode, ValType.f64, None)
         elif opcode is BinaryOpcode.F64_COPYSIGN:
-            return cls(opcode, ValType.f64)
+            return cls(opcode, ValType.f64, None)
         else:
             raise Exception(f"Invariant: got unknown opcode {opcode}")
 
