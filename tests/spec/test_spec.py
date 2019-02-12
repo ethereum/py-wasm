@@ -2,6 +2,8 @@ from pathlib import (
     Path,
 )
 
+import numpy
+
 from wasm import (
     Runtime,
 )
@@ -25,6 +27,9 @@ def pytest_generate_tests(metafunc):
 
 
 def test_json_fixture(fixture_path, pytestconfig):
+    # ensure that all numpy flags are set to raise exceptions
+    numpy.seterr(all='raise')
+
     stop_after_command_line = pytestconfig.getoption('stop_after_command_line')
     runtime = Runtime()
     # module "spectest" is imported from by many tests

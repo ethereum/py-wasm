@@ -1,8 +1,6 @@
 import enum
 
-from wasm.typing import (
-    UInt8,
-)
+import numpy
 
 
 class Mutability(enum.Enum):
@@ -13,7 +11,7 @@ class Mutability(enum.Enum):
     var = 'var'
 
     @classmethod
-    def from_byte(cls, byte: UInt8) -> "Mutability":
+    def from_byte(cls, byte: numpy.uint8) -> "Mutability":
         if byte == 0x00:
             return cls.const
         elif byte == 0x01:
@@ -24,10 +22,10 @@ class Mutability(enum.Enum):
                 f"'{hex(byte)}'. Must be one of 0x00 or 0x01."
             )
 
-    def to_byte(self) -> UInt8:
+    def to_byte(self) -> numpy.uint8:
         if self is self.const:
-            return UInt8(0x00)
+            return numpy.uint8(0x00)
         elif self is self.var:
-            return UInt8(0x01)
+            return numpy.uint8(0x01)
         else:
             raise Exception("Invariant")

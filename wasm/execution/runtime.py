@@ -1,3 +1,6 @@
+from pathlib import (
+    Path,
+)
 from typing import (
     Dict,
     Iterator,
@@ -7,11 +10,15 @@ from typing import (
     cast,
 )
 
+import numpy
+
 from wasm.datatypes import (
     DataSegment,
     ElementSegment,
     FunctionAddress,
+    FunctionInstance,
     GlobalAddress,
+    HostFunction,
     Import,
     MemoryAddress,
     Module,
@@ -21,12 +28,16 @@ from wasm.datatypes import (
 )
 from wasm.exceptions import (
     InvalidModule,
+    MalformedModule,
+    ParseError,
     Unlinkable,
     ValidationError,
 )
+from wasm.parsers import (
+    parse_module,
+)
 from wasm.typing import (
     TValue,
-    UInt32,
 )
 from wasm.validation import (
     validate_external_type_match,
@@ -65,7 +76,7 @@ def _get_import_addresses(runtime: 'Runtime',
 def _initialize_globals(store: Store,
                         module: Module,
                         globals_addresses: Tuple[GlobalAddress, ...],
-                        ) -> Iterator[UInt32]:
+                        ) -> Iterator[TValue]:
         module_instances = ModuleInstance(
             types=(),
             func_addrs=(),
@@ -87,12 +98,12 @@ def _initialize_globals(store: Store,
             result = config.execute()
             if len(result) != 1:
                 raise Exception("Invariant: globals initialization returned empty result")
-            yield UInt32(cast(int, result[0]))
+            yield result[0]
 
 
 def _compute_table_offsets(store: Store,
                            elements: Tuple[ElementSegment, ...],
-                           module_instance: ModuleInstance) -> Iterator[UInt32]:
+                           module_instance: ModuleInstance) -> Iterator[numpy.uint32]:
     for element_segment in elements:
         frame = Frame(
             module=module_instance,
@@ -105,7 +116,7 @@ def _compute_table_offsets(store: Store,
         result = config.execute()
         if len(result) != 1:
             raise Exception("Invariant: element segment offset returned empty result")
-        offset = UInt32(cast(int, result[0]))
+        offset = numpy.uint32(cast(int, result[0]))
 
         table_address = module_instance.table_addrs[element_segment.table_idx]
         table_instance = store.tables[table_address]
@@ -120,7 +131,7 @@ def _compute_table_offsets(store: Store,
 
 def _compute_data_offsets(store: Store,
                           datas: Tuple[DataSegment, ...],
-                          module_instance: ModuleInstance) -> Iterator[UInt32]:
+                          module_instance: ModuleInstance) -> Iterator[numpy.uint32]:
     for data_segment in datas:
         frame = Frame(
             module=module_instance,
@@ -133,7 +144,7 @@ def _compute_data_offsets(store: Store,
         result = config.execute()
         if len(result) != 1:
             raise Exception("Invariant: data segment offset returned empty result")
-        offset = UInt32(cast(int, result[0]))
+        offset = numpy.uint32(cast(int, result[0]))
 
         memory_address = module_instance.memory_addrs[data_segment.memory_idx]
         memory_instance = store.mems[memory_address]
@@ -165,6 +176,23 @@ class Runtime:
 
     def get_import_addresses(self, imports: Tuple[Import, ...]) -> Tuple[TAddress, ...]:
         return tuple(_get_import_addresses(self, imports))
+
+    def load_module(self, file_path: Path) -> Module:
+        if file_path.suffix != ".wasm":
+            raise Exception("Unsupported file type: {file_path.suffix}")
+
+        with file_path.open("rb") as wasm_file:
+            try:
+                module = parse_module(wasm_file)
+            except ParseError as err:
+                raise MalformedModule from err
+
+        try:
+            validate_module(module)
+        except ValidationError as err:
+            raise InvalidModule from err
+
+        return module
 
     def instantiate_module(self,
                            module: Module,
@@ -242,10 +270,37 @@ class Runtime:
 
         if module.start is not None:
             function_address = module_instance.func_addrs[module.start.function_idx]
-            # TODO: remove inline import
-            from wasm.main import spec_invoke
-            result = spec_invoke(self.store, function_address)
+            result = self.invoke_function(function_address)
         else:
             result = None
 
         return module_instance, result
+
+    def invoke_function(self,
+                        function_address: FunctionAddress,
+                        function_args: Tuple[TValue, ...] = None,) -> Tuple[TValue, ...]:
+        try:
+            function = self.store.funcs[function_address]
+        except IndexError:
+            raise TypeError(
+                f"Function address out of range: {function_address} >= "
+                f"{len(self.store.funcs)}"
+            )
+        if function_args is None:
+            function_args = tuple()
+
+        for arg, valtype in zip(function_args, function.type.params):
+            valtype.validate_arg(arg)
+
+        config = Configuration(self.store)
+
+        if isinstance(function, FunctionInstance):
+            from wasm.logic.control import _setup_function_invocation
+            _setup_function_invocation(config, function_address, function_args)
+            ret = config.execute()
+            return ret
+        elif isinstance(function, HostFunction):
+            ret = function.hostcode(config, function_args)
+            return ret
+        else:
+            raise Exception(f"Invariant: unknown function type: {type(function)}")

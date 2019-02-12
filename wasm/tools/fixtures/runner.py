@@ -1,7 +1,6 @@
 import copy
 import json
 import logging
-import math
 from pathlib import (
     Path,
 )
@@ -11,13 +10,12 @@ from typing import (
     Dict,
     Optional,
     Tuple,
-    Type,
     Union,
 )
 
+import numpy
 import pytest
 
-import wasm
 from wasm import (
     Runtime,
 )
@@ -67,19 +65,7 @@ AllModules = Dict[str, ModuleInstance]
 
 def instantiate_module_from_wasm_file(file_path: Path,
                                       runtime: Runtime) -> ModuleInstance:
-    logger.debug("Loading wasm module from file: %s", file_path.name)
-
-    if file_path.suffix != ".wasm":
-        logger.debug("Unsupported file type for wasm module: %s", file_path.suffix)
-        raise Exception("Unsupported file type: {file_path.suffix}")
-
-    with file_path.open("rb") as wasm_module_file:
-        # memoryview doesn't make copy, bytearray may require copy
-        wasmbytes = memoryview(wasm_module_file.read())
-        module = wasm.decode_module(wasmbytes)
-
-    wasm.validate_module(module)
-
+    module = runtime.load_module(file_path)
     module_instance, _ = runtime.instantiate_module(module)
 
     return module_instance
@@ -151,32 +137,22 @@ def run_opcode_action_invoke(action: Action,
                              runtime: Runtime) -> Tuple[TValue, ...]:
     # get function name, which could include unicode bytes like \u001b which
     # must be converted to unicode string
-    funcname = action.field.encode('latin1').decode('utf8')
+    function_name = action.field.encode('latin1').decode('utf8')
 
     # get function address
-    funcaddr = None
+    function_address = None
     for export in module.exports:
-        if export.is_function and export.name == funcname:
-            funcaddr = export.value
-            logger.debug("funcaddr: %s", funcaddr)
+        if export.is_function and export.name == function_name:
+            function_address = export.function_address
+            logger.debug("function_address: %s", function_address)
             break
     else:
-        raise Exception(f"No function found by name: {funcname}")
+        raise Exception(f"No function found by name: {function_name}")
 
-    # get args
-    args = []
-
-    for idx, arg in enumerate(action.args):
-        type_ = arg.type
-        value = arg.value
-
-        if type_.is_float_type:
-            logger.info("Floating point not yet supported: %s", action)
-            raise FloatingPointNotImplemented("Floating point not yet implemented")
-        args.append((type_, value))
+    args = tuple(arg.value for arg in action.args)
 
     # invoke func
-    _, ret = wasm.invoke_func(runtime.store, funcaddr, tuple(args))
+    ret = runtime.invoke_function(function_address, tuple(args))
 
     return ret
 
@@ -216,25 +192,26 @@ def do_assert_return(command: AssertReturnCommand,
 
     for idx, (actual, expected) in enumerate(zip(ret, command.expected)):
         expected_val = expected.value
-        expected_type = expected.type
+        assert expected_val is not None
+        expected_type = expected.valtype
+        actual_type = type(actual)
+
+        assert actual_type is expected_type.value
 
         if expected_type.is_integer_type:
             logger.debug("expected: %s | actual: %s", expected_val, actual)
+            assert isinstance(actual, (numpy.uint32, numpy.uint64))
 
             assert actual == expected_val
         elif expected_type.is_float_type:
-            logger.info("Floating point operations not yet implemented, skipping...")
-            # TODO: convert to exception and enumerate failing test in SKIP_COMMANDS
-            return
+            assert isinstance(actual, (numpy.float32, numpy.float64))
 
-            assert isinstance(actual, float)
-
-            if math.isnan(expected_val):
-                assert math.isnan(actual)
-            elif math.isinf(expected_val):
-                assert math.isinf(actual)
+            if numpy.isnan(expected_val):
+                assert numpy.isnan(actual)
             else:
                 assert expected_val == actual
+
+            assert expected_val.tobytes() == actual.tobytes()
         else:
             raise AssertionError(f"Unknown expected return type: {expected_type}")
 
@@ -391,47 +368,6 @@ def get_command_fn(command: TAnyCommand) -> CommandFn:
         raise AssertionError(f"Unsupported module type: {type(command)}")
 
 
-# This data structure holds all of the tests from the WASM spec tests that are
-# currently not passing.  This list should be empty once the library has been
-# properly refactored but for now they are skipped to allow for incremental
-# improvement to the library.
-SKIP_COMMANDS: Dict[str, Dict[int, Type[Exception]]] = {
-    'float_exprs.wast': {
-        # Incorrectly implemented floating point operations.
-        506: AssertionError,
-        510: AssertionError,
-        511: AssertionError,
-        784: FloatingPointNotImplemented,
-        785: FloatingPointNotImplemented,
-        786: FloatingPointNotImplemented,
-        787: FloatingPointNotImplemented,
-        792: FloatingPointNotImplemented,
-        819: FloatingPointNotImplemented,
-        820: FloatingPointNotImplemented,
-        821: FloatingPointNotImplemented,
-        822: FloatingPointNotImplemented,
-        827: FloatingPointNotImplemented,
-        2337: AssertionError,
-        2338: AssertionError,
-        2339: AssertionError,
-        2359: AssertionError,
-        2360: AssertionError,
-    },
-    'float_literals.wast': {
-        # Incorrectly implemented floating point operations.
-        109: AssertionError,
-        111: AssertionError,
-        112: AssertionError,
-        113: AssertionError,
-    },
-    'float_memory.wast': {
-        # Incorrectly implemented floating point operations.
-        21: AssertionError,
-        73: AssertionError,
-    }
-}
-
-
 def run_fixture_test(fixture_path: Path,
                      runtime: Runtime,
                      stop_after: int = None) -> None:
@@ -441,7 +377,6 @@ def run_fixture_test(fixture_path: Path,
     fixture = normalize_fixture(fixture_path.parent, raw_fixture)
 
     module = None
-    skip_info = SKIP_COMMANDS.get(fixture.file_path.name, {})
 
     logger.info("Finished test fixture: %s", fixture.file_path.name)
 
@@ -452,15 +387,10 @@ def run_fixture_test(fixture_path: Path,
 
         command_fn = get_command_fn(command)
 
-        if command.line in skip_info:
-            expected_err = skip_info[command.line]
-            with pytest.raises(expected_err):
-                command_fn(command, module, all_modules, runtime)
-        else:
-            result = command_fn(command, module, all_modules, runtime)
+        result = command_fn(command, module, all_modules, runtime)
 
-            if result:
-                module = result
+        if result:
+            module = result
         logger.debug("Finished command: line=%d  type=%s", command.line, str(type(command)))
 
         if stop_after is not None and command.line >= stop_after:

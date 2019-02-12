@@ -50,6 +50,7 @@ setup(
     include_package_data=True,
     install_requires=[
         "mypy_extensions>=0.4.1,<1.0.0",
+        "numpy>=1.16.0,<2",
         "toolz>0.9.0,<1;implementation_name=='pypy'",
         "cytoolz>=0.9.0,<1.0.0;implementation_name=='cpython'",
     ],

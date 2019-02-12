@@ -1,10 +1,9 @@
 from typing import IO
 
+import numpy
+
 from wasm.exceptions import (
     ParseError,
-)
-from wasm.typing import (
-    UInt8,
 )
 
 from .size import (
@@ -12,11 +11,11 @@ from .size import (
 )
 
 
-def parse_single_byte(stream: IO[bytes]) -> UInt8:
+def parse_single_byte(stream: IO[bytes]) -> numpy.uint8:
     byte = stream.read(1)
 
     if byte:
-        return UInt8(byte[0])
+        return numpy.uint8(byte[0])
     else:
         raise ParseError("Unexpected end of stream")
 

@@ -1,4 +1,9 @@
 import logging
+from typing import (
+    Tuple,
+)
+
+import numpy
 
 from wasm.datatypes import (
     ExportInstance,
@@ -16,43 +21,46 @@ from wasm.datatypes import (
     TableType,
     ValType,
 )
+from wasm.execution import (
+    Configuration,
+)
 from wasm.typing import (
-    Float32,
-    Float64,
-    UInt32,
+    TValue,
 )
 
 
 def instantiate_spectest_module(store: Store) -> ModuleInstance:
     logger = logging.getLogger("wasm.tools.fixtures.modules.spectest")
 
-    def spectest__print_i32(store, arg):
-        logger.debug('print_i32: %s', arg)
-        return store, []
+    def spectest__print_i32(config: Configuration, args: Tuple[TValue, ...]) -> Tuple[TValue, ...]:
+        logger.debug('print_i32: %s', args)
+        return tuple()
 
-    def spectest__print_i64(store, arg):
-        logger.debug('print_i64: %s', arg)
-        return store, []
+    def spectest__print_i64(config: Configuration, args: Tuple[TValue, ...]) -> Tuple[TValue, ...]:
+        logger.debug('print_i64: %s', args)
+        return tuple()
 
-    def spectest__print_f32(store, arg):
-        logger.debug('print_f32: %s', arg)
-        return store, []
+    def spectest__print_f32(config: Configuration, args: Tuple[TValue, ...]) -> Tuple[TValue, ...]:
+        logger.debug('print_f32: %s', args)
+        return tuple()
 
-    def spectest__print_f64(store, arg):
-        logger.debug('print_f64: %s', arg)
-        return store, []
+    def spectest__print_f64(config: Configuration, args: Tuple[TValue, ...]) -> Tuple[TValue, ...]:
+        logger.debug('print_f64: %s', args)
+        return tuple()
 
-    def spectest__print_i32_f32(store, arg):
-        logger.debug('print_i32_f32: %s', arg)
-        return store, []
+    def spectest__print_i32_f32(config: Configuration,
+                                args: Tuple[TValue, ...]) -> Tuple[TValue, ...]:
+        logger.debug('print_i32_f32: %s', args)
+        return tuple()
 
-    def spectest__print_f64_f64(store, arg):
-        logger.debug('print_f64_f64: %s', arg)
-        return store, []
+    def spectest__print_f64_f64(config: Configuration,
+                                args: Tuple[TValue, ...]) -> Tuple[TValue, ...]:
+        logger.debug('print_f64_f64: %s', args)
+        return tuple()
 
-    def spectest__print(store, arg):
-        logger.debug('print: %s', arg)
-        return store, []
+    def spectest__print(config: Configuration, args: Tuple[TValue, ...]) -> Tuple[TValue, ...]:
+        logger.debug('print: %s', args)
+        return tuple()
 
     store.allocate_host_function(FunctionType((ValType.i32,), ()), spectest__print_i32)
     store.allocate_host_function(FunctionType((ValType.i64,), ()), spectest__print_i64)
@@ -69,15 +77,15 @@ def instantiate_spectest_module(store: Store) -> ModuleInstance:
     store.allocate_host_function(FunctionType((), ()), spectest__print)
 
     # min:1,max:2 required by import.wast:
-    store.allocate_memory(MemoryType(UInt32(1), UInt32(2)))
+    store.allocate_memory(MemoryType(numpy.uint32(1), numpy.uint32(2)))
 
     # 666 required by import.wast
-    store.allocate_global(GlobalType(Mutability.const, ValType.i32), UInt32(666))
+    store.allocate_global(GlobalType(Mutability.const, ValType.i32), numpy.uint32(666))
 
-    store.allocate_global(GlobalType(Mutability.const, ValType.f32), Float32(0.0))
-    store.allocate_global(GlobalType(Mutability.const, ValType.f64), Float64(0.0))
+    store.allocate_global(GlobalType(Mutability.const, ValType.f32), numpy.float32(0.0))
+    store.allocate_global(GlobalType(Mutability.const, ValType.f64), numpy.float64(0.0))
     store.allocate_table(
-        TableType(Limits(UInt32(10), UInt32(20)), FunctionAddress)
+        TableType(Limits(numpy.uint32(10), numpy.uint32(20)), FunctionAddress)
     )  # max was 30, changed to 20 for import.wast
     moduleinst = ModuleInstance(
         types=(
@@ -112,40 +120,46 @@ def instantiate_spectest_module(store: Store) -> ModuleInstance:
 
 
 # this module called "wast" is used by import.wast to test for assert_unlinkable
-def instantiate_test_module(store):
-    def test__func(store, arg):
-        pass
+def instantiate_test_module(store: Store) -> ModuleInstance:
+    def test__func(config: Configuration, args: Tuple[TValue, ...]) -> Tuple[TValue, ...]:
+        return tuple()
 
-    def test__func_i32(store, arg):
-        pass
+    def test__func_i32(config: Configuration, args: Tuple[TValue, ...]) -> Tuple[TValue, ...]:
+        return tuple()
 
-    def test__func_f32(store, arg):
-        pass
+    def test__func_f32(config: Configuration, args: Tuple[TValue, ...]) -> Tuple[TValue, ...]:
+        return tuple()
 
-    def test__func__i32(store, arg):
-        pass
+    def test__func__i32(config: Configuration, args: Tuple[TValue, ...]) -> Tuple[TValue, ...]:
+        return tuple()
 
-    def test__func__f32(store, arg):
-        pass
+    def test__func__f32(config: Configuration, args: Tuple[TValue, ...]) -> Tuple[TValue, ...]:
+        return tuple()
 
-    def test__func_i32_i32(store, arg):
-        pass
+    def test__func_i32_i32(config: Configuration, args: Tuple[TValue, ...]) -> Tuple[TValue, ...]:
+        return tuple()
 
-    def test__func_i64_i64(store, arg):
-        pass
+    def test__func_i64_i64(config: Configuration, args: Tuple[TValue, ...]) -> Tuple[TValue, ...]:
+        return tuple()
 
     store.allocate_host_function(FunctionType((), ()), test__func)
     store.allocate_host_function(FunctionType((ValType.i32,), ()), test__func_i32)
     store.allocate_host_function(FunctionType((ValType.f32,), ()), test__func_f32)
     store.allocate_host_function(FunctionType((), (ValType.i32,)), test__func__i32)
     store.allocate_host_function(FunctionType((), (ValType.f32,)), test__func__f32)
-    store.allocate_host_function(FunctionType((ValType.i32,), (ValType.i32,)), test__func_i32_i32)
-    store.allocate_host_function(FunctionType((ValType.i64,), (ValType.i64,)), test__func_i64_i64)
+    store.allocate_host_function(
+        FunctionType((ValType.i32,), (ValType.i32,)),
+        test__func_i32_i32,
+    )
+    store.allocate_host_function(
+        FunctionType((ValType.i64,), (ValType.i64,)),
+        test__func_i64_i64,
+    )
 
-    store.allocate_memory(MemoryType(1, None))
-    store.allocate_global(GlobalType(Mutability.const, ValType.i32), UInt32(666))
-    store.allocate_global(GlobalType(Mutability.const, ValType.f32), Float32(0.0))
-    store.allocate_table(TableType(Limits(10, None), FunctionAddress))
+    store.allocate_memory(MemoryType(numpy.uint32(1), None))
+    store.allocate_global(GlobalType(Mutability.const, ValType.i32), numpy.uint32(666))
+    store.allocate_global(GlobalType(Mutability.const, ValType.f32), numpy.float32(0.0))
+    store.allocate_table(TableType(Limits(numpy.uint32(10), None), FunctionAddress))
     moduleinst = ModuleInstance(
         types=(
             FunctionType((), ()),

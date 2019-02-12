@@ -16,6 +16,8 @@ from typing import (
     cast,
 )
 
+import numpy
+
 from wasm._utils.toolz import (
     groupby,
 )
@@ -35,9 +37,6 @@ from wasm.datatypes import (
 )
 from wasm.exceptions import (
     ParseError,
-)
-from wasm.typing import (
-    UInt8,
 )
 
 from .byte import (
@@ -232,7 +231,7 @@ def parse_sections(stream: IO[bytes]) -> T_SECTIONS:
     return normalize_sections(sections)
 
 
-def _next_empty_section(section_id: UInt8,
+def _next_empty_section(section_id: numpy.uint8,
                         empty_sections_iter: Iterator[Tuple[int, SECTION_TYPES]]
                         ) -> Iterator[Tuple[int, SECTION_TYPES]]:
     for empty_section_id, empty_section in empty_sections_iter:

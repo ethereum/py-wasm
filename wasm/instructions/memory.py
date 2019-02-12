@@ -4,6 +4,8 @@ from typing import (
     Optional,
 )
 
+import numpy
+
 from wasm._utils.interned import (
     Interned,
 )
@@ -14,9 +16,6 @@ from wasm.datatypes import (
 from wasm.opcodes import (
     BinaryOpcode,
 )
-from wasm.typing import (
-    UInt32,
-)
 
 from .base import (
     SimpleOp,
@@ -26,8 +25,8 @@ from .base import (
 
 class MemoryArg(Interned, collections.abc.Hashable):
     def __init__(self,
-                 offset: UInt32,
-                 align: UInt32) -> None:
+                 offset: numpy.uint32,
+                 align: numpy.uint32) -> None:
         self.offset = offset
         self.align = align
 

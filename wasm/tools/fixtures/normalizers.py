@@ -14,9 +14,13 @@ from typing import (  # noqa: F401
 from mypy_extensions import (
     TypedDict,
 )
+import numpy
 
 from wasm.datatypes import (
     ValType,
+)
+from wasm.typing import (
+    TValue,
 )
 
 from .datatypes import (
@@ -37,9 +41,6 @@ from .datatypes import (
     ModuleCommand,
     Register,
     TCommand,
-)
-from .numeric import (
-    int_to_float,
 )
 
 
@@ -66,6 +67,15 @@ def normalize_module_command(raw_command: RawCommand,
     )
 
 
+def _normalize_raw_value(valtype: ValType, raw_value: int) -> TValue:
+    if valtype.is_integer_type:
+        return valtype.value(raw_value)
+    elif valtype.is_float_type:
+        return valtype.unpack_float_bytes(numpy.uint64(raw_value).tobytes())
+    else:
+        raise Exception(f"Unhandled type: {valtype} | value: {raw_value}")
+
+
 def normalize_argument(raw_argument: RawCommand) -> Argument:
     expected_keys = {'type', 'value'}
     extra_keys = set(raw_argument.keys()).difference(expected_keys)
@@ -73,21 +83,13 @@ def normalize_argument(raw_argument: RawCommand) -> Argument:
         raise Exception(f"Unexpected keys: {extra_keys}")
 
     raw_type = raw_argument['type']
-    type_ = ValType.from_str(raw_type)
+    valtype = ValType.from_str(raw_type)
 
-    value: Union[int, float]
-
-    if type_.is_integer_type:
-        value = int(raw_argument['value'])
-    elif type_ is ValType.f32:
-        value = int_to_float(32, int(raw_argument['value']))
-    elif type_ is ValType.f64:
-        value = int_to_float(64, int(raw_argument['value']))
-    else:
-        raise Exception(f"Unhandled type: {type_} | value: {raw_argument['value']}")
+    raw_value = int(raw_argument['value'])
+    value = _normalize_raw_value(valtype, raw_value)
 
     return Argument(
-        type=type_,
+        valtype=valtype,
         value=value,
     )
 
@@ -136,24 +138,17 @@ def normalize_expected(raw_expected: RawCommand) -> Expected:
         raise Exception(f"Unexpected keys: {extra_keys}")
 
     raw_type = raw_expected['type']
-    type_ = ValType.from_str(raw_type)
+    valtype = ValType.from_str(raw_type)
 
     value: Optional[Union[int, float]]
 
     if 'value' in raw_expected:
-        if type_.is_integer_type:
-            value = int(raw_expected['value'])
-        elif type_ is ValType.f32:
-            value = int_to_float(32, int(raw_expected['value']))
-        elif type_ is ValType.f64:
-            value = int_to_float(64, int(raw_expected['value']))
-        else:
-            raise Exception(f"Unhandled type: {type_} | value: {raw_expected['value']}")
+        value = _normalize_raw_value(valtype, raw_expected['value'])
     else:
         value = None
 
     return Expected(
-        type=type_,
+        valtype=valtype,
         value=value,
     )
 
