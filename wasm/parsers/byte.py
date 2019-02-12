@@ -7,8 +7,8 @@ from wasm.typing import (
     UInt8,
 )
 
-from .integers import (
-    parse_u32,
+from .size import (
+    parse_size,
 )
 
 
@@ -22,7 +22,7 @@ def parse_single_byte(stream: IO[bytes]) -> UInt8:
 
 
 def parse_bytes(stream: IO[bytes]) -> bytes:
-    size = parse_u32(stream)
+    size = parse_size(stream)
     data = stream.read(size)
 
     if len(data) != size:
