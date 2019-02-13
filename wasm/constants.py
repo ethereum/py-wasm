@@ -67,3 +67,17 @@ BYTE_SIZE = numpy.uint8(8)
 # Interned values for u32 zero and one
 U32_ZERO = numpy.uint32(0)
 U32_ONE = numpy.uint32(1)
+
+# NAN stuff
+# https://webassembly.github.io/spec/core/bikeshed/index.html#floating-point%E2%91%A0
+F64_SIGNIF = 52
+F32_SIGNIF = 23
+
+F64_EXPON = 11
+F32_EXPON = 8
+
+F32_CANON_N = numpy.uint32(2**(F32_SIGNIF - 1))
+F64_CANON_N = numpy.uint64(2**(F64_SIGNIF - 1))
+
+F32_CANON_NAN = numpy.float32('nan')
+F64_CANON_NAN = numpy.float64('nan')

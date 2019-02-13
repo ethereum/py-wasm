@@ -41,6 +41,8 @@ from .datatypes import (
     ModuleCommand,
     Register,
     TCommand,
+    arithmetic_nan,
+    canonical_nan,
 )
 
 
@@ -153,6 +155,16 @@ def normalize_expected(raw_expected: RawCommand) -> Expected:
     )
 
 
+def normalize_canonical_nan_expected(raw_expected: RawCommand) -> Expected:
+    expected = normalize_expected(raw_expected)
+    return Expected(expected.valtype, canonical_nan)
+
+
+def normalize_arithmetic_nan_expected(raw_expected: RawCommand) -> Expected:
+    expected = normalize_expected(raw_expected)
+    return Expected(expected.valtype, arithmetic_nan)
+
+
 def normalize_assert_return_command(raw_command: RawCommand,
                                     base_fixtures_dir: Path
                                     ) -> AssertReturnCommand:
@@ -191,6 +203,12 @@ def normalize_assert_return_arithmetic_nan(raw_command: RawCommand
 TReturn = TypeVar("TReturn", AssertReturnCanonicalNan, AssertReturnArithmeticNan)
 
 
+NAN_NORMALIZERS = {
+    AssertReturnCanonicalNan: normalize_canonical_nan_expected,
+    AssertReturnArithmeticNan: normalize_arithmetic_nan_expected,
+}
+
+
 def _normalize_assert_return_common_nan(raw_command: RawCommand,
                                         normalized_type: Type[TReturn]) -> TReturn:
     expected_keys = {'type', 'line', 'action', 'expected'}
@@ -198,11 +216,13 @@ def _normalize_assert_return_common_nan(raw_command: RawCommand,
     if extra_keys:
         raise Exception(f"Unexpected keys: {extra_keys}")
 
+    expected_normalizer_fn = NAN_NORMALIZERS[normalized_type]
+
     return normalized_type(
         line=raw_command['line'],
         action=normalize_action(raw_command['action']),
         expected=tuple(
-            normalize_expected(raw_expected)
+            expected_normalizer_fn(raw_expected)
             for raw_expected
             in raw_command['expected']
         ),

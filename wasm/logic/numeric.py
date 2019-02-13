@@ -710,7 +710,8 @@ def fceil_op(config: Configuration) -> None:
     logger.debug("%s(%s)", instruction.opcode.text, value)
 
     if numpy.isnan(value):
-        config.push_operand(value)
+        with allow_invalid():
+            config.push_operand(numpy.ceil(value))
     elif numpy.isinf(value):
         config.push_operand(value)
     elif value == 0:
@@ -732,7 +733,8 @@ def ffloor_op(config: Configuration) -> None:
     logger.debug("%s(%s)", instruction.opcode.text, value)
 
     if numpy.isnan(value):
-        config.push_operand(value)
+        with allow_invalid():
+            config.push_operand(numpy.floor(value))
     elif numpy.isinf(value):
         config.push_operand(value)
     elif value == 0:
@@ -752,7 +754,8 @@ def ftrunc_op(config: Configuration) -> None:
     logger.debug("%s(%s)", instruction.opcode.text, value)
 
     if numpy.isnan(value):
-        config.push_operand(value)
+        with allow_invalid():
+            config.push_operand(numpy.trunc(value))
     elif numpy.isinf(value):
         config.push_operand(value)
     elif value == 0:
@@ -775,7 +778,8 @@ def fnearest_op(config: Configuration) -> None:
     logger.debug("%s(%s)", instruction.opcode.text, value)
 
     if numpy.isnan(value):
-        config.push_operand(value)
+        with allow_invalid():
+            config.push_operand(numpy.round(value))
     elif numpy.isinf(value):
         config.push_operand(value)
     elif value == 0:
@@ -797,7 +801,8 @@ def fsqrt_op(config: Configuration) -> None:
     logger.debug("%s(%s)", instruction.opcode.text, value)
 
     if numpy.isnan(value):
-        config.push_operand(value)
+        with allow_invalid():
+            config.push_operand(numpy.sqrt(value))
     elif value == 0:
         # TODO: this block and the subsequent _is_negative block are in
         # inverted order in the spec, indicating that the proper response here
@@ -972,7 +977,12 @@ def fmin_op(config: Configuration) -> None:
 
     logger.debug("%s(%s, %s)", instruction.opcode.text, a, b)
 
-    if a == 0 and b == 0:
+    if numpy.isnan(a) or numpy.isnan(b):
+        with allow_invalid():
+            config.push_operand(a + b)
+    elif numpy.isneginf(a) or numpy.isneginf(b):
+        config.push_operand(instruction.valtype.neginf)
+    elif a == 0 and b == 0:
         if _same_signed(a, b):
             config.push_operand(a)
         else:
@@ -991,7 +1001,12 @@ def fmax_op(config: Configuration) -> None:
 
     logger.debug("%s(%s, %s)", instruction.opcode.text, a, b)
 
-    if a == 0 and b == 0:
+    if numpy.isnan(a) or numpy.isnan(b):
+        with allow_invalid():
+            config.push_operand(a + b)
+    elif numpy.isposinf(a) or numpy.isposinf(b):
+        config.push_operand(instruction.valtype.inf)
+    elif a == 0 and b == 0:
         if _same_signed(a, b):
             config.push_operand(a)
         else:
@@ -1137,7 +1152,15 @@ def f64promote_op(config: Configuration) -> None:
 
     logger.debug("%s(%s)", instruction.opcode.text, value)
 
-    config.push_operand(numpy.float64(value))
+    if numpy.isnan(value):
+        if _is_negative(value):
+            logger.info('NEGATIVE')
+            config.push_operand(numpy.float64('-nan'))
+        else:
+            logger.info('POSITIVE')
+            config.push_operand(numpy.float64('nan'))
+    else:
+        config.push_operand(numpy.float64(value))
 
 
 def XXX_reinterpret_XXX_op(config: Configuration) -> None:
