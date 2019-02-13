@@ -49,8 +49,6 @@ def get_global_op(config: Configuration) -> None:
 
     global_address = config.frame.module.global_addrs[instruction.global_idx]
     global_ = config.store.globals[global_address]
-    # TODO: remove runtime assertion
-    assert isinstance(global_.value, global_.valtype.value)
     config.push_operand(global_.value)
 
 
