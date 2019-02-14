@@ -96,3 +96,39 @@ If you are in a beta version, `make release bump=stage` will switch to a stable.
 
 To issue an unstable version when the current version is stable, specify the
 new version explicitly, like `make release bump="--new-version 4.0.0-alpha.1 devnum"`
+
+
+## Development and Testing
+
+The test suite in this library is run using `pytest`.
+
+```sh
+pytest tests/
+```
+
+Part of the test suite includes the *spec* tests from the official Web Assembly
+spec.  These are found under `./tests/spec`.
+
+It is often useful to view logging output when running tests.  This can be done with:
+
+```sh
+pytest tests/spec/ --log-cli-level=debug
+```
+
+When trying to diagnose a specific failure in a spec test it can be useful to
+run the tests in a branch that is currently passing, capture the logging
+output, and then compare it to the logging output of the test in the failing
+branch.  In order to make it easier to get the relevant logging output, you can
+use the flag `--stop-after-command-line=123` where `123` is the line for the
+failing command.  The full command would look something like:
+
+```sh
+pytest tests/spec/ --log-cli-level=debug --stop-after-command-line=123 -k f32.wast
+```
+
+This sets the logging output to `DEBUG` level, stops the test suite after it
+passes command line `123` and only runs the spec tests from the `f32.wast` spec
+test file.
+
+There are a few spec tests that take noticeably longer than the others.  You
+can omit these from the test run by adding the flag `--skip-slow-spec`.
