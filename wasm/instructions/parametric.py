@@ -10,9 +10,15 @@ from .base import (
 
 @register
 class Drop(SimpleOp):
+    """
+    Represenation of a DROP opcode
+    """
     opcode = BinaryOpcode.DROP
 
 
 @register
 class Select(SimpleOp):
+    """
+    Represenation of a SELECT opcode
+    """
     opcode = BinaryOpcode.SELECT

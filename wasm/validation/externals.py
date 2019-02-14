@@ -17,6 +17,9 @@ TLimits = Union[Limits, MemoryType]
 
 
 def validate_limits_match(limits_a: TLimits, limits_b: TLimits) -> None:
+    """
+    Validate that two Limits objects are compatible as part of Extern type validation
+    """
     if limits_a.min < limits_b.min:
         raise ValidationError(f"Limits.min mismatch: {limits_a.min} != {limits_b.min}")
     elif limits_b.max is None:
@@ -28,6 +31,9 @@ def validate_limits_match(limits_a: TLimits, limits_b: TLimits) -> None:
 
 
 def validate_external_type_match(external_type_a, external_type_b):
+    """
+    Validate the Extern types.
+    """
     if type(external_type_a) is not type(external_type_b):
         raise ValidationError(
             f"Mismatch in extern types: {type(external_type_a)} != "

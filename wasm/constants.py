@@ -1,6 +1,5 @@
 import numpy
 
-
 # Terminology
 # -----------
 #

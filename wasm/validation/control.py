@@ -31,6 +31,9 @@ from .context import (
 
 
 def validate_control_instruction(instruction: BaseInstruction, ctx: ExpressionContext) -> None:
+    """
+    Validate a single control instruction.
+    """
     if instruction.opcode is BinaryOpcode.UNREACHABLE:
         validate_unreachable(ctx)
     elif instruction.opcode is BinaryOpcode.BLOCK:
@@ -62,24 +65,52 @@ def validate_control_instruction(instruction: BaseInstruction, ctx: ExpressionCo
 
 
 def validate_unreachable(ctx: ExpressionContext) -> None:
+    """
+    Validate an UNREACHABLE instruction as part of expression validation.
+    """
     ctx.mark_unreachable()
 
 
 def validate_block(instruction: Block, ctx: ExpressionContext) -> None:
+    """
+    Validate a BLOCK instruction as part of expression validation.
+    """
     ctx.push_control_frame(instruction.result_type, instruction.result_type)
 
 
 def validate_if(instruction: If, ctx: ExpressionContext) -> None:
+    """
+    Validate an IF instruction as part of expression validation.
+    """
     ctx.pop_operand_and_assert_type(ValType.i32)
     ctx.push_control_frame(instruction.result_type, instruction.result_type)
 
 
 def validate_else(instruction: Else, ctx: ExpressionContext) -> None:
+    """
+    Validate an ELSE instruction as part of expression validation.
+    """
     frame = ctx.pop_control_frame()
     ctx.push_control_frame(frame.end_types, frame.end_types)
 
 
+def validate_br(instruction: Br, ctx: ExpressionContext) -> None:
+    """
+    Validate a BR instruction as part of expression validation.
+    """
+    ctx.control_stack.validate_label_idx(instruction.label_idx)
+
+    frame = ctx.control_stack.get_by_label_idx(instruction.label_idx)
+    expected_label_types = frame.label_types
+
+    ctx.pop_operands_of_expected_types(expected_label_types)
+    ctx.mark_unreachable()
+
+
 def validate_br_if(instruction: BrIf, ctx: ExpressionContext) -> None:
+    """
+    Validate a BR_IF instruction as part of expression validation.
+    """
     ctx.control_stack.validate_label_idx(instruction.label_idx)
 
     frame = ctx.control_stack.get_by_label_idx(instruction.label_idx)
@@ -92,27 +123,10 @@ def validate_br_if(instruction: BrIf, ctx: ExpressionContext) -> None:
         ctx.operand_stack.push(valtype)
 
 
-def validate_end(ctx: ExpressionContext) -> None:
-    frame = ctx.pop_control_frame()
-    for valtype in frame.end_types:
-        ctx.operand_stack.push(valtype)
-
-
-def validate_loop(instruction: Loop, ctx: ExpressionContext) -> None:
-    ctx.push_control_frame(tuple(), instruction.result_type)
-
-
-def validate_br(instruction: Br, ctx: ExpressionContext) -> None:
-    ctx.control_stack.validate_label_idx(instruction.label_idx)
-
-    frame = ctx.control_stack.get_by_label_idx(instruction.label_idx)
-    expected_label_types = frame.label_types
-
-    ctx.pop_operands_of_expected_types(expected_label_types)
-    ctx.mark_unreachable()
-
-
 def validate_br_table(instruction: BrTable, ctx: ExpressionContext) -> None:
+    """
+    Validate a BR_TABLE instruction as part of expression validation.
+    """
     ctx.control_stack.validate_label_idx(instruction.default_idx)
 
     frame = ctx.control_stack.get_by_label_idx(instruction.default_idx)
@@ -133,7 +147,26 @@ def validate_br_table(instruction: BrTable, ctx: ExpressionContext) -> None:
     ctx.mark_unreachable()
 
 
+def validate_end(ctx: ExpressionContext) -> None:
+    """
+    Validate an END instruction as part of expression validation.
+    """
+    frame = ctx.pop_control_frame()
+    for valtype in frame.end_types:
+        ctx.operand_stack.push(valtype)
+
+
+def validate_loop(instruction: Loop, ctx: ExpressionContext) -> None:
+    """
+    Validate an LOOP instruction as part of expression validation.
+    """
+    ctx.push_control_frame(tuple(), instruction.result_type)
+
+
 def validate_call(instruction: Call, ctx: ExpressionContext) -> None:
+    """
+    Validate an CALL instruction as part of expression validation.
+    """
     ctx.validate_function_idx(instruction.function_idx)
     function_type = ctx.get_function(instruction.function_idx)
 
@@ -143,6 +176,9 @@ def validate_call(instruction: Call, ctx: ExpressionContext) -> None:
 
 
 def validate_call_indirect(instruction: CallIndirect, ctx: ExpressionContext) -> None:
+    """
+    Validate an CALL_INDIRECT instruction as part of expression validation.
+    """
     ctx.validate_table_idx(TableIdx(0))
     ctx.validate_type_idx(instruction.type_idx)
     function_type = ctx.get_type(instruction.type_idx)
@@ -155,6 +191,9 @@ def validate_call_indirect(instruction: CallIndirect, ctx: ExpressionContext) ->
 
 
 def validate_return(ctx: ExpressionContext) -> None:
+    """
+    Validate an RETURN instruction as part of expression validation.
+    """
     if ctx.returns is not None:
         ctx.pop_operands_of_expected_types(ctx.returns)
     ctx.mark_unreachable()

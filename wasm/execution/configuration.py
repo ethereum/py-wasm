@@ -30,6 +30,9 @@ from .stack import (
 
 
 class BaseConfiguration(ABC):
+    """
+    Base class for the Configuration object used for execution Web Assembly
+    """
     store: Store
 
     def __init__(self, store: Store) -> None:
@@ -202,6 +205,10 @@ class BaseConfiguration(ABC):
 
 
 class Configuration(BaseConfiguration):
+    """
+    An implementation of the configuration API that uses separate stacks for
+    frames, labels, and operands.
+    """
     frame_stack: FrameStack
 
     def __init__(self, store: Store) -> None:

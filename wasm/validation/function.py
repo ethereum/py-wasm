@@ -24,6 +24,9 @@ from .expressions import (
 
 
 def validate_function_type(function_type: FunctionType) -> None:
+    """
+    Validate a FunctionType object.
+    """
     if len(function_type.results) > 1:
         raise ValidationError(
             f"Function types may only have one result.  Got {len(function_type.results)}"
@@ -33,6 +36,9 @@ def validate_function_type(function_type: FunctionType) -> None:
 def validate_function(context: Context,
                       function: Function,
                       expected_result_type: Tuple[ValType, ...]) -> None:
+    """
+    Validate a Function object
+    """
     context.validate_type_idx(function.type_idx)
     function_type = context.get_type(function.type_idx)
 
@@ -54,6 +60,9 @@ def validate_function(context: Context,
 
 
 def validate_start_function(context: Context, start: StartFunction) -> None:
+    """
+    Validate a StartFunction object
+    """
     context.validate_function_idx(start.function_idx)
     function_type = context.get_function(start.function_idx)
 

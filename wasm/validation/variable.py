@@ -26,6 +26,9 @@ from .context import (
 # Variable Instructions
 #
 def validate_variable_instruction(instruction: BaseInstruction, ctx: ExpressionContext) -> None:
+    """
+    Validate a single Variable instruction as part of expression validation
+    """
     if instruction.opcode is BinaryOpcode.GET_LOCAL:
         validate_get_local(cast(LocalOp, instruction), ctx)
     elif instruction.opcode is BinaryOpcode.SET_LOCAL:
@@ -41,18 +44,30 @@ def validate_variable_instruction(instruction: BaseInstruction, ctx: ExpressionC
 
 
 def validate_get_local(instruction: LocalOp, ctx: ExpressionContext) -> None:
+    """
+    Validate the GET_LOCAL version of the LocalOp instruction as part of
+    expression validation
+    """
     ctx.validate_local_idx(instruction.local_idx)
     valtype = ctx.get_local(instruction.local_idx)
     ctx.operand_stack.push(valtype)
 
 
 def validate_set_local(instruction: LocalOp, ctx: ExpressionContext) -> None:
+    """
+    Validate the SET_LOCAL version of the LocalOp instruction as part of
+    expression validation
+    """
     ctx.validate_local_idx(instruction.local_idx)
     valtype = ctx.get_local(instruction.local_idx)
     ctx.pop_operand_and_assert_type(valtype)
 
 
 def validate_tee_local(instruction: LocalOp, ctx: ExpressionContext) -> None:
+    """
+    Validate the TEE_LOCAL version of the LocalOp instruction as part of
+    expression validation
+    """
     ctx.validate_local_idx(instruction.local_idx)
     valtype = ctx.get_local(instruction.local_idx)
     ctx.pop_operand_and_assert_type(valtype)
@@ -60,12 +75,20 @@ def validate_tee_local(instruction: LocalOp, ctx: ExpressionContext) -> None:
 
 
 def validate_get_global(instruction: GlobalOp, ctx: ExpressionContext) -> None:
+    """
+    Validate the GET_GLOBAL version of the GlobalOp instruction as part of
+    expression validation
+    """
     ctx.validate_global_idx(instruction.global_idx)
     global_ = ctx.get_global(instruction.global_idx)
     ctx.operand_stack.push(global_.valtype)
 
 
 def validate_set_global(instruction: GlobalOp, ctx: ExpressionContext) -> None:
+    """
+    Validate the SET_GLOBAL version of the GlobalOp instruction as part of
+    expression validation
+    """
     ctx.validate_global_idx(instruction.global_idx)
     global_ = ctx.get_global(instruction.global_idx)
 

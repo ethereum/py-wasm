@@ -11,6 +11,8 @@ from wasm.exceptions import (
 
 def validate_limits(limits: Limits, upper_bound: int) -> None:
     """
+    Validate a Limits object
+
     https://webassembly.github.io/spec/core/bikeshed/index.html#limits%E2%91%A2
     """
     if limits.min > constants.UINT32_MAX:

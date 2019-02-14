@@ -18,6 +18,9 @@ from .expressions import (
 
 
 def validate_global(context: Context, global_: Global) -> None:
+    """
+    Validate a Global object
+    """
     expected_result_type = (global_.type.valtype,)
 
     with context.expression_context() as ctx:

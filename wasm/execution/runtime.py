@@ -59,6 +59,10 @@ TAddress = Union[FunctionAddress, TableAddress, MemoryAddress, GlobalAddress]
 
 def _get_import_addresses(runtime: 'Runtime',
                           imports: Tuple[Import, ...]) -> Iterator[TAddress]:
+    """
+    Helper function to normalize the descriptors from a set of Imports to their
+    addresses.
+    """
     for import_ in imports:
         if not runtime.has_module(import_.module_name):
             raise Unlinkable(f"Runtime has no known module named '{import_.module_name}'")
@@ -77,33 +81,41 @@ def _initialize_globals(store: Store,
                         module: Module,
                         globals_addresses: Tuple[GlobalAddress, ...],
                         ) -> Iterator[TValue]:
-        module_instances = ModuleInstance(
-            types=(),
-            func_addrs=(),
-            memory_addrs=(),
-            table_addrs=(),
-            global_addrs=globals_addresses,
-            exports=(),
-        )
+    """
+    Helper function for running the initialization code for the Globals
+    to compute their initial values.
+    """
+    module_instances = ModuleInstance(
+        types=(),
+        func_addrs=(),
+        memory_addrs=(),
+        table_addrs=(),
+        global_addrs=globals_addresses,
+        exports=(),
+    )
 
-        for global_ in module.globals:
-            config = Configuration(store=store)
-            frame = Frame(
-                module=module_instances,
-                locals=[],
-                instructions=InstructionSequence(global_.init),
-                arity=1,
-            )
-            config.push_frame(frame)
-            result = config.execute()
-            if len(result) != 1:
-                raise Exception("Invariant: globals initialization returned empty result")
-            yield result[0]
+    for global_ in module.globals:
+        config = Configuration(store=store)
+        frame = Frame(
+            module=module_instances,
+            locals=[],
+            instructions=InstructionSequence(global_.init),
+            arity=1,
+        )
+        config.push_frame(frame)
+        result = config.execute()
+        if len(result) != 1:
+            raise Exception("Invariant: globals initialization returned empty result")
+        yield result[0]
 
 
 def _compute_table_offsets(store: Store,
                            elements: Tuple[ElementSegment, ...],
                            module_instance: ModuleInstance) -> Iterator[numpy.uint32]:
+    """
+    Helper function for running the initialization code for the ElementSegment
+    objects to compute the table indices
+    """
     for element_segment in elements:
         frame = Frame(
             module=module_instance,
@@ -132,6 +144,10 @@ def _compute_table_offsets(store: Store,
 def _compute_data_offsets(store: Store,
                           datas: Tuple[DataSegment, ...],
                           module_instance: ModuleInstance) -> Iterator[numpy.uint32]:
+    """
+    Helper function for running the initialization code for the DataSegment
+    objects to compute the memory offsets.
+    """
     for data_segment in datas:
         frame = Frame(
             module=module_instance,
@@ -158,6 +174,9 @@ def _compute_data_offsets(store: Store,
 
 
 class Runtime:
+    """
+    Represents the *runtime* for the py-wasm Web Assembly interpreter.
+    """
     store: Store
     modules: Dict[str, ModuleInstance]
 
@@ -166,18 +185,32 @@ class Runtime:
         self.modules = {}
 
     def register_module(self, name: str, module: ModuleInstance) -> None:
+        """
+        Register a module under the provided name in this runtime.  This makes
+        it available for other modules to import.
+        """
         self.modules[name] = module
 
     def has_module(self, name: str) -> bool:
+        """
+        Return boolean whether a module is present in this runtime.
+        """
         return name in self.modules
 
     def get_module(self, name: str) -> ModuleInstance:
+        """
+        Return the module instance registered for the provided name from this
+        runtime.
+        """
         return self.modules[name]
 
-    def get_import_addresses(self, imports: Tuple[Import, ...]) -> Tuple[TAddress, ...]:
+    def _get_import_addresses(self, imports: Tuple[Import, ...]) -> Tuple[TAddress, ...]:
         return tuple(_get_import_addresses(self, imports))
 
     def load_module(self, file_path: Path) -> Module:
+        """
+        Load a Web Assembly module from its binary source file.
+        """
         if file_path.suffix != ".wasm":
             raise Exception("Unsupported file type: {file_path.suffix}")
 
@@ -197,6 +230,9 @@ class Runtime:
     def instantiate_module(self,
                            module: Module,
                            ) -> Tuple[ModuleInstance, Optional[Tuple[TValue, ...]]]:
+        """
+        Instantiate a Web Assembly module into this runtime environment.
+        """
         # Ensure the module is valid
         try:
             module_import_types, module_export_types = validate_module(module)
@@ -204,7 +240,7 @@ class Runtime:
             raise InvalidModule from err
 
         # Gather all of the addresses for the external types for this module.
-        all_import_addresses = self.get_import_addresses(module.imports)
+        all_import_addresses = self._get_import_addresses(module.imports)
 
         # Validate all of the addresses are known to the store.
         for address in all_import_addresses:
@@ -279,6 +315,9 @@ class Runtime:
     def invoke_function(self,
                         function_address: FunctionAddress,
                         function_args: Tuple[TValue, ...] = None,) -> Tuple[TValue, ...]:
+        """
+        Invoke a function denoted by the function address with the provided arguments.
+        """
         try:
             function = self.store.funcs[function_address]
         except IndexError:

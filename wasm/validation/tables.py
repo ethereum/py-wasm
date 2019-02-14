@@ -17,6 +17,8 @@ from .limits import (
 
 def validate_table_type(table_type: TableType) -> None:
     """
+    Validate a TableType object
+
     https://webassembly.github.io/spec/core/bikeshed/index.html#table-types%E2%91%A2
     """
     validate_limits(table_type.limits, constants.UINT32_CEIL)
@@ -28,6 +30,8 @@ def validate_table_type(table_type: TableType) -> None:
 
 def validate_table(table: Table) -> None:
     """
+    Validate a Table object
+
     https://webassembly.github.io/spec/core/bikeshed/index.html#tables%E2%91%A2
     """
     return validate_table_type(table.type)

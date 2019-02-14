@@ -26,11 +26,17 @@ TExportDesc = Union[FunctionIdx, GlobalIdx, MemoryIdx, TableIdx]
 
 
 def validate_export(context: Context, export: Export) -> TExportValue:
+    """
+    Validate a Export object
+    """
     return validate_export_descriptor(context, export.desc)
 
 
 def validate_export_descriptor(context: Context,
                                descriptor: TExportDesc) -> TExportValue:
+    """
+    Validate the descriptor component of an Export object
+    """
     if isinstance(descriptor, FunctionIdx):
         context.validate_function_idx(descriptor)
         return context.get_function(descriptor)
