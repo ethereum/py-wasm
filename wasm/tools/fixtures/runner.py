@@ -432,7 +432,9 @@ SKIP_COMMANDS: Dict[str, Dict[int, Type[Exception]]] = {
 }
 
 
-def run_fixture_test(fixture_path: Path, runtime: Runtime) -> None:
+def run_fixture_test(fixture_path: Path,
+                     runtime: Runtime,
+                     stop_after: int = None) -> None:
     with fixture_path.open('r') as fixture_file:
         raw_fixture = json.load(fixture_file)
 
@@ -460,5 +462,8 @@ def run_fixture_test(fixture_path: Path, runtime: Runtime) -> None:
             if result:
                 module = result
         logger.debug("Finished command: line=%d  type=%s", command.line, str(type(command)))
+
+        if stop_after is not None and command.line >= stop_after:
+            break
 
     logger.debug("Finished test fixture: %s", fixture.file_path.name)
