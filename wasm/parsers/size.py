@@ -1,4 +1,7 @@
-from typing import IO
+from typing import (
+    IO,
+    cast,
+)
 
 from .integers import (
     parse_u32,
@@ -7,4 +10,4 @@ from .integers import (
 
 def parse_size(stream: IO[bytes]) -> int:
     raw_size = parse_u32(stream)
-    return int(raw_size)
+    return cast(int, raw_size)
