@@ -5,13 +5,13 @@ from wasm.exceptions import (
     ParseError,
 )
 
-from .integers import (
-    parse_u32,
+from .size import (
+    parse_size,
 )
 
 
 def parse_text(stream: IO[bytes]) -> str:
-    encoded_name_length = parse_u32(stream)
+    encoded_name_length = parse_size(stream)
     encoded_name = stream.read(encoded_name_length)
 
     if len(encoded_name) != encoded_name_length:
