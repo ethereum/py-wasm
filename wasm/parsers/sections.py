@@ -135,6 +135,10 @@ T_SECTIONS = Tuple[
 
 
 def _get_single_or_raise(values: Tuple[TReturn, ...]) -> TReturn:
+    """
+    Helper function which validate that `values` is a length-1 tuple and then
+    returns the tuple's sole value
+    """
     if len(values) == 1:
         return values[0]
     elif not values:
@@ -147,6 +151,10 @@ TSection = TypeVar('TSection')
 
 
 def normalize_sections(sections: Tuple[SECTION_TYPES, ...]) -> T_SECTIONS:
+    """
+    Helper to normalize the generated iterable of parsed module sections into a
+    well structured data format.
+    """
     sections_by_type: Dict[Type, Tuple[SECTION_TYPES, ...]] = groupby(type, sections)
 
     # 0
@@ -227,6 +235,9 @@ def normalize_sections(sections: Tuple[SECTION_TYPES, ...]) -> T_SECTIONS:
 
 
 def parse_sections(stream: IO[bytes]) -> T_SECTIONS:
+    """
+    Parse the sections of a Web Assembly module.
+    """
     sections = tuple(_parse_sections(stream))
     return normalize_sections(sections)
 
@@ -234,6 +245,10 @@ def parse_sections(stream: IO[bytes]) -> T_SECTIONS:
 def _next_empty_section(section_id: numpy.uint8,
                         empty_sections_iter: Iterator[Tuple[int, SECTION_TYPES]]
                         ) -> Iterator[Tuple[int, SECTION_TYPES]]:
+    """
+    Helper function which returns *empty* versions of each section up to the
+    provided `section_id`.
+    """
     for empty_section_id, empty_section in empty_sections_iter:
         if empty_section_id != section_id:
             yield (empty_section_id, empty_section)
@@ -242,6 +257,12 @@ def _next_empty_section(section_id: numpy.uint8,
 
 
 def _parse_sections(stream: IO[bytes]) -> Iterable[Any]:
+    """
+    Helper function implementing the core logic for parsing sections.
+
+    Among other things, this ensure that sections are correctly ordered and not
+    duplicated (other than custom sections).
+    """
     start_pos = stream.tell()
     end_pos = stream.seek(0, 2)
     stream.seek(start_pos)
@@ -295,6 +316,13 @@ def _parse_sections(stream: IO[bytes]) -> Iterable[Any]:
 
 def validate_section_length(parser_fn: Callable[[IO[bytes]], TReturn]
                             ) -> Callable[[IO[bytes]], TReturn]:
+    """
+    Decorator for a section parser which wraps the parser such that it first
+    reads the declared section length, then parses the section, and then
+    validates that the parsed section's length matches the declared length.
+
+    Raise a ParseError if the lengths do not match.
+    """
     @functools.wraps(parser_fn)
     def parse_and_validate_length_fn(stream: IO[bytes]) -> TReturn:
         # Note: Section parsers all operate under the assumption that their `stream`
@@ -329,6 +357,9 @@ def validate_section_length(parser_fn: Callable[[IO[bytes]], TReturn]
 #
 @validate_section_length
 def parse_custom_section(stream: IO[bytes]) -> CustomSection:
+    """
+    Parser for the CustomSection type.
+    """
     name = parse_text(stream)
     # Note that this **requires** that the main section parser feed this parser
     # a stream that **only** contains the section data since it blindly reads
@@ -343,6 +374,9 @@ def parse_custom_section(stream: IO[bytes]) -> CustomSection:
 #
 @validate_section_length
 def parse_type_section(stream: IO[bytes]) -> TypeSection:
+    """
+    Parser for the TypeSection type.
+    """
     return TypeSection(parse_vector(parse_function_type, stream))
 
 
@@ -351,6 +385,9 @@ def parse_type_section(stream: IO[bytes]) -> TypeSection:
 #
 @validate_section_length
 def parse_import_section(stream: IO[bytes]) -> ImportSection:
+    """
+    Parser for the ImportSection type.
+    """
     return ImportSection(parse_vector(parse_import, stream))
 
 
@@ -359,6 +396,9 @@ def parse_import_section(stream: IO[bytes]) -> ImportSection:
 #
 @validate_section_length
 def parse_function_section(stream: IO[bytes]) -> FunctionSection:
+    """
+    Parser for the FunctionSection type.
+    """
     return FunctionSection(parse_vector(parse_type_idx, stream))
 
 
@@ -367,6 +407,9 @@ def parse_function_section(stream: IO[bytes]) -> FunctionSection:
 #
 @validate_section_length
 def parse_table_section(stream: IO[bytes]) -> TableSection:
+    """
+    Parser for the TableSection type.
+    """
     return TableSection(parse_vector(parse_table, stream))
 
 
@@ -375,6 +418,9 @@ def parse_table_section(stream: IO[bytes]) -> TableSection:
 #
 @validate_section_length
 def parse_memory_section(stream: IO[bytes]) -> MemorySection:
+    """
+    Parser for the MemorySection type.
+    """
     return MemorySection(parse_vector(parse_memory, stream))
 
 
@@ -383,6 +429,9 @@ def parse_memory_section(stream: IO[bytes]) -> MemorySection:
 #
 @validate_section_length
 def parse_global_section(stream: IO[bytes]) -> GlobalSection:
+    """
+    Parser for the GlobalSection type.
+    """
     return GlobalSection(parse_vector(parse_global, stream))
 
 
@@ -391,6 +440,9 @@ def parse_global_section(stream: IO[bytes]) -> GlobalSection:
 #
 @validate_section_length
 def parse_export_section(stream: IO[bytes]) -> ExportSection:
+    """
+    Parser for the ExportSection type.
+    """
     return ExportSection(parse_vector(parse_export, stream))
 
 
@@ -399,6 +451,9 @@ def parse_export_section(stream: IO[bytes]) -> ExportSection:
 #
 @validate_section_length
 def parse_start_section(stream: IO[bytes]) -> StartSection:
+    """
+    Parser for the StartSection type.
+    """
     return StartSection(parse_start_function(stream))
 
 
@@ -407,6 +462,9 @@ def parse_start_section(stream: IO[bytes]) -> StartSection:
 #
 @validate_section_length
 def parse_element_segment_section(stream: IO[bytes]) -> ElementSegmentSection:
+    """
+    Parser for the ElementSegmentSection type.
+    """
     return ElementSegmentSection(parse_vector(parse_element_segment, stream))
 
 
@@ -415,6 +473,9 @@ def parse_element_segment_section(stream: IO[bytes]) -> ElementSegmentSection:
 #
 @validate_section_length
 def parse_code_section(stream: IO[bytes]) -> CodeSection:
+    """
+    Parser for the CodeSection type.
+    """
     return CodeSection(parse_vector(parse_code, stream))
 
 
@@ -423,6 +484,9 @@ def parse_code_section(stream: IO[bytes]) -> CodeSection:
 #
 @validate_section_length
 def parse_data_segment_section(stream: IO[bytes]) -> DataSegmentSection:
+    """
+    Parser for the DataSegmentSection type.
+    """
     return DataSegmentSection(parse_vector(parse_data_segment, stream))
 
 

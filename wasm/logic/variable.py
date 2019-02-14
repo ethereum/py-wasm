@@ -19,6 +19,9 @@ logger = logging.getLogger('wasm.logic.variable')
 
 
 def set_local_op(config: Configuration) -> None:
+    """
+    Logic functin for the SET_LOCAL opcode.
+    """
     instruction = cast(LocalOp, config.instructions.current)
     logger.debug("%s()", config.instructions.current.opcode.text)
 
@@ -27,6 +30,9 @@ def set_local_op(config: Configuration) -> None:
 
 
 def get_local_op(config: Configuration) -> None:
+    """
+    Logic functin for the GET_LOCAL opcode.
+    """
     instruction = cast(LocalOp, config.instructions.current)
     logger.debug("%s()", config.instructions.current.opcode.text)
 
@@ -35,6 +41,9 @@ def get_local_op(config: Configuration) -> None:
 
 
 def tee_local_op(config: Configuration) -> None:
+    """
+    Logic functin for the TEE_LOCAL opcode.
+    """
     instruction = cast(LocalOp, config.instructions.current)
     logger.debug("%s()", config.instructions.current.opcode.text)
 
@@ -44,6 +53,9 @@ def tee_local_op(config: Configuration) -> None:
 
 
 def get_global_op(config: Configuration) -> None:
+    """
+    Logic functin for the GET_GLOBAL opcode.
+    """
     instruction = cast(GlobalOp, config.instructions.current)
     logger.debug("%s()", config.instructions.current.opcode.text)
 
@@ -53,6 +65,9 @@ def get_global_op(config: Configuration) -> None:
 
 
 def set_global_op(config: Configuration) -> None:
+    """
+    Logic functin for the SET_GLOBAL opcode.
+    """
     instruction = cast(GlobalOp, config.instructions.current)
     logger.debug("%s()", config.instructions.current.opcode.text)
 

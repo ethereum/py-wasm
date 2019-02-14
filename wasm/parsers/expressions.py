@@ -18,6 +18,9 @@ from .instructions import (
 
 
 def parse_expression(stream: IO[bytes]) -> Tuple[BaseInstruction, ...]:
+    """
+    Helper for parsing a sequence of instructions
+    """
     return tuple(_parse_expression(stream))
 
 

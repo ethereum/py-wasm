@@ -16,6 +16,9 @@ from .indices import (
 
 
 def parse_data_segment(stream: IO[bytes]) -> DataSegment:
+    """
+    Parser for the DataSegment type.
+    """
     memory_idx = parse_memory_idx(stream)
     offset = parse_expression(stream)
     init = parse_bytes(stream)

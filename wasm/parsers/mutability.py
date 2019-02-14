@@ -13,6 +13,9 @@ from .byte import (
 
 
 def parse_mut(stream: IO[bytes]) -> Mutability:
+    """
+    Parse the mutability component of a GlobalType
+    """
     byte = parse_single_byte(stream)
 
     try:

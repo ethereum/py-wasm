@@ -34,6 +34,9 @@ from .integers import (
 
 def parse_numeric_instruction(opcode: BinaryOpcode,
                               stream: IO[bytes]) -> Instruction:
+    """
+    Parse a single Numeric instruction.
+    """
     if opcode.is_numeric_constant:
         return parse_numeric_constant_instruction(opcode, stream)
     elif opcode.is_relop:
@@ -52,6 +55,9 @@ def parse_numeric_instruction(opcode: BinaryOpcode,
 
 def parse_numeric_constant_instruction(opcode: BinaryOpcode,
                                        stream: IO[bytes]) -> Instruction:
+    """
+    Parse a single CONST Numeric instruction.
+    """
     if opcode is BinaryOpcode.I32_CONST:
         return I32Const.from_opcode(opcode, parse_i32(stream))
     elif opcode is BinaryOpcode.I64_CONST:
@@ -65,6 +71,9 @@ def parse_numeric_constant_instruction(opcode: BinaryOpcode,
 
 
 def parse_conversion_instruction(opcode: BinaryOpcode) -> Instruction:
+    """
+    Parse a single Wrap/Extend/Truncate/Convert/Promote/Demote/Reinterpret instruction
+    """
     if opcode is BinaryOpcode.I32_WRAP_I64:
         return Wrap()
     elif opcode in {BinaryOpcode.I64_EXTEND_S_I32, BinaryOpcode.I64_EXTEND_U_I32}:

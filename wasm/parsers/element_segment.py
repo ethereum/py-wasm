@@ -17,6 +17,9 @@ from .vector import (
 
 
 def parse_element_segment(stream: IO[bytes]) -> ElementSegment:
+    """
+    Parser for the ElementSegment type.
+    """
     table_idx = parse_table_idx(stream)
     offset = parse_expression(stream)
     init = parse_vector(parse_function_idx, stream)

@@ -28,6 +28,9 @@ from .variable import (
 
 
 def parse_instruction(stream: IO[bytes]) -> Instruction:
+    """
+    Parse a single instruction.
+    """
     opcode_byte = stream.read(1)
 
     try:

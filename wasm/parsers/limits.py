@@ -16,6 +16,9 @@ from .integers import (
 
 
 def parse_limits(stream: IO[bytes]) -> Limits:
+    """
+    Parser for the Limits type
+    """
     flag = parse_single_byte(stream)
 
     if flag == 0x0:

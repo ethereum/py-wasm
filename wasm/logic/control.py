@@ -37,15 +37,24 @@ logger = logging.getLogger('wasm.logic.control')
 
 
 def unreachable_op(config: Configuration) -> None:
+    """
+    Logic function for the UNREACHABLE opcode
+    """
     logger.debug("%s()", config.instructions.current.opcode.text)
     raise Trap("TRAP")
 
 
 def nop_op(config: Configuration) -> None:
+    """
+    Logic function for the NOP opcode
+    """
     logger.debug("%s()", config.instructions.current.opcode.text)
 
 
 def block_op(config: Configuration) -> None:
+    """
+    Logic function for the BLOCK opcode
+    """
     block = cast(Block, config.instructions.current)
 
     logger.debug("%s()", block.opcode.text)
@@ -59,6 +68,9 @@ def block_op(config: Configuration) -> None:
 
 
 def loop_op(config: Configuration) -> None:
+    """
+    Logic function for the LOOP opcode
+    """
     instruction = cast(Loop, config.instructions.current)
 
     logger.debug("%s()", instruction.opcode.text)
@@ -72,6 +84,9 @@ def loop_op(config: Configuration) -> None:
 
 
 def if_op(config: Configuration) -> None:
+    """
+    Logic function for the IF opcode
+    """
     instruction = cast(If, config.instructions.current)
 
     logger.debug("%s()", instruction.opcode.text)
@@ -96,11 +111,17 @@ def if_op(config: Configuration) -> None:
 
 
 def _exit_block(config: Configuration) -> None:
+    """
+    Helper function for when the control flow for a label exits.
+    """
     label = config.pop_label()
     config.extend_operands(label.operand_stack)
 
 
 def _return_from_function(config: Configuration) -> None:
+    """
+    Helper function for when the control flow for a frame exits.
+    """
     valn = tuple(config.pop_operand() for _ in range(config.frame.arity))
     # discard all of the current labels before popping the frame.
     while config.has_active_label:
@@ -114,12 +135,18 @@ def _return_from_function(config: Configuration) -> None:
 
 
 def else_op(config: Configuration) -> None:
+    """
+    Logic function for the ELSE opcode
+    """
     logger.debug("%s()", config.instructions.current.opcode.text)
 
     _exit_block(config)
 
 
 def end_op(config: Configuration) -> None:
+    """
+    Logic function for the END opcode
+    """
     logger.debug("%s()", config.instructions.current.opcode.text)
 
     if config.has_active_label:
@@ -131,6 +158,9 @@ def end_op(config: Configuration) -> None:
 
 
 def _br(config: Configuration, label_idx: LabelIdx) -> None:
+    """
+    Helper function for the BR, BR_IF, and BR_TABLE opcodes.
+    """
     label = config.get_by_label_idx(label_idx)
     # take any return values off of the stack before popping labels
     valn = tuple(config.pop_operand() for _ in range(label.arity))
@@ -151,6 +181,9 @@ def _br(config: Configuration, label_idx: LabelIdx) -> None:
 
 
 def br_op(config: Configuration) -> None:
+    """
+    Logic function for the BR opcode
+    """
     instruction = cast(Br, config.instructions.current)
 
     logger.debug("%s()", instruction.opcode.text)
@@ -159,6 +192,9 @@ def br_op(config: Configuration) -> None:
 
 
 def br_if_op(config: Configuration) -> None:
+    """
+    Logic function for the BR_IF opcode
+    """
     logger.debug("%s()", config.instructions.current.opcode.text)
 
     value = config.pop_operand()
@@ -169,6 +205,9 @@ def br_if_op(config: Configuration) -> None:
 
 
 def br_table_op(config: Configuration) -> None:
+    """
+    Logic function for the BR_TABLE opcode
+    """
     instruction = cast(BrTable, config.instructions.current)
 
     logger.debug("%s()", instruction.opcode.text)
@@ -186,12 +225,18 @@ def br_table_op(config: Configuration) -> None:
 
 
 def return_op(config: Configuration) -> None:
+    """
+    Logic function for the RETURN opcode
+    """
     logger.debug("%s()", config.instructions.current.opcode.text)
 
     _return_from_function(config)
 
 
 def _setup_call(config: Configuration, function_address: FunctionAddress) -> None:
+    """
+    Helper function used when entering a new frame during execution.
+    """
     function = config.store.funcs[function_address]
     function_args = tuple(reversed([
         config.pop_operand()
@@ -203,6 +248,9 @@ def _setup_call(config: Configuration, function_address: FunctionAddress) -> Non
 def _setup_function_invocation(config: Configuration,
                                function_address: FunctionAddress,
                                function_args: Tuple[TValue, ...]) -> None:
+    """
+    Helper function for invoking a function by the function's address.
+    """
     if config.frame_stack_size > 1024:
         # TODO: this is not part of spec, but this is required to pass tests.
         # Tests pass with limit 10000, maybe more
@@ -237,6 +285,9 @@ def _setup_function_invocation(config: Configuration,
 
 
 def call_op(config: Configuration) -> None:
+    """
+    Logic function for the CALL opcode
+    """
     instruction = cast(Call, config.instructions.current)
 
     logger.debug("%s()", instruction.opcode.text)
@@ -246,6 +297,9 @@ def call_op(config: Configuration) -> None:
 
 
 def call_indirect_op(config: Configuration) -> None:
+    """
+    Logic function for the CALL_INDIRECT opcode
+    """
     instruction = cast(CallIndirect, config.instructions.current)
 
     logger.debug("%s()", instruction.opcode.text)

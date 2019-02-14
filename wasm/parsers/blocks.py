@@ -16,6 +16,9 @@ from .byte import (
 
 
 def parse_blocktype(stream: IO[bytes]) -> Tuple[ValType, ...]:
+    """
+    Parse a 'blocktype' value for one of the BLOCK/LOOP/IF instructions.
+    """
     byte = parse_single_byte(stream)
     if byte == 0x40:
         return tuple()

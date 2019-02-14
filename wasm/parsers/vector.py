@@ -22,6 +22,9 @@ TItem = TypeVar('TItem')
 def parse_vector(sub_parser: Callable[[IO[bytes]], TItem],
                  stream: IO[bytes],
                  ) -> Tuple[TItem, ...]:
+    """
+    Parser for a vector of encoded values.
+    """
     vector_size = parse_u32(stream)
     try:
         return tuple(_parse_vector(sub_parser, vector_size, stream))

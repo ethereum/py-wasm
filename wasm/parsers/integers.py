@@ -16,6 +16,9 @@ from .leb128 import (
 
 
 def parse_s32(stream: IO[bytes]) -> numpy.int32:
+    """
+    Parser for a single signed 32-bit integer
+    """
     start_pos = stream.tell()
     value = parse_signed_leb128(stream)
     end_pos = stream.tell()
@@ -24,7 +27,7 @@ def parse_s32(stream: IO[bytes]) -> numpy.int32:
 
     if byte_width > 5:  # ceil(32 / 7)
         raise MalformedModule(
-            f"encoded s32 exceeds maximum byte width: {byte_width} > 10"
+            f"encoded s32 exceeds maximum byte width: {byte_width} > 5"
         )
     elif constants.SINT32_MIN <= value < constants.SINT32_CEIL:
         return numpy.int32(value)
@@ -41,6 +44,9 @@ def parse_s32(stream: IO[bytes]) -> numpy.int32:
 
 
 def parse_s64(stream: IO[bytes]) -> numpy.int64:
+    """
+    Parser for a single signed 64-bit integer
+    """
     start_pos = stream.tell()
     value = parse_signed_leb128(stream)
     end_pos = stream.tell()
@@ -66,6 +72,9 @@ def parse_s64(stream: IO[bytes]) -> numpy.int64:
 
 
 def parse_u32(stream: IO[bytes]) -> numpy.uint32:
+    """
+    Parser for a single unsigned 32-bit integer
+    """
     start_pos = stream.tell()
     value = parse_unsigned_leb128(stream)
     end_pos = stream.tell()
@@ -74,7 +83,7 @@ def parse_u32(stream: IO[bytes]) -> numpy.uint32:
 
     if byte_width > 5:  # ceil(32 / 7)
         raise MalformedModule(
-            f"encoded u32 exceeds maximum byte width: {byte_width} > 10"
+            f"encoded u32 exceeds maximum byte width: {byte_width} > 5"
         )
     elif constants.UINT32_FLOOR <= value < constants.UINT32_CEIL:
         return numpy.uint32(value)
@@ -91,6 +100,9 @@ def parse_u32(stream: IO[bytes]) -> numpy.uint32:
 
 
 def parse_u64(stream: IO[bytes]) -> numpy.uint64:
+    """
+    Parser for a single unsigned 64-bit integer
+    """
     start_pos = stream.tell()
     value = parse_unsigned_leb128(stream)
     end_pos = stream.tell()
@@ -116,12 +128,20 @@ def parse_u64(stream: IO[bytes]) -> numpy.uint64:
 
 
 def parse_i32(stream: IO[bytes]) -> numpy.uint32:
+    """
+    Parser for a single i32 value from the WASM spec which are uninterpreted
+    integer types.
+    """
     value_s = parse_s32(stream)
     value = numpy.uint32(value_s)
     return value
 
 
 def parse_i64(stream: IO[bytes]) -> numpy.uint64:
+    """
+    Parser for a single i64 value from the WASM spec which are uninterpreted
+    integer types.
+    """
     value_s = parse_s64(stream)
     value = numpy.uint64(value_s)
     return value

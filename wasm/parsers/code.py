@@ -26,12 +26,18 @@ from .vector import (
 
 
 def parse_locals(stream: IO[bytes]) -> LocalsMeta:
+    """
+    Parse the locals value types for a code section.
+    """
     num = parse_u32(stream)
     valtype = parse_valtype(stream)
     return LocalsMeta(num, valtype)
 
 
 def parse_code(stream: IO[bytes]) -> Code:
+    """
+    Parse a code section
+    """
     size = parse_u32(stream)
     start_pos = stream.tell()
     expected_end_pos = start_pos + size

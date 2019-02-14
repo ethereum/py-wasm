@@ -30,6 +30,9 @@ TInteger = Union[numpy.uint32, numpy.uint64, numpy.int32, numpy.int64]
 
 
 def load_op(config: Configuration) -> None:
+    """
+    Logic function for the various *LOAD* memory opcodes.
+    """
     instruction = cast(MemoryOp, config.instructions.current)
     logger.debug("%s()", instruction.opcode.text)
 
@@ -68,6 +71,9 @@ def load_op(config: Configuration) -> None:
 
 
 def store_op(config: Configuration) -> None:
+    """
+    Logic function for the various *STORE* memory opcodes.
+    """
     instruction = cast(MemoryOp, config.instructions.current)
     logger.debug("%s()", instruction.opcode.text)
 
@@ -95,6 +101,9 @@ def store_op(config: Configuration) -> None:
 
 
 def memory_size_op(config: Configuration) -> None:
+    """
+    Logic function for the MEMORY_SIZE opcode
+    """
     logger.debug("%s()", config.instructions.current.opcode.text)
 
     memory_address = config.frame.module.memory_addrs[0]
@@ -104,6 +113,9 @@ def memory_size_op(config: Configuration) -> None:
 
 
 def memory_grow_op(config: Configuration) -> None:
+    """
+    Logic function for the MEMORY_GROW opcode
+    """
     logger.debug("%s()", config.instructions.current.opcode.text)
 
     memory_address = config.frame.module.memory_addrs[0]

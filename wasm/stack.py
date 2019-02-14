@@ -15,6 +15,9 @@ TStackItem = TypeVar('TStackItem')
 
 
 class BaseStack(Sequence, Generic[TStackItem]):
+    """
+    Base class for the various Stack implementations.
+    """
     _stack: List[TStackItem]
 
     def __init__(self) -> None:
@@ -46,19 +49,45 @@ class BaseStack(Sequence, Generic[TStackItem]):
             raise TypeError(f"Unsupported key type: {type(item)}")
 
     def pop(self) -> TStackItem:
+        """
+        Pop a single value off the top of the stack.
+
+        Raise an IndexError if the stack is empty
+        """
         return self._stack.pop()
 
     def pop2(self) -> Tuple[TStackItem, TStackItem]:
+        """
+        Pop two values off the top of the stack.
+
+        Raise an IndexError if there are insufficient values on the stack.
+        """
         return self._stack.pop(), self._stack.pop()
 
     def pop3(self) -> Tuple[TStackItem, TStackItem, TStackItem]:
+        """
+        Pop three values off the top of the stack.
+
+        Raise an IndexError if there are insufficient values on the stack.
+        """
         return self._stack.pop(), self._stack.pop(), self._stack.pop()
 
     def push(self, value: TStackItem) -> None:
+        """
+        Push a single value onto the stack.
+        """
         self._stack.append(value)
 
     def peek(self) -> TStackItem:
+        """
+        Return the value on top of the stack.
+
+        Raise an IndexError if the stack is empty
+        """
         return self._stack[-1]
 
     def extend(self, values: Iterable[TStackItem]) -> None:
+        """
+        Extend the stack with the iterable of values.
+        """
         self._stack.extend(values)

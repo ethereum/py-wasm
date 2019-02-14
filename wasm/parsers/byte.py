@@ -12,6 +12,9 @@ from .size import (
 
 
 def parse_single_byte(stream: IO[bytes]) -> numpy.uint8:
+    """
+    Parses a single byte from the stream returning it as an 8-bit integer.
+    """
     byte = stream.read(1)
 
     if byte:
@@ -21,6 +24,9 @@ def parse_single_byte(stream: IO[bytes]) -> numpy.uint8:
 
 
 def parse_bytes(stream: IO[bytes]) -> bytes:
+    """
+    Parses a vector of bytes.
+    """
     size = parse_size(stream)
     data = stream.read(size)
 

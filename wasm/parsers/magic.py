@@ -18,6 +18,8 @@ MAGIC = (numpy.uint8(0x00), numpy.uint8(0x61), numpy.uint8(0x73), numpy.uint8(0x
 
 def parse_magic(stream: IO[bytes]) -> Tuple[numpy.uint8, numpy.uint8, numpy.uint8, numpy.uint8]:
     """
+    Parser for the *magic* 4-byte preamble for a binary encoded Web Assembly module.
+
     https://webassembly.github.io/spec/core/bikeshed/index.html#binary-magic
     """
     actual = (
