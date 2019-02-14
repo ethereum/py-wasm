@@ -5,9 +5,7 @@ from typing import (
     Type,
 )
 
-from wasm.typing import (
-    UInt32,
-)
+import numpy
 
 from .addresses import (
     FunctionAddress,
@@ -31,4 +29,4 @@ class Table(NamedTuple):
 
 class TableInstance(NamedTuple):
     elem: List[Optional[FunctionAddress]]
-    max: Optional[UInt32]
+    max: Optional[numpy.uint32]

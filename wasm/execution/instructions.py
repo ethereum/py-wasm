@@ -14,6 +14,9 @@ from wasm.instructions import (
 
 
 class InstructionSequence(Sequence):
+    """
+    Stateful stream of instructions for web assembly execution.
+    """
     _instructions: Tuple[BaseInstruction, ...]
 
     def __init__(self, instructions: Iterable[BaseInstruction]) -> None:

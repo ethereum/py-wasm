@@ -28,6 +28,9 @@ TImport = Union[FunctionType, TableType, MemoryType, GlobalType]
 
 
 def validate_import(context: Context, import_: Import) -> None:
+    """
+    Validate a Import object
+    """
     validate_import_descriptor(context, import_.desc)
 
 
@@ -35,6 +38,9 @@ TImportDesc = Union[TypeIdx, GlobalType, MemoryType, TableType]
 
 
 def validate_import_descriptor(context: Context, descriptor: TImportDesc) -> None:
+    """
+    Validate the descriptor component of an Import object
+    """
     if isinstance(descriptor, TypeIdx):
         context.validate_type_idx(descriptor)
     elif isinstance(descriptor, TableType):

@@ -37,6 +37,9 @@ TImportDesc = Union[TypeIdx, GlobalType, MemoryType, TableType]
 
 
 def parse_import_descriptor(stream: IO[bytes]) -> TImportDesc:
+    """
+    Parse the descriptor value for an Import
+    """
     type_flag = parse_single_byte(stream)
 
     if type_flag == 0x00:
@@ -54,6 +57,9 @@ def parse_import_descriptor(stream: IO[bytes]) -> TImportDesc:
 
 
 def parse_import(stream: IO[bytes]) -> Import:
+    """
+    Parser for the Import type
+    """
     module_name = parse_text(stream)
     as_name = parse_text(stream)
     descriptor = parse_import_descriptor(stream)

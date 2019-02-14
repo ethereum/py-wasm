@@ -3,14 +3,13 @@ from typing import (
     Tuple,
 )
 
+import numpy
+
 from wasm import (
     constants,
 )
 from wasm.exceptions import (
     ParseError,
-)
-from wasm.typing import (
-    UInt8,
 )
 
 from .byte import (
@@ -22,8 +21,9 @@ KNOWN_VERSIONS = {
 }
 
 
-def parse_version(stream: IO[bytes]) -> Tuple[UInt8, UInt8, UInt8, UInt8]:
+def parse_version(stream: IO[bytes]) -> Tuple[numpy.uint8, numpy.uint8, numpy.uint8, numpy.uint8]:
     """
+    Parser for the version portion of a binary encoded Web Assembly module
     https://webassembly.github.io/spec/core/bikeshed/index.html#binary-version
     """
     actual = (

@@ -3,11 +3,9 @@ from typing import (
     Optional,
 )
 
-from wasm.typing import (
-    UInt32,
-)
+import numpy
 
 
 class Limits(NamedTuple):
-    min: UInt32
-    max: Optional[UInt32]
+    min: numpy.uint32
+    max: Optional[numpy.uint32]

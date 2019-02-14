@@ -4,9 +4,7 @@ from typing import (
     Tuple,
 )
 
-from wasm.typing import (
-    UInt8,
-)
+import numpy
 
 from .addresses import (
     FunctionAddress,
@@ -44,7 +42,7 @@ from .table import (
 
 
 class Module(NamedTuple):
-    version: Tuple[UInt8, UInt8, UInt8, UInt8]
+    version: Tuple[numpy.uint8, numpy.uint8, numpy.uint8, numpy.uint8]
 
     types: Tuple[FunctionType, ...]
     funcs: Tuple[Function, ...]

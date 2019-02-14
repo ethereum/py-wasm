@@ -28,6 +28,9 @@ from .null import (
 
 def parse_memory_instruction(opcode: BinaryOpcode,
                              stream: IO[bytes]) -> Instruction:
+    """
+    Parse a single Memory instruction.
+    """
     if opcode.is_memory_access:
         memarg = parse_memarg(stream)
 
@@ -43,16 +46,25 @@ def parse_memory_instruction(opcode: BinaryOpcode,
 
 
 def parse_memarg(stream: IO[bytes]) -> MemoryArg:
+    """
+    Parser for the memarg component of a LOAD or STORE memory instruction
+    """
     align = parse_u32(stream)
     offset = parse_u32(stream)
     return MemoryArg(offset, align)
 
 
 def parse_memory_type(stream: IO[bytes]) -> MemoryType:
+    """
+    Parser for the MemoryType type
+    """
     limits = parse_limits(stream)
     return MemoryType(limits.min, limits.max)
 
 
 def parse_memory(stream: IO[bytes]) -> Memory:
+    """
+    Parser for the Memory type
+    """
     memory_type = parse_memory_type(stream)
     return Memory(memory_type)

@@ -2,18 +2,22 @@ from typing import (
     Tuple,
 )
 
+import numpy
+
 from wasm import (
     constants,
 )
 from wasm.exceptions import (
     ValidationError,
 )
-from wasm.typing import (
-    UInt8,
-)
+
+TVersion = Tuple[numpy.uint8, numpy.uint8, numpy.uint8, numpy.uint8]
 
 
-def validate_version(version: Tuple[UInt8, UInt8, UInt8, UInt8]) -> None:
+def validate_version(version: TVersion) -> None:
+    """
+    Validate the parsed version string for a Web Assembly module.
+    """
     if version != constants.VERSION_1:
         raise ValidationError(
             f"Unknown version. Got: "

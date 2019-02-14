@@ -4,6 +4,8 @@ from typing import (
     Optional,
 )
 
+import numpy
+
 from wasm._utils.interned import (
     Interned,
 )
@@ -12,12 +14,6 @@ from wasm.datatypes import (
 )
 from wasm.opcodes import (
     BinaryOpcode,
-)
-from wasm.typing import (
-    Float32,
-    Float64,
-    UInt32,
-    UInt64,
 )
 
 from .base import (
@@ -33,7 +29,7 @@ from .base import (
 class I32Const(NamedTuple):
     opcode: BinaryOpcode
     valtype: ValType
-    value: UInt32
+    value: numpy.uint32
 
     def __str__(self) -> str:
         return f"{self.opcode.text}[{self.value}]"
@@ -41,7 +37,7 @@ class I32Const(NamedTuple):
     @classmethod
     def from_opcode(cls,
                     opcode: BinaryOpcode,
-                    value: UInt32) -> 'I32Const':
+                    value: numpy.uint32) -> 'I32Const':
         if opcode is not BinaryOpcode.I32_CONST:
             raise TypeError(f"Invalid opcode: {opcode}")
         return cls(opcode, ValType.i32, value)
@@ -51,7 +47,7 @@ class I32Const(NamedTuple):
 class I64Const(NamedTuple):
     opcode: BinaryOpcode
     valtype: ValType
-    value: UInt64
+    value: numpy.uint64
 
     def __str__(self) -> str:
         return f"{self.opcode.text}[{self.value}]"
@@ -59,7 +55,7 @@ class I64Const(NamedTuple):
     @classmethod
     def from_opcode(cls,
                     opcode: BinaryOpcode,
-                    value: UInt64) -> 'I64Const':
+                    value: numpy.uint64) -> 'I64Const':
         if opcode is not BinaryOpcode.I64_CONST:
             raise TypeError(f"Invalid opcode: {opcode}")
         return cls(opcode, ValType.i64, value)
@@ -69,7 +65,7 @@ class I64Const(NamedTuple):
 class F32Const(NamedTuple):
     opcode: BinaryOpcode
     valtype: ValType
-    value: Float32
+    value: numpy.float32
 
     def __str__(self) -> str:
         return f"{self.opcode.text}[{self.value}]"
@@ -77,7 +73,7 @@ class F32Const(NamedTuple):
     @classmethod
     def from_opcode(cls,
                     opcode: BinaryOpcode,
-                    value: Float32) -> 'F32Const':
+                    value: numpy.float32) -> 'F32Const':
         if opcode is not BinaryOpcode.F32_CONST:
             raise TypeError(f"Invalid opcode: {opcode}")
         return cls(opcode, ValType.f32, value)
@@ -87,7 +83,7 @@ class F32Const(NamedTuple):
 class F64Const(NamedTuple):
     opcode: BinaryOpcode
     valtype: ValType
-    value: Float64
+    value: numpy.float64
 
     def __str__(self) -> str:
         return f"{self.opcode.text}[{self.value}]"
@@ -95,7 +91,7 @@ class F64Const(NamedTuple):
     @classmethod
     def from_opcode(cls,
                     opcode: BinaryOpcode,
-                    value: Float64) -> 'F64Const':
+                    value: numpy.float64) -> 'F64Const':
         if opcode is not BinaryOpcode.F64_CONST:
             raise TypeError(f"Invalid opcode: {opcode}")
         return cls(opcode, ValType.f64, value)

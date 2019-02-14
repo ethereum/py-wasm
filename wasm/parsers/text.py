@@ -11,6 +11,9 @@ from .size import (
 
 
 def parse_text(stream: IO[bytes]) -> str:
+    """
+    Parser for unicode encoded text.
+    """
     encoded_name_length = parse_size(stream)
     encoded_name = stream.read(encoded_name_length)
 

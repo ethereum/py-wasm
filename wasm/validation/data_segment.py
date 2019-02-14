@@ -19,6 +19,9 @@ from .expressions import (
 
 
 def validate_data_segment(context: Context, data_segment: DataSegment) -> None:
+    """
+    Validate a DataSegment object
+    """
     context.validate_mem_idx(data_segment.memory_idx)
 
     expected_result_type = (ValType.i32,)

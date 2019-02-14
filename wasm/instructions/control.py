@@ -45,7 +45,7 @@ class Block(NamedTuple):
         return BinaryOpcode.BLOCK
 
     def __str__(self) -> str:
-        rt = f"({','.join((v.value for v in self.result_type))})"
+        rt = f"({','.join((str(v) for v in self.result_type))})"
         return f"{self.opcode.text}[rt={rt},expr={stringify_instructions(self.instructions)}]"
 
     @classmethod

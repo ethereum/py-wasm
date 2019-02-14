@@ -13,6 +13,9 @@ from .byte import (
 
 
 def parse_valtype(stream: IO[bytes]) -> ValType:
+    """
+    Parser for the ValType type
+    """
     byte = parse_single_byte(stream)
 
     try:

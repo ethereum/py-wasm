@@ -25,6 +25,9 @@ from .instructions import (
 
 
 class OperandStack(BaseStack[TValue]):
+    """
+    A stack used for operands during Web Assembly execution
+    """
     pass
 
 
@@ -35,6 +38,9 @@ TInstructions = Union[
 
 
 class Label:
+    """
+    A label object used during Web Asembly execution
+    """
     arity: int
     instructions: InstructionSequence
     is_loop: bool
@@ -44,6 +50,7 @@ class Label:
         return f"L(a={self.arity},loop={'yes' if self.is_loop else 'no'})"
 
     def __init__(self,
+                 *,
                  arity: int,
                  instructions: TInstructions,
                  is_loop: bool) -> None:
@@ -59,11 +66,17 @@ class Label:
 
 
 class ControlStack(BaseStack[Label]):
+    """
+    A stack used for labels during Web Assembly execution
+    """
     def get_by_label_idx(self, key: LabelIdx) -> Label:
         return self._stack[-1 * (key + 1)]
 
 
 class Frame:
+    """
+    A frame object used during Web Asembly execution
+    """
     module: ModuleInstance
     locals: List[TValue]
     instructions: InstructionSequence
@@ -76,6 +89,7 @@ class Frame:
         return f"F(a={self.arity},locals={self.locals})"
 
     def __init__(self,
+                 *,
                  module: ModuleInstance,
                  locals: Iterable[TValue],
                  instructions: TInstructions,
@@ -116,4 +130,7 @@ class Frame:
 
 
 class FrameStack(BaseStack[Frame]):
+    """
+    A stack used for frames during Web Assembly execution
+    """
     pass

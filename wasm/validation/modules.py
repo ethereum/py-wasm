@@ -57,18 +57,34 @@ TExtern = Union[FunctionType, TableType, MemoryType, GlobalType]
 
 
 def get_import_function_types(imports: Iterable[TExtern]) -> Tuple[FunctionType, ...]:
+    """
+    Helper function for returning only the FunctionType elements from an
+    iterable of Extern values.
+    """
     return tuple(item for item in imports if isinstance(item, FunctionType))
 
 
 def get_import_table_types(imports: Iterable[TExtern]) -> Tuple[TableType, ...]:
+    """
+    Helper function for returning only the TableType elements from an
+    iterable of Extern values.
+    """
     return tuple(item for item in imports if isinstance(item, TableType))
 
 
 def get_import_memory_types(imports: Iterable[TExtern]) -> Tuple[MemoryType, ...]:
+    """
+    Helper function for returning only the MemoryType elements from an
+    iterable of Extern values.
+    """
     return tuple(item for item in imports if isinstance(item, MemoryType))
 
 
 def get_import_global_types(imports: Iterable[TExtern]) -> Tuple[GlobalType, ...]:
+    """
+    Helper function for returning only the GlobalType elements from an
+    iterable of Extern values.
+    """
     return tuple(item for item in imports if isinstance(item, GlobalType))
 
 
@@ -76,6 +92,10 @@ TExportDesc = Union[FunctionIdx, GlobalIdx, MemoryIdx, TableIdx]
 
 
 def get_export_type(context: Context, descriptor: TExportDesc) -> TExtern:
+    """
+    Helper function to validate the descriptor for an Export and return the
+    associated type.
+    """
     if isinstance(descriptor, FunctionIdx):
         return context.get_function(descriptor)
     elif isinstance(descriptor, TableIdx):
@@ -92,6 +112,10 @@ TImportDesc = Union[TypeIdx, GlobalType, MemoryType, TableType]
 
 
 def get_import_type(module: Module, descriptor: TImportDesc) -> TExtern:
+    """
+    Helper function to validate the descriptor for an Import and return the
+    associated extern type.
+    """
     if isinstance(descriptor, TypeIdx):
         if descriptor >= len(module.types):
             raise ValidationError(
@@ -106,6 +130,9 @@ def get_import_type(module: Module, descriptor: TImportDesc) -> TExtern:
 
 
 def validate_function_types(module: Module) -> None:
+    """
+    Validate the function types for a module
+    """
     # This validation is explicitly in the spec but it gives us strong
     # guarantees about indexing into the module types to populate the function
     # types.
@@ -118,6 +145,9 @@ def validate_function_types(module: Module) -> None:
 
 
 def validate_module(module: Module) -> Tuple[Tuple[TExtern, ...], Tuple[TExtern, ...]]:
+    """
+    Validatie a web Assembly module.
+    """
     validate_function_types(module)
 
     module_function_types = tuple(

@@ -38,6 +38,9 @@ BLOCK_LOOP_IF = {
 
 def validate_expression(expression: Tuple[BaseInstruction, ...],
                         ctx: ExpressionContext) -> None:
+    """
+    Validate an expression
+    """
     for idx, instruction in enumerate(expression):
         if not isinstance(instruction, BaseInstruction):
             # TODO: use a different exceptin since this represents an internal
@@ -65,6 +68,9 @@ def validate_expression(expression: Tuple[BaseInstruction, ...],
 
 def validate_constant_expression(expression: Tuple[BaseInstruction, ...],
                                  ctx: ExpressionContext) -> None:
+    """
+    Validate a constant expression
+    """
     for idx, instruction in enumerate(expression[:-1]):
         if not isinstance(instruction, BaseInstruction):
             # TODO: use a different exceptin since this represents an internal

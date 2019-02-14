@@ -5,7 +5,7 @@ from wasm.datatypes import (
     Module,
 )
 from wasm.exceptions import (
-    MalformedModule,
+    ParseError,
 )
 
 from .magic import (
@@ -20,6 +20,13 @@ from .version import (
 
 
 def parse_module(stream: IO[bytes]) -> Module:
+    """
+    Parser for a binary encoded WebAssembly module.
+
+    Return a Module object if successful.
+
+    Raise a ParseError if an error is encountered.
+    """
     # `parse_magic` both parses and validates the 4-byte *magic* preamble.
     # Curretly we simply discard this value.
     parse_magic(stream)
@@ -41,7 +48,7 @@ def parse_module(stream: IO[bytes]) -> Module:
     ) = parse_sections(stream)
 
     if len(function_section.types) != len(code_section.codes):
-        raise MalformedModule(
+        raise ParseError(
             "Mismatched lengths of function section and code section. "
             f"function-types[{len(function_section.types)}] != "
             f"codes[{len(code_section.codes)}]"

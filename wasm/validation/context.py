@@ -37,6 +37,9 @@ Unknown = _Unkown.Unknown
 
 
 class BaseContext:
+    """
+    Data type for module validation.
+    """
     types: Tuple[FunctionType, ...]
     functions: Tuple[FunctionType, ...]
     tables: Tuple[TableType, ...]
@@ -207,6 +210,9 @@ class Context(BaseContext):
 
 
 class ExpressionContext(BaseContext):
+    """
+    Stateful data type used for validation expressions.
+    """
     _operand_stack: Optional[OperandStack]
     _control_stack: Optional[ControlStack]
     _result_type: Optional[Tuple[ValType, ...]] = None
@@ -263,6 +269,9 @@ class ExpressionContext(BaseContext):
     # Context manager API
     #
     def __enter__(self) -> 'ExpressionContext':
+        """
+        Enter the validation context for expression validation.
+        """
         if self.is_final:
             raise ValidationError(
                 "This `ExpressionContext` has already been finalized."
@@ -274,6 +283,10 @@ class ExpressionContext(BaseContext):
             self._decomission()
 
     def _decomission(self) -> None:
+        """
+        Triggered once the validation context exits, ensuring that no
+        accidental mutation may occur outside of that context.
+        """
         if self.is_final:
             raise ValidationError(
                 "This `ExpressionContext` has already been finalized."
@@ -305,6 +318,9 @@ class ExpressionContext(BaseContext):
         self.control_stack.push(frame)
 
     def pop_control_frame(self) -> ControlFrame:
+        """
+        Mark the exit of a control frame (such as a BR statement).
+        """
         try:
             frame = self.control_stack.peek()
         except IndexError:
@@ -320,6 +336,10 @@ class ExpressionContext(BaseContext):
         return self.control_stack.pop()
 
     def pop_operand(self) -> Operand:
+        """
+        Pop a single operand off of the stack.  This can potentially return the
+        `Unknown` sentinal value if the stack is polymorphic.
+        """
         frame = self.control_stack.peek()
 
         if frame.is_unreachable and len(self.operand_stack) == frame.height:
@@ -333,6 +353,9 @@ class ExpressionContext(BaseContext):
             return self.operand_stack.pop()
 
     def pop_operand_and_assert_type(self, expected: Operand) -> Operand:
+        """
+        Pop an operand off of the stack and assert it is of the expected type.
+        """
         actual = self.pop_operand()
 
         if actual is Unknown or expected is Unknown:
@@ -348,5 +371,8 @@ class ExpressionContext(BaseContext):
     def pop_operands_of_expected_types(self,
                                        expected_types: Tuple[ValType, ...],
                                        ) -> None:
+        """
+        Pop multiple operands and assert they are of the expected types.
+        """
         for expected in reversed(expected_types):
             self.pop_operand_and_assert_type(expected)

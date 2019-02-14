@@ -40,6 +40,9 @@ from .variable import (
 
 
 def validate_instruction(instruction: BaseInstruction, ctx: ExpressionContext) -> None:
+    """
+    Validate a single instruction as part of expression validation
+    """
     if instruction.opcode.is_control:
         validate_control_instruction(instruction, ctx)
     elif instruction.opcode.is_variable:
@@ -55,6 +58,9 @@ def validate_instruction(instruction: BaseInstruction, ctx: ExpressionContext) -
 
 
 def validate_constant_instruction(instruction: BaseInstruction, ctx: ExpressionContext) -> None:
+    """
+    Validate a single instruction as part of expression validation for a constant expression
+    """
     if instruction.opcode is BinaryOpcode.GET_GLOBAL:
         global_ = ctx.get_global(cast(GlobalOp, instruction).global_idx)
 

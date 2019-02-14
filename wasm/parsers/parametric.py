@@ -12,6 +12,9 @@ from wasm.opcodes import (
 
 def parse_parametric_instruction(opcode: BinaryOpcode,
                                  stream: IO[bytes]) -> Instruction:
+    """
+    Parse a sigle parametric instruction.
+    """
     if opcode is BinaryOpcode.DROP:
         return Drop()
     elif opcode is BinaryOpcode.SELECT:

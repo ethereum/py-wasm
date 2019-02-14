@@ -47,6 +47,9 @@ from .vector import (
 
 def parse_control_instruction(opcode: BinaryOpcode,
                               stream: IO[bytes]) -> Instruction:
+    """
+    Parse one of the Control instructions from the stream
+    """
     if opcode is BinaryOpcode.UNREACHABLE:
         return Unreachable()
     elif opcode is BinaryOpcode.NOP:
@@ -78,6 +81,9 @@ def parse_control_instruction(opcode: BinaryOpcode,
 
 
 def parse_block_instruction(stream: IO[bytes]) -> Block:
+    """
+    Parser for the BLOCK instruction
+    """
     result_type = parse_blocktype(stream)
     instructions = parse_inner_block_instructions(stream)
 
@@ -85,6 +91,9 @@ def parse_block_instruction(stream: IO[bytes]) -> Block:
 
 
 def parse_inner_block_instructions(stream: IO[bytes]) -> Tuple[BaseInstruction, ...]:
+    """
+    Helper to parse the instruction sequence for a BLOCK instruction
+    """
     return tuple(_parse_inner_block_instructions(stream))
 
 
@@ -100,6 +109,9 @@ def _parse_inner_block_instructions(stream: IO[bytes]) -> Iterable[BaseInstructi
 
 
 def parse_loop_instruction(stream: IO[bytes]) -> Loop:
+    """
+    Parser for the LOOP instruction
+    """
     result_type = parse_blocktype(stream)
     instructions = parse_inner_block_instructions(stream)
 
@@ -107,6 +119,9 @@ def parse_loop_instruction(stream: IO[bytes]) -> Loop:
 
 
 def parse_if_instruction(stream: IO[bytes]) -> If:
+    """
+    Parser for the IF instruction
+    """
     result_type = parse_blocktype(stream)
 
     all_instructions = parse_inner_block_instructions(stream)
@@ -132,16 +147,25 @@ def parse_if_instruction(stream: IO[bytes]) -> If:
 
 
 def parse_br_instruction(stream: IO[bytes]) -> Br:
+    """
+    Parser for the BR instruction
+    """
     label = parse_label_idx(stream)
     return Br(label)
 
 
 def parse_br_if_instruction(stream: IO[bytes]) -> BrIf:
+    """
+    Parser for the BR_IF instruction
+    """
     label = parse_label_idx(stream)
     return BrIf(label)
 
 
 def parse_br_table_instruction(stream: IO[bytes]) -> BrTable:
+    """
+    Parser for the BR_TABLE instruction
+    """
     labels = parse_vector(parse_label_idx, stream)
     default_label = parse_label_idx(stream)
 
@@ -149,11 +173,17 @@ def parse_br_table_instruction(stream: IO[bytes]) -> BrTable:
 
 
 def parse_call_instruction(stream: IO[bytes]) -> Call:
+    """
+    Parser for the CALL instruction
+    """
     function_idx = parse_function_idx(stream)
     return Call(function_idx)
 
 
 def parse_call_indirect_instruction(stream: IO[bytes]) -> CallIndirect:
+    """
+    Parser for the CALL_INDIRECT instruction
+    """
     type_idx = parse_type_idx(stream)
     parse_null_byte(stream)
 

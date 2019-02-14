@@ -17,6 +17,9 @@ from .indices import (
 
 def parse_variable_instruction(opcode: BinaryOpcode,
                                stream: IO[bytes]) -> Instruction:
+    """
+    Parse a single Variable instruction
+    """
     if opcode.is_local:
         local_idx = parse_local_idx(stream)
         return LocalOp.from_opcode(opcode, local_idx)

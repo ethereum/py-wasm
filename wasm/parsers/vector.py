@@ -6,11 +6,10 @@ from typing import (
     TypeVar,
 )
 
+import numpy
+
 from wasm.exceptions import (
     ParseError,
-)
-from wasm.typing import (
-    UInt32,
 )
 
 from .integers import (
@@ -23,6 +22,9 @@ TItem = TypeVar('TItem')
 def parse_vector(sub_parser: Callable[[IO[bytes]], TItem],
                  stream: IO[bytes],
                  ) -> Tuple[TItem, ...]:
+    """
+    Parser for a vector of encoded values.
+    """
     vector_size = parse_u32(stream)
     try:
         return tuple(_parse_vector(sub_parser, vector_size, stream))
@@ -31,7 +33,7 @@ def parse_vector(sub_parser: Callable[[IO[bytes]], TItem],
 
 
 def _parse_vector(sub_parser: Callable[[IO[bytes]], TItem],
-                  vector_size: UInt32,
+                  vector_size: numpy.uint32,
                   stream: IO[bytes],
                   ) -> Iterable[TItem]:
     for _ in range(vector_size):

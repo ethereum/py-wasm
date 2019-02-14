@@ -31,6 +31,9 @@ TExportDesc = Union[FunctionIdx, GlobalIdx, MemoryIdx, TableIdx]
 
 
 def parse_export_descriptor(stream: IO[bytes]) -> TExportDesc:
+    """
+    Parse the descriptor value for an Export
+    """
     flag = parse_single_byte(stream)
 
     if flag == 0x00:
@@ -48,6 +51,9 @@ def parse_export_descriptor(stream: IO[bytes]) -> TExportDesc:
 
 
 def parse_export(stream: IO[bytes]) -> Export:
+    """
+    Parser for the Export type
+    """
     name = parse_text(stream)
     descriptor = parse_export_descriptor(stream)
     return Export(name, descriptor)

@@ -1,9 +1,12 @@
 from typing import (
+    TYPE_CHECKING,
     Iterable,
     List,
     Tuple,
     Union,
 )
+
+import numpy
 
 from wasm import (
     constants,
@@ -12,9 +15,7 @@ from wasm.exceptions import (
     ValidationError,
 )
 from wasm.typing import (
-    HostFunctionCallable,
     TValue,
-    UInt32,
 )
 
 from .addresses import (
@@ -27,6 +28,7 @@ from .function import (
     Function,
     FunctionType,
     HostFunction,
+    HostFunctionCallable,
 )
 from .globals import (
     GlobalInstance,
@@ -50,6 +52,12 @@ from .table import (
     TableInstance,
     TableType,
 )
+
+if TYPE_CHECKING:
+    from wasm.execution import (  # noqa: F401
+        Configuration,
+    )
+
 
 TAddress = Union[FunctionAddress, GlobalAddress, MemoryAddress, TableAddress]
 TExtern = Union[FunctionType, TableType, MemoryType, GlobalType]
@@ -95,13 +103,13 @@ class Store:
         elif isinstance(address, TableAddress):
             tableinst = self.tables[address]
             return TableType(
-                limits=Limits(UInt32(len(tableinst.elem)), tableinst.max),
+                limits=Limits(numpy.uint32(len(tableinst.elem)), tableinst.max),
                 elem_type=FunctionAddress,
             )
         elif isinstance(address, MemoryAddress):
             meminst = self.mems[address]
             return MemoryType(
-                UInt32(len(meminst.data) // constants.PAGE_SIZE_64K),
+                numpy.uint32(len(meminst.data) // constants.PAGE_SIZE_64K),
                 meminst.max,
             )
         elif isinstance(address, GlobalAddress):

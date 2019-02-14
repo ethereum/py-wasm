@@ -17,6 +17,9 @@ from .operand import (
 
 
 class ControlStack(BaseStack[ControlFrame]):
+    """
+    Stack used during expression validation for control frames
+    """
     def get_by_label_idx(self, key: LabelIdx) -> ControlFrame:
         return self._stack[-1 * (key + 1)]
 
@@ -29,4 +32,7 @@ class ControlStack(BaseStack[ControlFrame]):
 
 
 class OperandStack(BaseStack[Operand]):
+    """
+    Stack used during expression validation for operands
+    """
     pass

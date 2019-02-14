@@ -23,6 +23,9 @@ from .vector import (
 
 
 def parse_function_type(stream: IO[bytes]) -> FunctionType:
+    """
+    Parser for the FunctionType type.
+    """
     flag = parse_single_byte(stream)
 
     if flag != 0x60:
@@ -37,5 +40,8 @@ def parse_function_type(stream: IO[bytes]) -> FunctionType:
 
 
 def parse_start_function(stream: IO[bytes]) -> StartFunction:
+    """
+    Parser for the StartFunction type
+    """
     function_idx = parse_function_idx(stream)
     return StartFunction(function_idx)

@@ -1,8 +1,13 @@
 from abc import ABC
 from typing import (
     TYPE_CHECKING,
+    Callable,
     NamedTuple,
     Tuple,
+)
+
+from wasm.typing import (
+    TValue,
 )
 
 from .indices import (
@@ -17,8 +22,8 @@ if TYPE_CHECKING:
     from wasm.instructions import (  # noqa: F401
         BaseInstruction,
     )
-    from wasm.typing import (  # noqa: F401
-        HostFunctionCallable,
+    from wasm.execution import (  # noqa: F401
+        Configuration,
     )
 
 
@@ -49,9 +54,12 @@ class BaseFunctionInstance(ABC):
     type: FunctionType
 
 
+HostFunctionCallable = Callable[['Configuration', Tuple[TValue, ...]], Tuple[TValue, ...]]
+
+
 class HostFunction(NamedTuple):
     type: FunctionType
-    hostcode: 'HostFunctionCallable'
+    hostcode: HostFunctionCallable
 
 
 class StartFunction(NamedTuple):

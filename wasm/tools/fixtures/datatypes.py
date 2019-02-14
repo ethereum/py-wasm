@@ -2,15 +2,18 @@ from pathlib import (
     Path,
 )
 from typing import (
-    TYPE_CHECKING,
     NamedTuple,
     Optional,
     Tuple,
     Union,
 )
 
-if TYPE_CHECKING:
-    from wasm.datatypes import ValType  # noqa: F401
+from wasm.datatypes import (
+    ValType,
+)
+from wasm.typing import (
+    TValue,
+)
 
 
 class ModuleCommand(NamedTuple):
@@ -20,13 +23,13 @@ class ModuleCommand(NamedTuple):
 
 
 class Argument(NamedTuple):
-    type: 'ValType'
-    value: Union[int, float]
+    valtype: ValType
+    value: TValue
 
 
 class Expected(NamedTuple):
-    type: 'ValType'
-    value: Union[None, int, float]
+    valtype: ValType
+    value: Union[None, TValue]
 
 
 class Action(NamedTuple):
