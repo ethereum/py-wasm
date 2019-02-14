@@ -102,6 +102,9 @@ def _exit_block(config: Configuration) -> None:
 
 def _return_from_function(config: Configuration) -> None:
     valn = tuple(config.pop_operand() for _ in range(config.frame.arity))
+    # discard all of the current labels before popping the frame.
+    while config.has_active_label:
+        config.pop_label()
     config.pop_frame()
 
     if config.has_active_frame:
@@ -129,7 +132,7 @@ def end_op(config: Configuration) -> None:
 
 def _br(config: Configuration, label_idx: LabelIdx) -> None:
     label = config.get_by_label_idx(label_idx)
-    # take any return values off of the stack before poping labels
+    # take any return values off of the stack before popping labels
     valn = tuple(config.pop_operand() for _ in range(label.arity))
 
     if label.is_loop:

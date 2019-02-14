@@ -44,6 +44,7 @@ class Label:
         return f"L(a={self.arity},loop={'yes' if self.is_loop else 'no'})"
 
     def __init__(self,
+                 *,
                  arity: int,
                  instructions: TInstructions,
                  is_loop: bool) -> None:
@@ -76,6 +77,7 @@ class Frame:
         return f"F(a={self.arity},locals={self.locals})"
 
     def __init__(self,
+                 *,
                  module: ModuleInstance,
                  locals: Iterable[TValue],
                  instructions: TInstructions,

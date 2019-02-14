@@ -35,7 +35,7 @@ FLOAT32_STR = 'f32'
 
 
 AnyInteger = Union[int, numpy.int32, numpy.int64, numpy.uint32, numpy.uint64]
-AnySigned = Union[int, numpy.int32, numpy.int64]
+AnySignedInteger = Union[int, numpy.int32, numpy.int64]
 
 
 class ValType(enum.Enum):
@@ -196,7 +196,7 @@ class ValType(enum.Enum):
         else:
             raise TypeError(f"`-1` not defined for type {self}")
 
-    def to_signed(self, value: AnyUnsigned) -> AnySigned:
+    def to_signed(self, value: AnyUnsigned) -> AnySignedInteger:
         if self is self.i64:
             return numpy.int64(value)
         elif self is self.i32:
@@ -204,7 +204,7 @@ class ValType(enum.Enum):
         else:
             raise TypeError(f"Cannot convert {self} to signed integer")
 
-    def from_signed(self, value: AnySigned) -> TValue:
+    def from_signed(self, value: AnySignedInteger) -> TValue:
         if self is self.i64:
             return numpy.uint64(value)
         elif self is self.i32:
@@ -221,7 +221,7 @@ class ValType(enum.Enum):
         else:
             raise TypeError(f"Cannot convert {self} to unsigned integer")
 
-    def from_int(self, value: AnyInteger) -> AnyFloat:
+    def to_float(self, value: AnyInteger) -> AnyFloat:
         if self is self.f64:
             return numpy.float64(value)
         elif self is self.f32:

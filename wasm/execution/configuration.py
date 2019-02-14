@@ -345,6 +345,8 @@ class Configuration(BaseConfiguration):
         self.frame_stack.push(frame)
 
     def pop_frame(self) -> Frame:
+        if self.has_active_label:
+            raise ValueError("Cannot pop frame while there is an active label")
         return self.frame_stack.pop()
 
     #

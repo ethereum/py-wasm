@@ -931,7 +931,7 @@ def fXX_convert_usX_iXX_op(config: Configuration) -> None:
 
     logger.debug("%s(%s)", instruction.opcode.text, value)
 
-    config.push_operand(instruction.valtype.from_int(value))
+    config.push_operand(instruction.valtype.to_float(value))
 
 
 def f32demote_op(config: Configuration) -> None:
