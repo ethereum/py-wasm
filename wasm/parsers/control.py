@@ -1,10 +1,12 @@
 from typing import (
     IO,
     Iterable,
-    Tuple,
     cast,
 )
 
+from wasm._utils.decorators import (
+    to_tuple,
+)
 from wasm._utils.toolz import (
     partitionby,
 )
@@ -90,14 +92,11 @@ def parse_block_instruction(stream: IO[bytes]) -> Block:
     return Block(result_type, instructions)
 
 
-def parse_inner_block_instructions(stream: IO[bytes]) -> Tuple[BaseInstruction, ...]:
+@to_tuple
+def parse_inner_block_instructions(stream: IO[bytes]) -> Iterable[BaseInstruction]:
     """
     Helper to parse the instruction sequence for a BLOCK instruction
     """
-    return tuple(_parse_inner_block_instructions(stream))
-
-
-def _parse_inner_block_instructions(stream: IO[bytes]) -> Iterable[BaseInstruction]:
     # recursive parsing
     from wasm.parsers.instructions import parse_instruction  # noqa: F401
 

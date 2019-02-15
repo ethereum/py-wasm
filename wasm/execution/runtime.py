@@ -3,7 +3,7 @@ from pathlib import (
 )
 from typing import (
     Dict,
-    Iterator,
+    Iterable,
     Optional,
     Tuple,
     Union,
@@ -12,6 +12,9 @@ from typing import (
 
 import numpy
 
+from wasm._utils.decorators import (
+    to_tuple,
+)
 from wasm.datatypes import (
     DataSegment,
     ElementSegment,
@@ -57,8 +60,9 @@ from .stack import (
 TAddress = Union[FunctionAddress, TableAddress, MemoryAddress, GlobalAddress]
 
 
+@to_tuple
 def _get_import_addresses(runtime: 'Runtime',
-                          imports: Tuple[Import, ...]) -> Iterator[TAddress]:
+                          imports: Tuple[Import, ...]) -> Iterable[TAddress]:
     """
     Helper function to normalize the descriptors from a set of Imports to their
     addresses.
@@ -77,10 +81,11 @@ def _get_import_addresses(runtime: 'Runtime',
             )
 
 
+@to_tuple
 def _initialize_globals(store: Store,
                         module: Module,
                         globals_addresses: Tuple[GlobalAddress, ...],
-                        ) -> Iterator[TValue]:
+                        ) -> Iterable[TValue]:
     """
     Helper function for running the initialization code for the Globals
     to compute their initial values.
@@ -109,9 +114,10 @@ def _initialize_globals(store: Store,
         yield result[0]
 
 
+@to_tuple
 def _compute_table_offsets(store: Store,
                            elements: Tuple[ElementSegment, ...],
-                           module_instance: ModuleInstance) -> Iterator[numpy.uint32]:
+                           module_instance: ModuleInstance) -> Iterable[numpy.uint32]:
     """
     Helper function for running the initialization code for the ElementSegment
     objects to compute the table indices
@@ -141,9 +147,10 @@ def _compute_table_offsets(store: Store,
         yield offset
 
 
+@to_tuple
 def _compute_data_offsets(store: Store,
                           datas: Tuple[DataSegment, ...],
-                          module_instance: ModuleInstance) -> Iterator[numpy.uint32]:
+                          module_instance: ModuleInstance) -> Iterable[numpy.uint32]:
     """
     Helper function for running the initialization code for the DataSegment
     objects to compute the memory offsets.
@@ -205,7 +212,7 @@ class Runtime:
         return self.modules[name]
 
     def _get_import_addresses(self, imports: Tuple[Import, ...]) -> Tuple[TAddress, ...]:
-        return tuple(_get_import_addresses(self, imports))
+        return _get_import_addresses(self, imports)
 
     def load_module(self, file_path: Path) -> Module:
         """
@@ -274,20 +281,20 @@ class Runtime:
                 raise Unlinkable from err
 
         global_addresses = GlobalAddress.filter(all_import_addresses)
-        global_values = tuple(_initialize_globals(self.store, module, global_addresses))
+        global_values = _initialize_globals(self.store, module, global_addresses)
 
         module_instance = self.store.allocate_module(module, all_import_addresses, global_values)
 
-        element_segment_offsets = tuple(_compute_table_offsets(
+        element_segment_offsets = _compute_table_offsets(
             self.store,
             module.elem,
             module_instance,
-        ))
-        data_segment_offsets = tuple(_compute_data_offsets(
+        )
+        data_segment_offsets = _compute_data_offsets(
             self.store,
             module.data,
             module_instance,
-        ))
+        )
 
         for offset, element_segment in zip(element_segment_offsets, module.elem):
             for idx, function_idx in enumerate(element_segment.init):

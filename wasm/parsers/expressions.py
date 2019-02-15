@@ -1,10 +1,12 @@
 from typing import (
     IO,
     Iterable,
-    Tuple,
     cast,
 )
 
+from wasm._utils.decorators import (
+    to_tuple,
+)
 from wasm.instructions import (
     BaseInstruction,
 )
@@ -17,14 +19,11 @@ from .instructions import (
 )
 
 
-def parse_expression(stream: IO[bytes]) -> Tuple[BaseInstruction, ...]:
+@to_tuple
+def parse_expression(stream: IO[bytes]) -> Iterable[BaseInstruction]:
     """
     Helper for parsing a sequence of instructions
     """
-    return tuple(_parse_expression(stream))
-
-
-def _parse_expression(stream: IO[bytes]) -> Iterable[BaseInstruction]:
     while True:
         instruction = cast(BaseInstruction, parse_instruction(stream))
 

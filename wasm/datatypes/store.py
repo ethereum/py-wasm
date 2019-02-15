@@ -11,6 +11,9 @@ import numpy
 from wasm import (
     constants,
 )
+from wasm._utils.decorators import (
+    to_tuple,
+)
 from wasm.exceptions import (
     ValidationError,
 )
@@ -63,6 +66,7 @@ TAddress = Union[FunctionAddress, GlobalAddress, MemoryAddress, TableAddress]
 TExtern = Union[FunctionType, TableType, MemoryType, GlobalType]
 
 
+@to_tuple
 def _collate_exports(exports: Tuple[Export, ...],
                      function_addresses: Tuple[FunctionAddress, ...],
                      table_addresses: Tuple[TableAddress, ...],
@@ -243,13 +247,13 @@ class Store:
         memory_addresses = MemoryAddress.filter(all_import_addresses) + module_memory_addresses
         global_addresses = GlobalAddress.filter(all_import_addresses) + module_globals_addresses
 
-        exports = tuple(_collate_exports(
+        exports = _collate_exports(
             exports=module.exports,
             function_addresses=function_addresses,
             table_addresses=table_addresses,
             memory_addresses=memory_addresses,
             global_addresses=global_addresses,
-        ))
+        )
 
         module_instance = ModuleInstance(
             types=module.types,

@@ -3,7 +3,6 @@ import io
 import logging
 from typing import (
     IO,
-    Any,
     Callable,
     Dict,
     Iterable,
@@ -18,6 +17,9 @@ from typing import (
 
 import numpy
 
+from wasm._utils.decorators import (
+    to_tuple,
+)
 from wasm._utils.toolz import (
     groupby,
 )
@@ -238,13 +240,13 @@ def parse_sections(stream: IO[bytes]) -> T_SECTIONS:
     """
     Parse the sections of a Web Assembly module.
     """
-    sections = tuple(_parse_sections(stream))
+    sections = _parse_sections(stream)
     return normalize_sections(sections)
 
 
 def _next_empty_section(section_id: numpy.uint8,
                         empty_sections_iter: Iterator[Tuple[int, SECTION_TYPES]]
-                        ) -> Iterator[Tuple[int, SECTION_TYPES]]:
+                        ) -> Iterable[Tuple[int, SECTION_TYPES]]:
     """
     Helper function which returns *empty* versions of each section up to the
     provided `section_id`.
@@ -256,7 +258,8 @@ def _next_empty_section(section_id: numpy.uint8,
             break
 
 
-def _parse_sections(stream: IO[bytes]) -> Iterable[Any]:
+@to_tuple
+def _parse_sections(stream: IO[bytes]) -> Iterable[SECTION_TYPES]:
     """
     Helper function implementing the core logic for parsing sections.
 
@@ -282,7 +285,7 @@ def _parse_sections(stream: IO[bytes]) -> Iterable[Any]:
     while stream.tell() < end_pos:
         section_id = parse_single_byte(stream)
 
-        if section_id == 0x00:
+        if section_id == numpy.uint8(0x00):
             yield parse_custom_section(stream)
             continue
         elif section_id not in PARSERS_BY_SECTION_ID:
@@ -490,16 +493,16 @@ def parse_data_segment_section(stream: IO[bytes]) -> DataSegmentSection:
     return DataSegmentSection(parse_vector(parse_data_segment, stream))
 
 
-PARSERS_BY_SECTION_ID = {
-    0x01: parse_type_section,
-    0x02: parse_import_section,
-    0x03: parse_function_section,
-    0x04: parse_table_section,
-    0x05: parse_memory_section,
-    0x06: parse_global_section,
-    0x07: parse_export_section,
-    0x08: parse_start_section,
-    0x09: parse_element_segment_section,
-    0x0a: parse_code_section,
-    0x0b: parse_data_segment_section,
+PARSERS_BY_SECTION_ID: Dict[numpy.uint8, Callable[[IO[bytes]], SECTION_TYPES]] = {
+    numpy.uint8(0x01): parse_type_section,
+    numpy.uint8(0x02): parse_import_section,
+    numpy.uint8(0x03): parse_function_section,
+    numpy.uint8(0x04): parse_table_section,
+    numpy.uint8(0x05): parse_memory_section,
+    numpy.uint8(0x06): parse_global_section,
+    numpy.uint8(0x07): parse_export_section,
+    numpy.uint8(0x08): parse_start_section,
+    numpy.uint8(0x09): parse_element_segment_section,
+    numpy.uint8(0x0a): parse_code_section,
+    numpy.uint8(0x0b): parse_data_segment_section,
 }

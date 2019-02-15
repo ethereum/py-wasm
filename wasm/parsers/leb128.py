@@ -7,6 +7,9 @@ from typing import (
     Iterable,
 )
 
+from wasm._utils.decorators import (
+    to_tuple,
+)
 from wasm.exceptions import (
     ParseError,
 )
@@ -55,6 +58,7 @@ def parse_unsigned_leb128(stream: IO[bytes]) -> int:
 SHIFT_64_BIT_MAX = int(math.ceil(64 / 7)) * 7
 
 
+@to_tuple
 def _parse_unsigned_leb128(stream: IO[bytes]) -> Iterable[int]:
     for shift in itertools.count(0, 7):
         if shift > SHIFT_64_BIT_MAX:

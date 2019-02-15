@@ -3,8 +3,12 @@ from pathlib import (
 )
 from typing import (
     Any,
-    Iterator,
+    Iterable,
     Tuple,
+)
+
+from wasm._utils.decorators import (
+    to_tuple,
 )
 
 from .loading import (
@@ -27,8 +31,9 @@ SLOW_FIXTURES = {
 }
 
 
+@to_tuple
 def mark_fixtures(all_fixture_paths: Tuple[Path, ...],
-                  skip_slow: bool) -> Iterator[Path]:
+                  skip_slow: bool) -> Iterable[Path]:
     import pytest
 
     for fixture_path in sorted(all_fixture_paths):
@@ -48,10 +53,10 @@ def generate_fixture_tests(metafunc: Any,
     - `fixtures_dir` is the base path that fixture files will be collected from.
     """
     if 'fixture_path' in metafunc.fixturenames:
-        all_fixture_paths = tuple(mark_fixtures(
+        all_fixture_paths = mark_fixtures(
             all_fixture_paths=find_json_fixture_files(fixtures_dir),
             skip_slow=skip_slow,
-        ))
+        )
         if len(all_fixture_paths) == 0:
             raise Exception("Invariant: found zero fixtures")
 
