@@ -73,7 +73,7 @@ def _normalize_raw_value(valtype: ValType, raw_value: int) -> TValue:
     if valtype.is_integer_type:
         return valtype.value(raw_value)
     elif valtype.is_float_type:
-        return valtype.unpack_float_bytes(numpy.uint64(raw_value).tobytes())
+        return valtype.unpack_float_bytes(numpy.uint64(raw_value).data)
     else:
         raise Exception(f"Unhandled type: {valtype} | value: {raw_value}")
 
