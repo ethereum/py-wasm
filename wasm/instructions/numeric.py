@@ -113,19 +113,6 @@ class Comparison(enum.Enum):
     ge_s = 'ge_s'
     ge_u = 'ge_u'
 
-    @property
-    def signed(self) -> Optional[bool]:
-        if self is Comparison.eq:
-            return None
-        elif self is Comparison.ne:
-            return None
-        elif self in {Comparison.lt_s, Comparison.gt_s, Comparison.le_s, Comparison.ge_s}:
-            return True
-        elif self in {Comparison.lt_u, Comparison.gt_u, Comparison.le_u, Comparison.ge_u}:
-            return False
-        else:
-            raise Exception("Invariant")
-
 
 # TODO: All of the following numeric operation classes could be
 # converted to a singleton pattern to reduce object churn.  This could also
