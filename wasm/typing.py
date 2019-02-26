@@ -5,5 +5,5 @@ from typing import (
 import numpy
 
 TValue = Union[numpy.uint32, numpy.uint64, numpy.float32, numpy.float64]
-AnyUnsigned = Union[numpy.uint32, numpy.uint64]
-AnyFloat = Union[numpy.float32, numpy.float64]
+UnsignedInt = Union[numpy.uint32, numpy.uint64]
+Float = Union[numpy.float32, numpy.float64]

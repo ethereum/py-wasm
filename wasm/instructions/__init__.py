@@ -52,7 +52,6 @@ from .variable import (  # noqa: F401
     LocalOp,
 )
 
-
 Instruction = Union[
     BaseInstruction,
     I32Const, I64Const,

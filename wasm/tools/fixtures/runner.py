@@ -19,6 +19,10 @@ import pytest
 from wasm import (
     Runtime,
 )
+from wasm._utils.float import (
+    is_arithmetic_nan,
+    is_canonical_nan,
+)
 from wasm.datatypes import (
     ModuleInstance,
 )
@@ -47,16 +51,14 @@ from .datatypes import (
     AssertUnlinkable,
     ModuleCommand,
     Register,
+    arithmetic_nan,
+    canonical_nan,
 )
 from .normalizers import (
     normalize_fixture,
 )
 
 logger = logging.getLogger("wasm.tools.fixtures.runner")
-
-
-class FloatingPointNotImplemented(NotImplementedError):
-    pass
 
 
 CurrentModule = Optional[ModuleInstance]
@@ -90,6 +92,8 @@ TActionCommands = Union[
     AssertReturnCommand,
     AssertTrap,
     AssertExhaustion,
+    AssertReturnCanonicalNan,
+    AssertReturnArithmeticNan,
 ]
 TAnyCommand = Union[
     ActionCommand,
@@ -172,14 +176,18 @@ def run_opcode_action_get(action: Action,
         raise Exception(f"No export found for name: '{action.field}")
 
 
-def do_assert_return(command: AssertReturnCommand,
+TDoAssertReturnCommands = Union[
+    AssertReturnCommand,
+    AssertReturnCanonicalNan,
+    AssertReturnArithmeticNan,
+]
+
+
+def do_assert_return(command: TDoAssertReturnCommands,
                      module: CurrentModule,
                      all_modules: AllModules,
                      runtime: Runtime) -> None:
-    try:
-        ret = run_opcode_action(command, module, all_modules, runtime)
-    except FloatingPointNotImplemented:
-        return
+    ret = run_opcode_action(command, module, all_modules, runtime)
 
     if len(ret) != len(command.expected):
         logger.debug("ret: %s | expected: %s", ret, command.expected)
@@ -198,13 +206,18 @@ def do_assert_return(command: AssertReturnCommand,
 
         assert actual_type is expected_type.value
 
-        if expected_type.is_integer_type:
+        if expected_val is arithmetic_nan:
+            assert is_arithmetic_nan(actual)
+        elif expected_val is canonical_nan:
+            assert is_canonical_nan(actual)
+        elif expected_type.is_integer_type:
             logger.debug("expected: %s | actual: %s", expected_val, actual)
             assert isinstance(actual, (numpy.uint32, numpy.uint64))
 
             assert actual == expected_val
         elif expected_type.is_float_type:
             assert isinstance(actual, (numpy.float32, numpy.float64))
+            assert isinstance(expected_val, (numpy.float32, numpy.float64))
 
             if numpy.isnan(expected_val):
                 assert numpy.isnan(actual)
@@ -238,11 +251,8 @@ def do_assert_trap(command: AssertTrap,
         raise Exception("Unhandled")
 
     if command.action:
-        try:
-            with pytest.raises(Trap):
-                run_opcode_action(command, module, all_modules, runtime)
-        except FloatingPointNotImplemented:
-            pass
+        with pytest.raises(Trap):
+            run_opcode_action(command, module, all_modules, runtime)
     else:
         raise Exception("Unhandled")
 
@@ -283,16 +293,14 @@ def do_assert_canonical_nan(command: AssertReturnCanonicalNan,
                             module: CurrentModule,
                             all_modules: AllModules,
                             runtime: Runtime) -> None:
-    # Not yet implemented
-    pass
+    do_assert_return(command, module, all_modules, runtime)
 
 
 def do_assert_arithmetic_nan(command: AssertReturnArithmeticNan,
                              module: CurrentModule,
                              all_modules: AllModules,
                              runtime: Runtime) -> None:
-    # Not yet implemented
-    pass
+    do_assert_return(command, module, all_modules, runtime)
 
 
 def do_assert_unlinkable(command: AssertUnlinkable,

@@ -30,6 +30,8 @@ def seterr(all: str = None,
 
 
 class __base_dtype:
+    data: memoryview
+
     def tobytes(self) -> bytes:
         ...
 
@@ -134,7 +136,7 @@ inf: float = ...
 nan: float = ...
 
 
-def frombuffer(buffer: bytes, type_: Type[T]) -> Tuple[T, ...]:
+def frombuffer(buffer: Union[bytes, memoryview, bytearray], type_: Type[T]) -> Tuple[T, ...]:
     ...
 
 

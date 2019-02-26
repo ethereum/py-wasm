@@ -5,6 +5,7 @@ from typing import (
     NamedTuple,
     Optional,
     Tuple,
+    Type,
     Union,
 )
 
@@ -27,9 +28,17 @@ class Argument(NamedTuple):
     value: TValue
 
 
+class arithmetic_nan:
+    pass
+
+
+class canonical_nan:
+    pass
+
+
 class Expected(NamedTuple):
     valtype: ValType
-    value: Union[None, TValue]
+    value: Union[None, TValue, Type[arithmetic_nan], Type[canonical_nan]]
 
 
 class Action(NamedTuple):
