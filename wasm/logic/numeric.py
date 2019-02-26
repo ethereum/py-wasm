@@ -37,7 +37,6 @@ from wasm.instructions import (
     TestOp,
     Truncate,
     UnOp,
-    Wrap,
 )
 from wasm.typing import (
     Float,
@@ -53,7 +52,8 @@ def const_op(config: Configuration) -> None:
     Common logic function for the various CONST opcodes.
     """
     instruction = cast(TConst, config.current_instruction)
-    logger.debug("%s(%s)", instruction.opcode.text, instruction)
+    if config.enable_logic_fn_logging:
+        logger.debug("%s(%s)", instruction.opcode.text, instruction)
 
     config.push_operand(instruction.value)
 
@@ -63,7 +63,8 @@ def ieqz_op(config: Configuration) -> None:
     Common logic function for the integer EQZ opcodes
     """
     value = config.pop_operand()
-    logger.debug("%s(%s)", config.current_instruction.opcode.text, value)
+    if config.enable_logic_fn_logging:
+        logger.debug("%s(%s)", config.current_instruction.opcode.text, value)
 
     if value == 0:
         config.push_operand(constants.U32_ONE)
@@ -79,7 +80,8 @@ def eq_op(config: Configuration) -> None:
     Common logic function for all EQ opcodes
     """
     b, a = config.pop2_operands()
-    logger.debug("%s(%s, %s)", config.current_instruction.opcode.text, a, b)
+    if config.enable_logic_fn_logging:
+        logger.debug("%s(%s, %s)", config.current_instruction.opcode.text, a, b)
 
     if a == b:
         config.push_operand(constants.U32_ONE)
@@ -92,7 +94,8 @@ def ne_op(config: Configuration) -> None:
     Common logic function for all NE opcodes
     """
     b, a = config.pop2_operands()
-    logger.debug("%s(%s, %s)", config.current_instruction.opcode.text, a, b)
+    if config.enable_logic_fn_logging:
+        logger.debug("%s(%s, %s)", config.current_instruction.opcode.text, a, b)
 
     if a == b:
         config.push_operand(constants.U32_ZERO)
@@ -108,7 +111,8 @@ def iltu_op(config: Configuration) -> None:
     Common logic function for the integer LTU opcodes
     """
     b, a = config.pop2_operands()
-    logger.debug("%s(%s, %s)", config.current_instruction.opcode.text, a, b)
+    if config.enable_logic_fn_logging:
+        logger.debug("%s(%s, %s)", config.current_instruction.opcode.text, a, b)
 
     if a < b:
         config.push_operand(constants.U32_ONE)
@@ -121,7 +125,8 @@ def ileu_op(config: Configuration) -> None:
     Common logic function for the integer LEU opcodes
     """
     b, a = config.pop2_operands()
-    logger.debug("%s(%s, %s)", config.current_instruction.opcode.text, a, b)
+    if config.enable_logic_fn_logging:
+        logger.debug("%s(%s, %s)", config.current_instruction.opcode.text, a, b)
 
     if a <= b:
         config.push_operand(constants.U32_ONE)
@@ -134,7 +139,8 @@ def igtu_op(config: Configuration) -> None:
     Common logic function for the integer GTU opcodes
     """
     b, a = config.pop2_operands()
-    logger.debug("%s(%s, %s)", config.current_instruction.opcode.text, a, b)
+    if config.enable_logic_fn_logging:
+        logger.debug("%s(%s, %s)", config.current_instruction.opcode.text, a, b)
 
     if a > b:
         config.push_operand(constants.U32_ONE)
@@ -147,7 +153,8 @@ def igeu_op(config: Configuration) -> None:
     Common logic function for the integer GEU opcodes
     """
     b, a = config.pop2_operands()
-    logger.debug("%s(%s, %s)", config.current_instruction.opcode.text, a, b)
+    if config.enable_logic_fn_logging:
+        logger.debug("%s(%s, %s)", config.current_instruction.opcode.text, a, b)
 
     if a >= b:
         config.push_operand(constants.U32_ONE)
@@ -166,7 +173,8 @@ def iXX_lts_op(config: Configuration) -> None:
     b, a = config.pop2_u64()
     b_s = instruction.valtype.to_signed(b)
     a_s = instruction.valtype.to_signed(a)
-    logger.debug("%s(%s, %s)", instruction.opcode.text, a_s, b_s)
+    if config.enable_logic_fn_logging:
+        logger.debug("%s(%s, %s)", instruction.opcode.text, a_s, b_s)
 
     if a_s < b_s:
         config.push_operand(constants.U32_ONE)
@@ -182,7 +190,8 @@ def iXX_les_op(config: Configuration) -> None:
     b, a = config.pop2_u64()
     b_s = instruction.valtype.to_signed(b)
     a_s = instruction.valtype.to_signed(a)
-    logger.debug("%s(%s, %s)", instruction.opcode.text, a_s, b_s)
+    if config.enable_logic_fn_logging:
+        logger.debug("%s(%s, %s)", instruction.opcode.text, a_s, b_s)
 
     if a_s <= b_s:
         config.push_operand(constants.U32_ONE)
@@ -198,7 +207,8 @@ def iXX_gts_op(config: Configuration) -> None:
     b, a = config.pop2_u64()
     b_s = instruction.valtype.to_signed(b)
     a_s = instruction.valtype.to_signed(a)
-    logger.debug("%s(%s, %s)", instruction.opcode.text, a_s, b_s)
+    if config.enable_logic_fn_logging:
+        logger.debug("%s(%s, %s)", instruction.opcode.text, a_s, b_s)
 
     if a_s > b_s:
         config.push_operand(constants.U32_ONE)
@@ -214,7 +224,8 @@ def iXX_ges_op(config: Configuration) -> None:
     b, a = config.pop2_u64()
     b_s = instruction.valtype.to_signed(b)
     a_s = instruction.valtype.to_signed(a)
-    logger.debug("%s(%s, %s)", instruction.opcode.text, a_s, b_s)
+    if config.enable_logic_fn_logging:
+        logger.debug("%s(%s, %s)", instruction.opcode.text, a_s, b_s)
 
     if a_s >= b_s:
         config.push_operand(constants.U32_ONE)
@@ -230,7 +241,8 @@ def iXX_add_op(config: Configuration) -> None:
     Common logic function for the integer ADD opcodes
     """
     b, a = config.pop2_u64()
-    logger.debug("%s(%s, %s)", config.current_instruction.opcode.text, a, b)
+    if config.enable_logic_fn_logging:
+        logger.debug("%s(%s, %s)", config.current_instruction.opcode.text, a, b)
 
     with allow_overflow():
         config.push_operand(a + b)
@@ -241,7 +253,8 @@ def iXX_sub_op(config: Configuration) -> None:
     Common logic function for the integer SUB opcodes
     """
     b, a = config.pop2_u64()
-    logger.debug("%s(%s, %s)", config.current_instruction.opcode.text, a, b)
+    if config.enable_logic_fn_logging:
+        logger.debug("%s(%s, %s)", config.current_instruction.opcode.text, a, b)
 
     with allow_overflow():
         config.push_operand(a - b)
@@ -255,7 +268,8 @@ def iXX_mul_op(config: Configuration) -> None:
     Common logic function for the integer MUL opcodes
     """
     b, a = config.pop2_u64()
-    logger.debug("%s(%s, %s)", config.current_instruction.opcode.text, a, b)
+    if config.enable_logic_fn_logging:
+        logger.debug("%s(%s, %s)", config.current_instruction.opcode.text, a, b)
 
     with allow_overflow():
         config.push_operand(a * b)
@@ -269,7 +283,8 @@ def idivu_op(config: Configuration) -> None:
     Common logic function for the integer DIVU opcodes
     """
     b, a = config.pop2_u32()
-    logger.debug("%s(%s, %s)", config.current_instruction.opcode.text, a, b)
+    if config.enable_logic_fn_logging:
+        logger.debug("%s(%s, %s)", config.current_instruction.opcode.text, a, b)
 
     if b == 0:
         raise Trap('DIVISION BY ZERO')
@@ -285,7 +300,8 @@ def iXX_divs_op(config: Configuration) -> None:
 
     b_s = instruction.valtype.to_signed(b)
     a_s = instruction.valtype.to_signed(a)
-    logger.debug("%s(%s, %s)", instruction.opcode.text, a_s, b_s)
+    if config.enable_logic_fn_logging:
+        logger.debug("%s(%s, %s)", instruction.opcode.text, a_s, b_s)
 
     if b == 0:
         raise Trap('DIVISION BY ZERO')
@@ -315,7 +331,8 @@ def iXX_clz_op(config: Configuration) -> None:
     """
     instruction = cast(TestOp, config.current_instruction)
     value = config.pop_u64()
-    logger.debug("%s(%s)", instruction.opcode.text, value)
+    if config.enable_logic_fn_logging:
+        logger.debug("%s(%s)", instruction.opcode.text, value)
 
     bit_size = instruction.valtype.bit_size.value
     if value == 0:
@@ -333,7 +350,8 @@ def iXX_ctz_op(config: Configuration) -> None:
     """
     instruction = cast(TestOp, config.current_instruction)
     value = config.pop_u64()
-    logger.debug("%s(%s)", instruction.opcode.text, value)
+    if config.enable_logic_fn_logging:
+        logger.debug("%s(%s)", instruction.opcode.text, value)
 
     if value == 0:
         config.push_operand(instruction.valtype.value(instruction.valtype.bit_size.value))
@@ -352,7 +370,8 @@ def ipopcnt_op(config: Configuration) -> None:
     """
     instruction = cast(UnOp, config.current_instruction)
     value = config.pop_operand()
-    logger.debug("%s(%s)", instruction.opcode.text, value)
+    if config.enable_logic_fn_logging:
+        logger.debug("%s(%s)", instruction.opcode.text, value)
 
     if value == 0:
         config.push_operand(instruction.valtype.zero)
@@ -368,7 +387,8 @@ def iremu_op(config: Configuration) -> None:
     Common logic function for the integer REMU opcodes
     """
     b, a = config.pop2_u64()
-    logger.debug("%s(%s, %s)", config.current_instruction.opcode.text, a, b)
+    if config.enable_logic_fn_logging:
+        logger.debug("%s(%s, %s)", config.current_instruction.opcode.text, a, b)
 
     if b == 0:
         raise Trap('DIVISION BY ZERO')
@@ -382,7 +402,8 @@ def iXX_rems_op(config: Configuration) -> None:
     """
     instruction = cast(BinOp, config.current_instruction)
     b, a = config.pop2_u64()
-    logger.debug("%s(%s, %s)", instruction.opcode.text, a, b)
+    if config.enable_logic_fn_logging:
+        logger.debug("%s(%s, %s)", instruction.opcode.text, a, b)
 
     if b == 0:
         raise Trap('DIVISION BY ZERO')
@@ -404,7 +425,8 @@ def iand_op(config: Configuration) -> None:
     Common logic function for the integer AND opcodes
     """
     b, a = config.pop2_u64()
-    logger.debug("%s(%s, %s)", config.current_instruction.opcode.text, a, b)
+    if config.enable_logic_fn_logging:
+        logger.debug("%s(%s, %s)", config.current_instruction.opcode.text, a, b)
 
     config.push_operand(a & b)
 
@@ -414,7 +436,8 @@ def ior_op(config: Configuration) -> None:
     Common logic function for the integer OR opcodes
     """
     b, a = config.pop2_u64()
-    logger.debug("%s(%s, %s)", config.current_instruction.opcode.text, a, b)
+    if config.enable_logic_fn_logging:
+        logger.debug("%s(%s, %s)", config.current_instruction.opcode.text, a, b)
 
     config.push_operand(a | b)
 
@@ -424,7 +447,8 @@ def ixor_op(config: Configuration) -> None:
     Common logic function for the integer XOR opcodes
     """
     b, a = config.pop2_u64()
-    logger.debug("%s(%s, %s)", config.current_instruction.opcode.text, a, b)
+    if config.enable_logic_fn_logging:
+        logger.debug("%s(%s, %s)", config.current_instruction.opcode.text, a, b)
 
     config.push_operand(a ^ b)
 
@@ -438,7 +462,8 @@ def iXX_shl_op(config: Configuration) -> None:
     """
     instruction = cast(BinOp, config.current_instruction)
     b, a = config.pop2_u64()
-    logger.debug("%s(%s, %s)", instruction.opcode.text, a, b)
+    if config.enable_logic_fn_logging:
+        logger.debug("%s(%s, %s)", instruction.opcode.text, a, b)
 
     shift_amount = int(b % instruction.valtype.bit_size.value)
     raw_result = int(a) << shift_amount
@@ -457,7 +482,9 @@ def iXX_shr_sXX_op(config: Configuration) -> None:
         a = int(instruction.valtype.to_signed(a_raw))
     else:
         a = int(a_raw)
-    logger.debug("%s(%s, %s)", instruction.opcode.text, a, b)
+
+    if config.enable_logic_fn_logging:
+        logger.debug("%s(%s, %s)", instruction.opcode.text, a, b)
 
     shift_amount = int(b % instruction.valtype.bit_size.value)
 
@@ -479,7 +506,8 @@ def iXX_rotl_op(config: Configuration) -> None:
     instruction = cast(BinOp, config.current_instruction)
     b, a = config.pop2_u64()
 
-    logger.debug("%s(%s, %s)", instruction.opcode.text, a, b)
+    if config.enable_logic_fn_logging:
+        logger.debug("%s(%s, %s)", instruction.opcode.text, a, b)
 
     bit_size = instruction.valtype.bit_size.value
     shift_size = int(b % bit_size)
@@ -497,7 +525,8 @@ def iXX_rotr_op(config: Configuration) -> None:
     instruction = cast(BinOp, config.current_instruction)
     b, a = config.pop2_u64()
 
-    logger.debug("%s(%s, %s)", instruction.opcode.text, a, b)
+    if config.enable_logic_fn_logging:
+        logger.debug("%s(%s, %s)", instruction.opcode.text, a, b)
 
     bit_size = instruction.valtype.bit_size.value
     shift_size = int(b % bit_size)
@@ -515,11 +544,10 @@ def flt_op(config: Configuration) -> None:
     """
     Common logic function for the float LT opcodes
     """
-    instruction = cast(RelOp, config.current_instruction)
-
     b, a = config.pop2_f64()
 
-    logger.debug("%s(%s, %s)", instruction.opcode.text, a, b)
+    if config.enable_logic_fn_logging:
+        logger.debug("%s(%s, %s)", config.current_instruction.opcode.text, a, b)
 
     if numpy.isnan(a) or numpy.isnan(b):
         config.push_operand(constants.U32_ZERO)
@@ -543,11 +571,10 @@ def fgt_op(config: Configuration) -> None:
     """
     Common logic function for the float GT opcodes
     """
-    instruction = cast(RelOp, config.current_instruction)
-
     b, a = config.pop2_f64()
 
-    logger.debug("%s(%s, %s)", instruction.opcode.text, a, b)
+    if config.enable_logic_fn_logging:
+        logger.debug("%s(%s, %s)", config.current_instruction.opcode.text, a, b)
 
     if numpy.isnan(a) or numpy.isnan(b):
         config.push_operand(constants.U32_ZERO)
@@ -571,11 +598,10 @@ def fle_op(config: Configuration) -> None:
     """
     Common logic function for the float LE opcodes
     """
-    instruction = cast(RelOp, config.current_instruction)
-
     b, a = config.pop2_f64()
 
-    logger.debug("%s(%s, %s)", instruction.opcode.text, a, b)
+    if config.enable_logic_fn_logging:
+        logger.debug("%s(%s, %s)", config.current_instruction.opcode.text, a, b)
 
     if numpy.isnan(a) or numpy.isnan(b):
         config.push_operand(constants.U32_ZERO)
@@ -601,11 +627,10 @@ def fge_op(config: Configuration) -> None:
     """
     Common logic function for the float GT opcodes
     """
-    instruction = cast(RelOp, config.current_instruction)
-
     b, a = config.pop2_f64()
 
-    logger.debug("%s(%s, %s)", instruction.opcode.text, a, b)
+    if config.enable_logic_fn_logging:
+        logger.debug("%s(%s, %s)", config.current_instruction.opcode.text, a, b)
 
     if numpy.isnan(a) or numpy.isnan(b):
         config.push_operand(constants.U32_ZERO)
@@ -638,7 +663,8 @@ def fabs_op(config: Configuration) -> None:
 
     a = config.pop_f64()
 
-    logger.debug("%s(%s)", instruction.opcode.text, a)
+    if config.enable_logic_fn_logging:
+        logger.debug("%s(%s)", instruction.opcode.text, a)
 
     if numpy.isnan(a):
         if _is_negative(a):
@@ -692,7 +718,8 @@ def fneg_op(config: Configuration) -> None:
 
     value = config.pop_f64()
 
-    logger.debug("%s(%s)", instruction.opcode.text, value)
+    if config.enable_logic_fn_logging:
+        logger.debug("%s(%s)", instruction.opcode.text, value)
 
     negated_value = _negate_float(value)
 
@@ -707,7 +734,8 @@ def fceil_op(config: Configuration) -> None:
 
     value = config.pop_f64()
 
-    logger.debug("%s(%s)", instruction.opcode.text, value)
+    if config.enable_logic_fn_logging:
+        logger.debug("%s(%s)", instruction.opcode.text, value)
 
     if numpy.isnan(value):
         with allow_invalid():
@@ -726,11 +754,10 @@ def ffloor_op(config: Configuration) -> None:
     """
     Common logic function for the float FLOOR opcodes
     """
-    instruction = cast(UnOp, config.current_instruction)
-
     value = config.pop_f64()
 
-    logger.debug("%s(%s)", instruction.opcode.text, value)
+    if config.enable_logic_fn_logging:
+        logger.debug("%s(%s)", config.current_instruction.opcode.text, value)
 
     if numpy.isnan(value):
         with allow_invalid():
@@ -751,7 +778,8 @@ def ftrunc_op(config: Configuration) -> None:
 
     value = config.pop_f64()
 
-    logger.debug("%s(%s)", instruction.opcode.text, value)
+    if config.enable_logic_fn_logging:
+        logger.debug("%s(%s)", instruction.opcode.text, value)
 
     if numpy.isnan(value):
         with allow_invalid():
@@ -775,7 +803,8 @@ def fnearest_op(config: Configuration) -> None:
 
     value = config.pop_f64()
 
-    logger.debug("%s(%s)", instruction.opcode.text, value)
+    if config.enable_logic_fn_logging:
+        logger.debug("%s(%s)", instruction.opcode.text, value)
 
     if numpy.isnan(value):
         with allow_invalid():
@@ -798,7 +827,8 @@ def fsqrt_op(config: Configuration) -> None:
 
     value = config.pop_f64()
 
-    logger.debug("%s(%s)", instruction.opcode.text, value)
+    if config.enable_logic_fn_logging:
+        logger.debug("%s(%s)", instruction.opcode.text, value)
 
     if numpy.isnan(value):
         with allow_invalid():
@@ -840,16 +870,6 @@ def _same_signed_inf(left: TFloat, right: TFloat) -> bool:
     return numpy.isposinf(left) is numpy.isposinf(right)
 
 
-def _different_signed(left: TFloat, right: TFloat) -> bool:
-    """
-    Helper function which return a boolean indicating whether both values have
-    different signs as measured by their most significant bits.
-    """
-    left_is_negative = _is_negative(left)
-    right_is_negative = _is_negative(right)
-    return left_is_negative is not right_is_negative
-
-
 def _different_signed_inf(left: TFloat, right: TFloat) -> bool:
     """
     Helper function which return a boolean indicating whether both values are
@@ -867,11 +887,10 @@ def fadd_op(config: Configuration) -> None:
     """
     Common logic function for the float ADD opcodes
     """
-    instruction = cast(BinOp, config.current_instruction)
-
     b, a = config.pop2_f64()
 
-    logger.debug("%s(%s, %s)", instruction.opcode.text, a, b)
+    if config.enable_logic_fn_logging:
+        logger.debug("%s(%s, %s)", config.current_instruction.opcode.text, a, b)
 
     with allow_multiple(over=True, invalid=True):
         config.push_operand(a + b)
@@ -885,7 +904,8 @@ def fsub_op(config: Configuration) -> None:
 
     b, a = config.pop2_f64()
 
-    logger.debug("%s(%s, %s)", instruction.opcode.text, a, b)
+    if config.enable_logic_fn_logging:
+        logger.debug("%s(%s, %s)", instruction.opcode.text, a, b)
 
     with allow_multiple(over=True, invalid=True):
         if numpy.isnan(a) or numpy.isnan(b):
@@ -908,7 +928,8 @@ def fmul_op(config: Configuration) -> None:
 
     b, a = config.pop2_f64()
 
-    logger.debug("%s(%s, %s)", instruction.opcode.text, a, b)
+    if config.enable_logic_fn_logging:
+        logger.debug("%s(%s, %s)", instruction.opcode.text, a, b)
 
     with allow_multiple(over=True, under=True, invalid=True):
         if numpy.isnan(a) or numpy.isnan(b):
@@ -933,7 +954,8 @@ def fdiv_op(config: Configuration) -> None:
 
     b, a = config.pop2_f64()
 
-    logger.debug("%s(%s, %s)", instruction.opcode.text, a, b)
+    if config.enable_logic_fn_logging:
+        logger.debug("%s(%s, %s)", instruction.opcode.text, a, b)
 
     with allow_multiple(over=True, under=True, invalid=True):
         if numpy.isnan(a) or numpy.isnan(b):
@@ -975,7 +997,8 @@ def fmin_op(config: Configuration) -> None:
 
     b, a = config.pop2_f64()
 
-    logger.debug("%s(%s, %s)", instruction.opcode.text, a, b)
+    if config.enable_logic_fn_logging:
+        logger.debug("%s(%s, %s)", instruction.opcode.text, a, b)
 
     if numpy.isnan(a) or numpy.isnan(b):
         with allow_invalid():
@@ -999,7 +1022,8 @@ def fmax_op(config: Configuration) -> None:
 
     b, a = config.pop2_f64()
 
-    logger.debug("%s(%s, %s)", instruction.opcode.text, a, b)
+    if config.enable_logic_fn_logging:
+        logger.debug("%s(%s, %s)", instruction.opcode.text, a, b)
 
     if numpy.isnan(a) or numpy.isnan(b):
         with allow_invalid():
@@ -1022,11 +1046,10 @@ def fcopysign_op(config: Configuration) -> None:
     """
     Common logic function for the float COPYSIGN opcodes
     """
-    instruction = cast(BinOp, config.current_instruction)
-
     b, a = config.pop2_f64()
 
-    logger.debug("%s(%s, %s)", instruction.opcode.text, a, b)
+    if config.enable_logic_fn_logging:
+        logger.debug("%s(%s, %s)", config.current_instruction.opcode.text, a, b)
 
     a_is_negative = _is_negative(a)
     b_is_negative = _is_negative(b)
@@ -1044,11 +1067,10 @@ def iwrap64_op(config: Configuration) -> None:
     """
     Logic function for the I32_WRAP_I64 opcode
     """
-    instruction = cast(Wrap, config.current_instruction)
-
     value = config.pop_u64()
 
-    logger.debug("%s(%s)", instruction.opcode.text, value)
+    if config.enable_logic_fn_logging:
+        logger.debug("%s(%s)", config.current_instruction.opcode.text, value)
 
     config.push_operand(numpy.uint32(value))
 
@@ -1062,7 +1084,8 @@ def iXX_trunc_usX_fXX_op(config: Configuration) -> None:
 
     value = config.pop_f32()
 
-    logger.debug("%s(%s)", instruction.opcode.text, value)
+    if config.enable_logic_fn_logging:
+        logger.debug("%s(%s)", instruction.opcode.text, value)
 
     if numpy.isnan(value) or numpy.isinf(value):
         raise Trap(f"Truncation is undefined for {value}")
@@ -1100,7 +1123,8 @@ def i64extend_usX_op(config: Configuration) -> None:
 
     value = config.pop_u32()
 
-    logger.debug("%s(%s)", instruction.opcode.text, value)
+    if config.enable_logic_fn_logging:
+        logger.debug("%s(%s)", instruction.opcode.text, value)
 
     if instruction.signed:
         signed_value = instruction.from_valtype.to_signed(value)
@@ -1124,7 +1148,8 @@ def fXX_convert_usX_iXX_op(config: Configuration) -> None:
     else:
         value = base_value
 
-    logger.debug("%s(%s)", instruction.opcode.text, value)
+    if config.enable_logic_fn_logging:
+        logger.debug("%s(%s)", instruction.opcode.text, value)
 
     config.push_operand(instruction.valtype.to_float(value))
 
@@ -1133,11 +1158,10 @@ def f32demote_op(config: Configuration) -> None:
     """
     Logic function for the F32_DEMOTE_F64 opcode
     """
-    instruction = cast(Convert, config.current_instruction)
-
     value = config.pop_f64()
 
-    logger.debug("%s(%s)", instruction.opcode.text, value)
+    if config.enable_logic_fn_logging:
+        logger.debug("%s(%s)", config.current_instruction.opcode.text, value)
 
     config.push_operand(numpy.float32(value))
 
@@ -1146,11 +1170,10 @@ def f64promote_op(config: Configuration) -> None:
     """
     Logic function for the F64_PROMOTE_F32 opcode
     """
-    instruction = cast(Convert, config.current_instruction)
-
     value = config.pop_f32()
 
-    logger.debug("%s(%s)", instruction.opcode.text, value)
+    if config.enable_logic_fn_logging:
+        logger.debug("%s(%s)", config.current_instruction.opcode.text, value)
 
     if numpy.isnan(value):
         if _is_negative(value):
@@ -1169,6 +1192,7 @@ def XXX_reinterpret_XXX_op(config: Configuration) -> None:
 
     value = config.pop_f32()
 
-    logger.debug("%s(%s)", instruction.opcode.text, value)
+    if config.enable_logic_fn_logging:
+        logger.debug("%s(%s)", instruction.opcode.text, value)
 
     config.push_operand(numpy.frombuffer(value.data, instruction.valtype.value)[0])
