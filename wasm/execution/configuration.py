@@ -34,6 +34,7 @@ class BaseConfiguration(ABC):
     Base class for the Configuration object used for execution Web Assembly
     """
     store: Store
+    frame: Frame
 
     def __init__(self, store: Store) -> None:
         self.store = store
@@ -41,11 +42,6 @@ class BaseConfiguration(ABC):
 
     @abstractmethod
     def execute(self) -> Tuple[TValue, ...]:
-        pass
-
-    @property
-    @abstractmethod
-    def frame(self) -> Frame:
         pass
 
     @property
@@ -233,10 +229,6 @@ class Configuration(BaseConfiguration):
             return tuple()
 
     @property
-    def frame(self) -> Frame:
-        return self.frame_stack.peek()
-
-    @property
     def has_active_frame(self) -> bool:
         return bool(self.frame_stack)
 
@@ -349,12 +341,19 @@ class Configuration(BaseConfiguration):
         return len(self.frame_stack)
 
     def push_frame(self, frame: Frame) -> None:
+        self.frame = frame
         self.frame_stack.push(frame)
 
     def pop_frame(self) -> Frame:
         if self.has_active_label:
             raise ValueError("Cannot pop frame while there is an active label")
-        return self.frame_stack.pop()
+        frame = self.frame_stack.pop()
+        try:
+            self.frame = self.frame_stack.peek()
+        except IndexError:
+            del self.frame
+
+        return frame
 
     #
     # Labels
@@ -364,10 +363,10 @@ class Configuration(BaseConfiguration):
         return len(self.frame.control_stack)
 
     def push_label(self, label: Label) -> None:
-        self.frame.control_stack.push(label)
+        self.frame.push_label(label)
 
     def pop_label(self) -> Label:
-        return self.frame.control_stack.pop()
+        return self.frame.pop_label()
 
     def get_by_label_idx(self, key: LabelIdx) -> Label:
         return self.frame.control_stack.get_by_label_idx(key)
