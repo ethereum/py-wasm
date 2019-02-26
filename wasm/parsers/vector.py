@@ -8,6 +8,9 @@ from typing import (
 
 import numpy
 
+from wasm._utils.decorators import (
+    to_tuple,
+)
 from wasm.exceptions import (
     ParseError,
 )
@@ -32,6 +35,7 @@ def parse_vector(sub_parser: Callable[[IO[bytes]], TItem],
         raise ParseError(f"Error parsing vector: {err}") from err
 
 
+@to_tuple
 def _parse_vector(sub_parser: Callable[[IO[bytes]], TItem],
                   vector_size: numpy.uint32,
                   stream: IO[bytes],
