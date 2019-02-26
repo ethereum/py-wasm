@@ -84,6 +84,7 @@ class Frame:
     active_operand_stack: OperandStack
     arity: int
 
+    label: Label
     operand_stack: OperandStack
     control_stack: ControlStack
 
@@ -113,6 +114,7 @@ class Frame:
 
     def push_label(self, label: Label) -> None:
         self.control_stack.push(label)
+        self.label = label
         self.active_instructions = label.instructions
         self.active_operand_stack = label.operand_stack
 
@@ -120,9 +122,11 @@ class Frame:
         label = self.control_stack.pop()
         if self.control_stack:
             active_label = self.control_stack.peek()
+            self.label = active_label
             self.active_instructions = active_label.instructions
             self.active_operand_stack = active_label.operand_stack
         else:
+            del self.label
             self.active_instructions = self.instructions
             self.active_operand_stack = self.operand_stack
         return label
@@ -130,10 +134,6 @@ class Frame:
     @property
     def has_active_label(self) -> bool:
         return bool(self.control_stack)
-
-    @property
-    def label(self) -> Label:
-        return self.control_stack.peek()
 
 
 class FrameStack(BaseStack[Frame]):

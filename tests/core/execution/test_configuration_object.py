@@ -56,7 +56,7 @@ def test_configuration_has_active_frame(config):
 
 
 def test_configuration_frame_property(config):
-    with pytest.raises(IndexError):
+    with pytest.raises(AttributeError):
         config.frame
 
     frame_a = mk_frame()
@@ -121,13 +121,13 @@ def test_configuration_cannot_pop_frame_with_active_label(config):
 
 
 def test_configuration_active_label_property(config):
-    with pytest.raises(IndexError):
+    with pytest.raises(AttributeError):
         config.active_label
 
     frame_a = mk_frame()
     config.push_frame(frame_a)
 
-    with pytest.raises(IndexError):
+    with pytest.raises(AttributeError):
         config.active_label
 
     label_a = mk_label()
@@ -144,7 +144,7 @@ def test_configuration_active_label_property(config):
     frame_b = mk_frame()
     config.push_frame(frame_b)
 
-    with pytest.raises(IndexError):
+    with pytest.raises(AttributeError):
         config.active_label
 
     label_c = mk_label()
@@ -154,7 +154,7 @@ def test_configuration_active_label_property(config):
 
 
 def test_configuration_instructions_property(config):
-    with pytest.raises(IndexError):
+    with pytest.raises(AttributeError):
         config.instructions
 
     frame_a = mk_frame()
@@ -184,7 +184,7 @@ def test_configuration_instructions_property(config):
 
 
 def test_configuration_push_and_pop_from_operand_stack(config):
-    with pytest.raises(IndexError):
+    with pytest.raises(AttributeError):
         config.push_operand(0)
 
     frame_a = mk_frame()
@@ -210,7 +210,7 @@ def test_configuration_push_and_pop_from_operand_stack(config):
 
 
 def test_configuration_push_and_pop_u32_from_operand_stack(config):
-    with pytest.raises(IndexError):
+    with pytest.raises(AttributeError):
         config.push_operand(0)
 
     frame_a = mk_frame()
@@ -229,7 +229,7 @@ def test_configuration_push_and_pop_u32_from_operand_stack(config):
 
 
 def test_configuration_push_and_pop_u64_from_operand_stack(config):
-    with pytest.raises(IndexError):
+    with pytest.raises(AttributeError):
         config.push_operand(0)
 
     frame_a = mk_frame()
@@ -248,7 +248,7 @@ def test_configuration_push_and_pop_u64_from_operand_stack(config):
 
 
 def test_configuration_get_label_by_idx(config):
-    with pytest.raises(IndexError):
+    with pytest.raises(AttributeError):
         config.push_operand(0)
 
     frame = mk_frame()
