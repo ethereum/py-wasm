@@ -112,3 +112,6 @@ htmlcov/**
 
 # CProfile
 prof/**
+
+# WASM Spec submodule
+./spec/**
