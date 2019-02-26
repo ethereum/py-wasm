@@ -4,6 +4,7 @@ import logging
 from pathlib import (
     Path,
 )
+import time
 from typing import (
     Any,
     Callable,
@@ -386,22 +387,29 @@ def run_fixture_test(fixture_path: Path,
 
     module = None
 
-    logger.info("Finished test fixture: %s", fixture.file_path.name)
+    logger.info("Test fixture: %s", fixture.file_path.name)
 
     all_modules = copy.copy(runtime.modules)
 
     for idx, command in enumerate(fixture.commands):
-        logger.debug("running command: line=%d  type=%s", command.line, str(type(command)))
+        logger.info("command: line=%d  type=%s", command.line, str(type(command)))
 
         command_fn = get_command_fn(command)
 
+        start_at = time.perf_counter()
         result = command_fn(command, module, all_modules, runtime)
+        end_at = time.perf_counter()
 
         if result:
             module = result
-        logger.debug("Finished command: line=%d  type=%s", command.line, str(type(command)))
+        logger.info(
+            "finished command: line=%d  type=%s  took=%f",
+            command.line,
+            str(type(command)),
+            end_at - start_at,
+        )
 
         if stop_after is not None and command.line >= stop_after:
             break
 
-    logger.debug("Finished test fixture: %s", fixture.file_path.name)
+    logger.info("Finished test fixture: %s", fixture.file_path.name)
