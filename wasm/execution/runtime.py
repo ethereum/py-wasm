@@ -340,12 +340,12 @@ class Runtime:
 
         config = Configuration(self.store)
 
-        if isinstance(function, FunctionInstance):
+        if type(function) is FunctionInstance:
             from wasm.logic.control import _setup_function_invocation
             _setup_function_invocation(config, function_address, function_args)
             ret = config.execute()
             return ret
-        elif isinstance(function, HostFunction):
+        elif type(function) is HostFunction:
             ret = function.hostcode(config, function_args)
             return ret
         else:

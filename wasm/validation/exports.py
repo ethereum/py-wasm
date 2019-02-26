@@ -37,16 +37,16 @@ def validate_export_descriptor(context: Context,
     """
     Validate the descriptor component of an Export object
     """
-    if isinstance(descriptor, FunctionIdx):
+    if type(descriptor) is FunctionIdx:
         context.validate_function_idx(descriptor)
         return context.get_function(descriptor)
-    elif isinstance(descriptor, TableIdx):
+    elif type(descriptor) is TableIdx:
         context.validate_table_idx(descriptor)
         return context.get_table(descriptor)
-    elif isinstance(descriptor, MemoryIdx):
+    elif type(descriptor) is MemoryIdx:
         context.validate_mem_idx(descriptor)
         return context.get_mem(descriptor)
-    elif isinstance(descriptor, GlobalIdx):
+    elif type(descriptor) is GlobalIdx:
         context.validate_global_idx(descriptor)
         return context.get_global(descriptor)
     else:

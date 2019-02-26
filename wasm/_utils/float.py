@@ -57,9 +57,9 @@ def _decompose_float64(value: numpy.float64) -> Tuple[numpy.uint64, numpy.uint64
 
 def decompose_float(value: Float,
                     ) -> Tuple[UnsignedInt, UnsignedInt, UnsignedInt]:
-    if isinstance(value, numpy.float64):
+    if type(value) is numpy.float64:
         return _decompose_float64(value)
-    elif isinstance(value, numpy.float32):
+    elif type(value) is numpy.float32:
         return _decompose_float32(value)
     else:
         raise TypeError(f"Invalid type: {type(value)}")
@@ -88,9 +88,9 @@ def is_canonical_nan(value: Any) -> bool:
 
     if not numpy.isnan(value):
         return False
-    elif isinstance(value, numpy.float64):
+    elif type(value) is numpy.float64:
         return bool(mantissa == constants.F64_CANON_N)
-    elif isinstance(value, numpy.float32):
+    elif type(value) is numpy.float32:
         return bool(mantissa == constants.F32_CANON_N)
     else:
         raise TypeError(f"Invalid type: {type(value)}")
@@ -106,9 +106,9 @@ def is_arithmetic_nan(value: Any) -> bool:
 
     if not numpy.isnan(value):
         return False
-    elif isinstance(value, numpy.float64):
+    elif type(value) is numpy.float64:
         return bool(mantissa >= constants.F64_CANON_N)
-    elif isinstance(value, numpy.float32):
+    elif type(value) is numpy.float32:
         return bool(mantissa >= constants.F32_CANON_N)
     else:
         raise TypeError(f"Invalid type: {type(value)}")

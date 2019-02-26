@@ -24,23 +24,23 @@ class Import(NamedTuple):
 
     @property
     def type_idx(self) -> TypeIdx:
-        if isinstance(self.desc, TypeIdx):
+        if type(self.desc) is TypeIdx:
             return self.desc
         else:
             raise TypeError(f"Import descriptor of type: {type(self.desc)}")
 
     @property
     def is_function(self):
-        return isinstance(self.desc, TypeIdx)
+        return type(self.desc) is TypeIdx
 
     @property
     def is_global(self):
-        return isinstance(self.desc, GlobalType)
+        return type(self.desc) is GlobalType
 
     @property
     def is_memory(self):
-        return isinstance(self.desc, MemoryType)
+        return type(self.desc) is MemoryType
 
     @property
     def is_table(self):
-        return isinstance(self.desc, TableType)
+        return type(self.desc) is TableType

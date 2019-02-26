@@ -27,44 +27,44 @@ class Export(NamedTuple):
 
     @property
     def is_function(self):
-        return isinstance(self.desc, FunctionIdx)
+        return type(self.desc) is FunctionIdx
 
     @property
     def function_idx(self) -> FunctionIdx:
-        if isinstance(self.desc, FunctionIdx):
+        if type(self.desc) is FunctionIdx:
             return self.desc
         else:
             raise TypeError(f"Export descriptor of type: {type(self.desc)}")
 
     @property
     def is_global(self):
-        return isinstance(self.desc, GlobalIdx)
+        return type(self.desc) is GlobalIdx
 
     @property
     def global_idx(self) -> GlobalIdx:
-        if isinstance(self.desc, GlobalIdx):
+        if type(self.desc) is GlobalIdx:
             return self.desc
         else:
             raise TypeError(f"Export descriptor of type: {type(self.desc)}")
 
     @property
     def is_memory(self):
-        return isinstance(self.desc, MemoryIdx)
+        return type(self.desc) is MemoryIdx
 
     @property
     def memory_idx(self) -> MemoryIdx:
-        if isinstance(self.desc, MemoryIdx):
+        if type(self.desc) is MemoryIdx:
             return self.desc
         else:
             raise TypeError(f"Export descriptor of type: {type(self.desc)}")
 
     @property
     def is_table(self):
-        return isinstance(self.desc, TableIdx)
+        return type(self.desc) is TableIdx
 
     @property
     def table_idx(self) -> TableIdx:
-        if isinstance(self.desc, TableIdx):
+        if type(self.desc) is TableIdx:
             return self.desc
         else:
             raise TypeError(f"Export descriptor of type: {type(self.desc)}")
@@ -76,7 +76,7 @@ class ExportInstance(NamedTuple):
 
     @property
     def is_function(self):
-        return isinstance(self.value, FunctionAddress)
+        return type(self.value) is FunctionAddress
 
     @property
     def function_address(self) -> FunctionAddress:

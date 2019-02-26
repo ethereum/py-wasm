@@ -39,12 +39,12 @@ def validate_external_type_match(external_type_a, external_type_b):
             f"Mismatch in extern types: {type(external_type_a)} != "
             f"{type(external_type_b)}"
         )
-    elif isinstance(external_type_a, FunctionType):
+    elif type(external_type_a) is FunctionType:
         if external_type_a != external_type_b:
             raise ValidationError(
                 f"Function types not equal: {external_type_a} != {external_type_b}"
             )
-    elif isinstance(external_type_a, TableType):
+    elif type(external_type_a) is TableType:
         validate_limits_match(external_type_a.limits, external_type_b.limits)
 
         if external_type_a.elem_type is not external_type_b.elem_type:
@@ -52,9 +52,9 @@ def validate_external_type_match(external_type_a, external_type_b):
                 f"Table element type mismatch: {external_type_a.elem_type} != "
                 f"{external_type_b.elem_type}"
             )
-    elif isinstance(external_type_a, MemoryType):
+    elif type(external_type_a) is MemoryType:
         validate_limits_match(external_type_a, external_type_b)
-    elif isinstance(external_type_a, GlobalType):
+    elif type(external_type_a) is GlobalType:
         if external_type_a != external_type_b:
             raise ValidationError(
                 f"Globals extern type mismatch: {external_type_a} != {external_type_b}"

@@ -101,22 +101,22 @@ class Store:
         self.globals = []
 
     def get_type_for_address(self, address: TAddress) -> TExtern:
-        if isinstance(address, FunctionAddress):
+        if type(address) is FunctionAddress:
             funcinst = self.funcs[address]
             return funcinst.type
-        elif isinstance(address, TableAddress):
+        elif type(address) is TableAddress:
             tableinst = self.tables[address]
             return TableType(
                 limits=Limits(numpy.uint32(len(tableinst.elem)), tableinst.max),
                 elem_type=FunctionAddress,
             )
-        elif isinstance(address, MemoryAddress):
+        elif type(address) is MemoryAddress:
             meminst = self.mems[address]
             return MemoryType(
                 numpy.uint32(len(meminst.data) // constants.PAGE_SIZE_64K),
                 meminst.max,
             )
-        elif isinstance(address, GlobalAddress):
+        elif type(address) is GlobalAddress:
             globalinst = self.globals[address]
             return GlobalType(
                 globalinst.mut,
@@ -126,13 +126,13 @@ class Store:
             raise Exception(f"Invariant: unknown address type: {type(address)}")
 
     def validate_address(self, address: TAddress) -> None:
-        if isinstance(address, FunctionAddress):
+        if type(address) is FunctionAddress:
             self.validate_function_address(address)
-        elif isinstance(address, TableAddress):
+        elif type(address) is TableAddress:
             self.validate_table_address(address)
-        elif isinstance(address, MemoryAddress):
+        elif type(address) is MemoryAddress:
             self.validate_memory_address(address)
-        elif isinstance(address, GlobalAddress):
+        elif type(address) is GlobalAddress:
             self.validate_global_address(address)
         else:
             raise Exception(f"Invariant: unknown address type: {type(address)}")

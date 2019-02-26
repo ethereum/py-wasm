@@ -217,7 +217,7 @@ class Configuration(BaseConfiguration):
 
         while True:
             try:
-                instruction = next(self.instructions)
+                instruction = self.instructions.__next__()
             except AttributeError:
                 break
 

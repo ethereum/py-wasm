@@ -57,7 +57,7 @@ class Label:
         self.arity = arity
         self.is_loop = is_loop
 
-        if isinstance(instructions, InstructionSequence):
+        if type(instructions) is InstructionSequence:
             self.instructions = instructions
         else:
             self.instructions = InstructionSequence(instructions)
@@ -101,7 +101,7 @@ class Frame:
         self.locals = list(locals)
         self.arity = arity
 
-        if isinstance(instructions, InstructionSequence):
+        if type(instructions) is InstructionSequence:
             self.instructions = instructions
         else:
             self.instructions = InstructionSequence(instructions)

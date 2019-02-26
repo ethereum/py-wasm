@@ -41,13 +41,13 @@ def validate_import_descriptor(context: Context, descriptor: TImportDesc) -> Non
     """
     Validate the descriptor component of an Import object
     """
-    if isinstance(descriptor, TypeIdx):
+    if type(descriptor) is TypeIdx:
         context.validate_type_idx(descriptor)
-    elif isinstance(descriptor, TableType):
+    elif type(descriptor) is TableType:
         validate_table_type(descriptor)
-    elif isinstance(descriptor, MemoryType):
+    elif type(descriptor) is MemoryType:
         validate_memory_type(descriptor)
-    elif isinstance(descriptor, GlobalType):
+    elif type(descriptor) is GlobalType:
         pass
     else:
         raise ValidationError(f"Unknown import descriptor type: {type(descriptor)}")

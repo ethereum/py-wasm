@@ -156,7 +156,7 @@ class ValType(enum.Enum):
             else:
                 raise Exception("Invariant")
 
-            if not isinstance(arg, type_) or arg < lower or arg > upper:
+            if not type(arg) is type_ or arg < lower or arg > upper:
                 raise ValidationError(f"Invalid argument for {self.value}: {arg}")
         elif self.is_float_type:
             if self is self.f64:
@@ -168,7 +168,7 @@ class ValType(enum.Enum):
             else:
                 raise Exception("Invariant")
 
-            if not isinstance(arg, type_):
+            if not type(arg) is type_:
                 raise ValidationError(f"Invalid argument for {self.value}: {arg}")
 
             if numpy.isnan(arg) or numpy.isinf(arg):
