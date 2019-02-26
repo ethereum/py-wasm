@@ -9,8 +9,8 @@ from wasm import (
     constants,
 )
 from wasm.typing import (
-    AnyFloat,
-    AnyUnsigned,
+    Float,
+    UnsignedInt,
 )
 
 # the mantissa bits
@@ -18,10 +18,8 @@ MANTISSA_64_MASK = numpy.uint64(2**constants.F64_SIGNIF - 1)
 MANTISSA_32_MASK = numpy.uint32(2**constants.F32_SIGNIF - 1)
 
 # the expon bits
-EXPONENT_64_SHIFT = 64 - 1 - constants.F64_EXPON
-EXPONENT_32_SHIFT = 32 - 1 - constants.F32_EXPON
-EXPONENT_64_MASK = numpy.uint64(2**constants.F64_EXPON - 1 << EXPONENT_64_SHIFT)
-EXPONENT_32_MASK = numpy.uint32(2**constants.F32_EXPON - 1 << EXPONENT_32_SHIFT)
+EXPONENT_64_MASK = numpy.uint64(2**constants.F64_EXPON - 1 << constants.F64_SIGNIF)
+EXPONENT_32_MASK = numpy.uint32(2**constants.F32_EXPON - 1 << constants.F32_SIGNIF)
 
 # most significant bit
 SIGN_64_MASK = numpy.uint64(2**63)
@@ -42,7 +40,7 @@ assert _CHECK_32_OR_MASK == numpy.uint32(2**32 - 1)
 def _decompose_float32(value: numpy.float32) -> Tuple[numpy.uint32, numpy.uint32, numpy.uint32]:
     as_uint32 = numpy.frombuffer(value.data, numpy.uint32)[0]
     sign = numpy.uint32(bool(as_uint32 & SIGN_32_MASK))
-    exponent = numpy.uint32(int(as_uint32 & EXPONENT_32_MASK) >> EXPONENT_32_SHIFT)
+    exponent = numpy.uint32(int(as_uint32 & EXPONENT_32_MASK) >> constants.F32_SIGNIF)
     mantissa = as_uint32 & MANTISSA_32_MASK
 
     return (sign, exponent, mantissa)
@@ -51,14 +49,14 @@ def _decompose_float32(value: numpy.float32) -> Tuple[numpy.uint32, numpy.uint32
 def _decompose_float64(value: numpy.float64) -> Tuple[numpy.uint64, numpy.uint64, numpy.uint64]:
     as_uint64 = numpy.frombuffer(value.data, numpy.uint64)[0]
     sign = numpy.uint64(bool(as_uint64 & SIGN_64_MASK))
-    exponent = numpy.uint64(int(as_uint64 & EXPONENT_64_MASK) >> EXPONENT_64_SHIFT)
+    exponent = numpy.uint64(int(as_uint64 & EXPONENT_64_MASK) >> constants.F64_SIGNIF)
     mantissa = as_uint64 & MANTISSA_64_MASK
 
     return (sign, exponent, mantissa)
 
 
-def decompose_float(value: AnyFloat,
-                    ) -> Tuple[AnyUnsigned, AnyUnsigned, AnyUnsigned]:
+def decompose_float(value: Float,
+                    ) -> Tuple[UnsignedInt, UnsignedInt, UnsignedInt]:
     if isinstance(value, numpy.float64):
         return _decompose_float64(value)
     elif isinstance(value, numpy.float32):
@@ -67,20 +65,20 @@ def decompose_float(value: AnyFloat,
         raise TypeError(f"Invalid type: {type(value)}")
 
 
-def compose_float64(sign: AnyUnsigned,
-                    exponent: AnyUnsigned,
-                    mantissa: AnyUnsigned) -> numpy.float64:
+def compose_float64(sign: UnsignedInt,
+                    exponent: UnsignedInt,
+                    mantissa: UnsignedInt) -> numpy.float64:
     as_uint64 = numpy.uint64(
-        (int(sign) << 63) | (int(exponent) << EXPONENT_64_SHIFT) | int(mantissa)
+        (int(sign) << 63) | (int(exponent) << constants.F64_SIGNIF) | int(mantissa)
     )
     return numpy.frombuffer(as_uint64.data, numpy.float64)[0]
 
 
-def compose_float32(sign: AnyUnsigned,
-                    exponent: AnyUnsigned,
-                    mantissa: AnyUnsigned) -> numpy.float32:
+def compose_float32(sign: UnsignedInt,
+                    exponent: UnsignedInt,
+                    mantissa: UnsignedInt) -> numpy.float32:
     as_uint32 = numpy.uint32(
-        (int(sign) << 32) | (int(exponent) << EXPONENT_32_SHIFT) | int(mantissa)
+        (int(sign) << 31) | (int(exponent) << constants.F32_SIGNIF) | int(mantissa)
     )
     return numpy.frombuffer(as_uint32.data, numpy.float32)[0]
 

@@ -1,18 +1,20 @@
 from typing import (
     TYPE_CHECKING,
-    Dict,
     Callable,
+    Dict,
 )
 
 from wasm.opcodes import (
     BinaryOpcode,
 )
 
-from . import control
-from . import memory
-from . import numeric
-from . import parametric
-from . import variable
+from . import (
+    control,
+    memory,
+    numeric,
+    parametric,
+    variable,
+)
 
 if TYPE_CHECKING:
     from wasm.execution import (  # noqa:

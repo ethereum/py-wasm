@@ -87,5 +87,4 @@ from .valtype import (  # noqa: F401
     ValType,
 )
 
-
 BaseFunctionInstance.register(FunctionInstance)

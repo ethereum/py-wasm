@@ -14,9 +14,9 @@ from wasm.exceptions import (
     ValidationError,
 )
 from wasm.typing import (
-    AnyFloat,
-    AnyUnsigned,
+    Float,
     TValue,
+    UnsignedInt,
 )
 
 from .bit_size import (
@@ -196,7 +196,7 @@ class ValType(enum.Enum):
         else:
             raise TypeError(f"`-1` not defined for type {self}")
 
-    def to_signed(self, value: AnyUnsigned) -> AnySignedInteger:
+    def to_signed(self, value: UnsignedInt) -> AnySignedInteger:
         if self is self.i64:
             return numpy.int64(value)
         elif self is self.i32:
@@ -221,7 +221,7 @@ class ValType(enum.Enum):
         else:
             raise TypeError(f"Cannot convert {self} to unsigned integer")
 
-    def to_float(self, value: AnyInteger) -> AnyFloat:
+    def to_float(self, value: AnyInteger) -> Float:
         if self is self.f64:
             return numpy.float64(value)
         elif self is self.f32:
@@ -274,7 +274,7 @@ class ValType(enum.Enum):
         else:
             raise TypeError(f"Cannot unpack value of type {self}")
 
-    def unpack_float_bytes(self, raw_bytes: bytes) -> AnyFloat:
+    def unpack_float_bytes(self, raw_bytes: bytes) -> Float:
         if self is self.f64:
             return numpy.frombuffer(raw_bytes, numpy.float64)[0]
         elif self is self.f32:
@@ -283,28 +283,28 @@ class ValType(enum.Enum):
             raise TypeError(f"Cannot unpack value of type {self}")
 
     @property
-    def nan(self) -> AnyFloat:
+    def nan(self) -> Float:
         if self.is_float_type:
             return self.value('nan')
         else:
             raise TypeError(f"`nan` not defined for type {self}")
 
     @property
-    def negnan(self) -> AnyFloat:
+    def negnan(self) -> Float:
         if self.is_float_type:
             return self.value('-nan')
         else:
             raise TypeError(f"`-nan` not defined for type {self}")
 
     @property
-    def inf(self) -> AnyFloat:
+    def inf(self) -> Float:
         if self.is_float_type:
             return self.value('inf')
         else:
             raise TypeError(f"`inf` not defined for type {self}")
 
     @property
-    def neginf(self) -> AnyFloat:
+    def neginf(self) -> Float:
         if self.is_float_type:
             return self.value('-inf')
         else:

@@ -40,7 +40,7 @@ from wasm.instructions import (
     Wrap,
 )
 from wasm.typing import (
-    AnyFloat,
+    Float,
 )
 
 logger = logging.getLogger('wasm.logic.numeric')
@@ -655,7 +655,7 @@ def fabs_op(config: Configuration) -> None:
 FLOAT_SIGN_MASK = 0b10000000
 
 
-def _is_negative(value: AnyFloat) -> bool:
+def _is_negative(value: Float) -> bool:
     """
     Helper function which returns a boolean indicating if the floating point
     value is considered negative as determined by checking the value of the
@@ -664,7 +664,7 @@ def _is_negative(value: AnyFloat) -> bool:
     return bool(value.tobytes()[-1] & FLOAT_SIGN_MASK)
 
 
-TFloat = TypeVar('TFloat', bound=AnyFloat)
+TFloat = TypeVar('TFloat', bound=Float)
 
 
 def _negate_float(value: TFloat) -> TFloat:
@@ -1154,10 +1154,8 @@ def f64promote_op(config: Configuration) -> None:
 
     if numpy.isnan(value):
         if _is_negative(value):
-            logger.info('NEGATIVE')
             config.push_operand(numpy.float64('-nan'))
         else:
-            logger.info('POSITIVE')
             config.push_operand(numpy.float64('nan'))
     else:
         config.push_operand(numpy.float64(value))

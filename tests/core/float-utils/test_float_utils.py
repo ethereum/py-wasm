@@ -1,3 +1,7 @@
+from hypothesis import (
+    given,
+    strategies as st,
+)
 import numpy
 import pytest
 
@@ -26,6 +30,32 @@ def test_decompose_float(value, expected):
     assert a_sign == e_sign
     assert a_exponent == e_exponent
     assert a_mantissa == e_mantissa
+
+
+@st.composite
+def f32_strat(draw, encoded=st.binary(min_size=4, max_size=4)):
+    raw_bytes = draw(encoded)
+    return numpy.frombuffer(raw_bytes, numpy.float32)[0]
+
+
+@st.composite
+def f64_strat(draw, encoded=st.binary(min_size=8, max_size=8)):
+    raw_bytes = draw(encoded)
+    return numpy.frombuffer(raw_bytes, numpy.float32)[0]
+
+
+@given(value=st.one_of(f32_strat(), f64_strat()))
+def test_decompose_to_compose_round_trip(value):
+    if isinstance(value, numpy.float32):
+        compose_fn = compose_float32
+    elif isinstance(value, numpy.float64):
+        compose_fn = compose_float64
+    else:
+        assert False, "Unreachable"
+
+    sign, exponent, mantissa = decompose_float(value)
+    result = compose_fn(sign, exponent, mantissa)
+    assert result.tobytes() == value.tobytes()
 
 
 F32_C_SIGN, F32_C_EXPONENT, F32_C_MANTISSA = decompose_float(constants.F32_CANON_NAN)

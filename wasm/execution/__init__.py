@@ -9,9 +9,9 @@ from .runtime import (  # noqa: F401
 )
 from .stack import (  # noqa: F401
     BaseStack,
+    ControlStack,
     Frame,
     FrameStack,
     Label,
-    ControlStack,
     OperandStack,
 )
