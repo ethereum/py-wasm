@@ -40,7 +40,8 @@ def unreachable_op(config: Configuration) -> None:
     """
     Logic function for the UNREACHABLE opcode
     """
-    logger.debug("%s()", config.instructions.current.opcode.text)
+    if config.enable_logic_fn_logging:
+        logger.debug("%s()", config.instructions.current.opcode.text)
     raise Trap("TRAP")
 
 
@@ -48,7 +49,8 @@ def nop_op(config: Configuration) -> None:
     """
     Logic function for the NOP opcode
     """
-    logger.debug("%s()", config.instructions.current.opcode.text)
+    if config.enable_logic_fn_logging:
+        logger.debug("%s()", config.instructions.current.opcode.text)
 
 
 def block_op(config: Configuration) -> None:
@@ -57,7 +59,8 @@ def block_op(config: Configuration) -> None:
     """
     block = cast(Block, config.instructions.current)
 
-    logger.debug("%s()", block.opcode.text)
+    if config.enable_logic_fn_logging:
+        logger.debug("%s()", block.opcode.text)
 
     label = Label(
         arity=len(block.result_type),
@@ -73,7 +76,8 @@ def loop_op(config: Configuration) -> None:
     """
     instruction = cast(Loop, config.instructions.current)
 
-    logger.debug("%s()", instruction.opcode.text)
+    if config.enable_logic_fn_logging:
+        logger.debug("%s()", instruction.opcode.text)
 
     label = Label(
         arity=0,
@@ -89,7 +93,8 @@ def if_op(config: Configuration) -> None:
     """
     instruction = cast(If, config.instructions.current)
 
-    logger.debug("%s()", instruction.opcode.text)
+    if config.enable_logic_fn_logging:
+        logger.debug("%s()", instruction.opcode.text)
 
     value = config.pop_operand()
     arity = len(instruction.result_type)
@@ -138,7 +143,8 @@ def else_op(config: Configuration) -> None:
     """
     Logic function for the ELSE opcode
     """
-    logger.debug("%s()", config.instructions.current.opcode.text)
+    if config.enable_logic_fn_logging:
+        logger.debug("%s()", config.instructions.current.opcode.text)
 
     _exit_block(config)
 
@@ -147,7 +153,8 @@ def end_op(config: Configuration) -> None:
     """
     Logic function for the END opcode
     """
-    logger.debug("%s()", config.instructions.current.opcode.text)
+    if config.enable_logic_fn_logging:
+        logger.debug("%s()", config.instructions.current.opcode.text)
 
     if config.has_active_label:
         _exit_block(config)
@@ -186,7 +193,8 @@ def br_op(config: Configuration) -> None:
     """
     instruction = cast(Br, config.instructions.current)
 
-    logger.debug("%s()", instruction.opcode.text)
+    if config.enable_logic_fn_logging:
+        logger.debug("%s()", instruction.opcode.text)
 
     _br(config, instruction.label_idx)
 
@@ -195,7 +203,8 @@ def br_if_op(config: Configuration) -> None:
     """
     Logic function for the BR_IF opcode
     """
-    logger.debug("%s()", config.instructions.current.opcode.text)
+    if config.enable_logic_fn_logging:
+        logger.debug("%s()", config.instructions.current.opcode.text)
 
     value = config.pop_operand()
 
@@ -210,7 +219,8 @@ def br_table_op(config: Configuration) -> None:
     """
     instruction = cast(BrTable, config.instructions.current)
 
-    logger.debug("%s()", instruction.opcode.text)
+    if config.enable_logic_fn_logging:
+        logger.debug("%s()", instruction.opcode.text)
 
     label_indices = instruction.label_indices
     default_label_idx = instruction.default_idx
@@ -228,7 +238,8 @@ def return_op(config: Configuration) -> None:
     """
     Logic function for the RETURN opcode
     """
-    logger.debug("%s()", config.instructions.current.opcode.text)
+    if config.enable_logic_fn_logging:
+        logger.debug("%s()", config.instructions.current.opcode.text)
 
     _return_from_function(config)
 
@@ -290,7 +301,8 @@ def call_op(config: Configuration) -> None:
     """
     instruction = cast(Call, config.instructions.current)
 
-    logger.debug("%s()", instruction.opcode.text)
+    if config.enable_logic_fn_logging:
+        logger.debug("%s()", instruction.opcode.text)
 
     function_address = config.frame.module.func_addrs[instruction.function_idx]
     _setup_call(config, function_address)
@@ -302,7 +314,8 @@ def call_indirect_op(config: Configuration) -> None:
     """
     instruction = cast(CallIndirect, config.instructions.current)
 
-    logger.debug("%s()", instruction.opcode.text)
+    if config.enable_logic_fn_logging:
+        logger.debug("%s()", instruction.opcode.text)
 
     table_address = config.frame.module.table_addrs[0]
     table = config.store.tables[table_address]

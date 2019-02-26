@@ -34,7 +34,8 @@ def load_op(config: Configuration) -> None:
     Logic function for the various *LOAD* memory opcodes.
     """
     instruction = cast(MemoryOp, config.instructions.current)
-    logger.debug("%s()", instruction.opcode.text)
+    if config.enable_logic_fn_logging:
+        logger.debug("%s()", instruction.opcode.text)
 
     memarg = instruction.memarg
 
@@ -75,7 +76,8 @@ def store_op(config: Configuration) -> None:
     Logic function for the various *STORE* memory opcodes.
     """
     instruction = cast(MemoryOp, config.instructions.current)
-    logger.debug("%s()", instruction.opcode.text)
+    if config.enable_logic_fn_logging:
+        logger.debug("%s()", instruction.opcode.text)
 
     memarg = instruction.memarg
 
@@ -104,7 +106,8 @@ def memory_size_op(config: Configuration) -> None:
     """
     Logic function for the MEMORY_SIZE opcode
     """
-    logger.debug("%s()", config.instructions.current.opcode.text)
+    if config.enable_logic_fn_logging:
+        logger.debug("%s()", config.instructions.current.opcode.text)
 
     memory_address = config.frame.module.memory_addrs[0]
     mem = config.store.mems[memory_address]
@@ -116,7 +119,8 @@ def memory_grow_op(config: Configuration) -> None:
     """
     Logic function for the MEMORY_GROW opcode
     """
-    logger.debug("%s()", config.instructions.current.opcode.text)
+    if config.enable_logic_fn_logging:
+        logger.debug("%s()", config.instructions.current.opcode.text)
 
     memory_address = config.frame.module.memory_addrs[0]
     mem = config.store.mems[memory_address]
