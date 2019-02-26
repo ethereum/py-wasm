@@ -214,8 +214,11 @@ class Configuration(BaseConfiguration):
     def execute(self) -> Tuple[TValue, ...]:
         from wasm.logic import OPCODE_TO_LOGIC_FN
 
-        while self.has_active_frame:
-            instruction = next(self.instructions)
+        while True:
+            try:
+                instruction = next(self.instructions)
+            except AttributeError:
+                break
 
             logic_fn = OPCODE_TO_LOGIC_FN[instruction.opcode]
 
@@ -230,17 +233,21 @@ class Configuration(BaseConfiguration):
 
     @property
     def has_active_frame(self) -> bool:
-        return bool(self.frame_stack)
+        try:
+            return bool(self.frame)
+        except AttributeError:
+            return False
 
     @property
     def active_label(self) -> Label:
-        return self.frame.control_stack.peek()
+        return self.frame.label
 
     @property
     def has_active_label(self) -> bool:
-        if not self.has_active_frame:
+        try:
+            return bool(self.frame.label)
+        except AttributeError:
             return False
-        return bool(self.frame.control_stack)
 
     @property
     def instructions(self) -> InstructionSequence:
