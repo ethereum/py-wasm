@@ -1171,4 +1171,4 @@ def XXX_reinterpret_XXX_op(config: Configuration) -> None:
 
     logger.debug("%s(%s)", instruction.opcode.text, value)
 
-    config.push_operand(numpy.frombuffer(value.tobytes(), instruction.valtype.value)[0])
+    config.push_operand(numpy.frombuffer(value.data, instruction.valtype.value)[0])

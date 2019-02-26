@@ -260,7 +260,7 @@ class ValType(enum.Enum):
         else:
             raise TypeError(f"Cannot convert {self} to unsigned integer")
 
-    def unpack_int_bytes(self, raw_bytes: bytes, signed: bool) -> AnyInteger:
+    def unpack_int_bytes(self, raw_bytes: Union[bytes, memoryview], signed: bool) -> AnyInteger:
         if self is self.i64:
             if signed:
                 return numpy.frombuffer(raw_bytes, numpy.int64)[0]
@@ -274,7 +274,7 @@ class ValType(enum.Enum):
         else:
             raise TypeError(f"Cannot unpack value of type {self}")
 
-    def unpack_float_bytes(self, raw_bytes: bytes) -> Float:
+    def unpack_float_bytes(self, raw_bytes: Union[bytes, memoryview]) -> Float:
         if self is self.f64:
             return numpy.frombuffer(raw_bytes, numpy.float64)[0]
         elif self is self.f32:
