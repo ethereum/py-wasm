@@ -69,7 +69,7 @@ class ControlStack(BaseStack[Label]):
     """
     A stack used for labels during Web Assembly execution
     """
-    def get_by_label_idx(self, key: LabelIdx) -> Label:
+    def get_label_by_idx(self, key: LabelIdx) -> Label:
         return self._stack[-1 * (key + 1)]
 
 

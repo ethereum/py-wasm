@@ -24,22 +24,22 @@ def mk_label():
 
 
 def test_configuration_frame_stack_size(config):
-    assert config.frame_stack_size == 0
+    assert len(config._frame_stack) == 0
 
     frame_a = mk_frame()
     config.push_frame(frame_a)
 
-    assert config.frame_stack_size == 1
+    assert len(config._frame_stack) == 1
 
     frame_b = mk_frame()
     config.push_frame(frame_b)
 
-    assert config.frame_stack_size == 2
+    assert len(config._frame_stack) == 2
 
     assert config.pop_frame() is frame_b
     assert config.pop_frame() is frame_a
 
-    assert config.frame_stack_size == 0
+    assert len(config._frame_stack) == 0
 
 
 def test_configuration_has_active_frame(config):
@@ -56,22 +56,21 @@ def test_configuration_has_active_frame(config):
 
 
 def test_configuration_frame_property(config):
-    with pytest.raises(AttributeError):
-        config.frame
+    assert not hasattr(config, 'frame')
 
     frame_a = mk_frame()
     config.push_frame(frame_a)
 
-    assert config.frame is frame_a
+    assert config._frame is frame_a
 
     frame_b = mk_frame()
     config.push_frame(frame_b)
 
-    assert config.frame is frame_b
+    assert config._frame is frame_b
 
     assert config.pop_frame() is frame_b
 
-    assert config.frame is frame_a
+    assert config._frame is frame_a
 
 
 def test_configuration_has_active_label(config):
@@ -120,67 +119,33 @@ def test_configuration_cannot_pop_frame_with_active_label(config):
         config.pop_frame()
 
 
-def test_configuration_active_label_property(config):
-    with pytest.raises(AttributeError):
-        config.active_label
-
-    frame_a = mk_frame()
-    config.push_frame(frame_a)
-
-    with pytest.raises(AttributeError):
-        config.active_label
-
-    label_a = mk_label()
-    config.push_label(label_a)
-
-    assert config.active_label is label_a
-
-    label_b = mk_label()
-    config.push_label(label_b)
-
-    assert config.active_label is label_b
-
-    # now push a new frame and there should not be an active label
-    frame_b = mk_frame()
-    config.push_frame(frame_b)
-
-    with pytest.raises(AttributeError):
-        config.active_label
-
-    label_c = mk_label()
-    config.push_label(label_c)
-
-    assert config.active_label is label_c
-
-
 def test_configuration_instructions_property(config):
-    with pytest.raises(AttributeError):
-        config.instructions
+    assert not hasattr(config, '_instructions')
 
     frame_a = mk_frame()
     config.push_frame(frame_a)
 
-    assert config.instructions is frame_a.instructions
+    assert config._instructions is frame_a.instructions
 
     label_a = mk_label()
     config.push_label(label_a)
 
-    assert config.instructions is label_a.instructions
+    assert config._instructions is label_a.instructions
 
     frame_b = mk_frame()
     config.push_frame(frame_b)
 
-    assert config.instructions is frame_b.instructions
+    assert config._instructions is frame_b.instructions
 
     label_b = mk_label()
     config.push_label(label_b)
 
-    assert config.instructions is label_b.instructions
+    assert config._instructions is label_b.instructions
 
     label_c = mk_label()
     config.push_label(label_c)
 
-    assert config.instructions is label_c.instructions
+    assert config._instructions is label_c.instructions
 
 
 def test_configuration_push_and_pop_from_operand_stack(config):
@@ -263,10 +228,10 @@ def test_configuration_get_label_by_idx(config):
     label_0 = mk_label()
     config.push_label(label_0)
 
-    assert config.get_by_label_idx(0) is label_0
-    assert config.get_by_label_idx(1) is label_1
-    assert config.get_by_label_idx(2) is label_2
-    assert config.get_by_label_idx(3) is label_3
+    assert config.get_label_by_idx(0) is label_0
+    assert config.get_label_by_idx(1) is label_1
+    assert config.get_label_by_idx(2) is label_2
+    assert config.get_label_by_idx(3) is label_3
 
     with pytest.raises(IndexError):
-        assert config.get_by_label_idx(4)
+        assert config.get_label_by_idx(4)

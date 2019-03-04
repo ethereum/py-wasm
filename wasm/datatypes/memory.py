@@ -29,15 +29,21 @@ class Memory(NamedTuple):
     type: MemoryType
 
 
-class MemoryInstance(NamedTuple):
+class MemoryInstance:
     data: bytearray
     max: Optional[numpy.uint32]
+    _length_cache: int
+
+    def __init__(self, data: bytearray, max: numpy.uint32 = None) -> None:
+        self.data = data
+        self.max = max
+        self._length_cache = len(self.data)
 
     @property
     def num_pages(self) -> numpy.uint32:
         return numpy.uint32(len(self.data) // constants.PAGE_SIZE_64K)
 
-    def read(self, location: numpy.uint32, size: numpy.uint32) -> bytes:
+    def read(self, location: numpy.uint32, size: numpy.uint32) -> memoryview:
         with no_overflow():
             try:
                 end_location = location + size
@@ -47,21 +53,22 @@ class MemoryInstance(NamedTuple):
                     f"> {len(self.data)}"
                 )
 
-        if end_location > len(self.data):
+        if end_location > self._length_cache:
             raise Trap(
                 f"Attempt to read from out of bounds memory location: {end_location} "
                 f"> {len(self.data)}"
             )
-        return self.data[location:end_location]
+        return memoryview(self.data)[location:end_location]
 
     def write(self, location: numpy.uint32, value: bytes) -> None:
-        if location + len(value) > len(self.data):
+        end_index = location + len(value)
+        if end_index > self._length_cache:
             raise Trap(
                 f"Attempt to write to out of bounds memory location: "
-                f"{location + len(value)} "
+                f"{end_index} "
                 f"> {len(self.data)}"
             )
-        self.data[location: location + len(value)] = value
+        self.data[location: end_index] = value
 
     def grow(self, num_pages: numpy.uint32) -> numpy.uint32:
         new_num_pages = num_pages + len(self.data) // constants.PAGE_SIZE_64K
@@ -76,4 +83,5 @@ class MemoryInstance(NamedTuple):
             )
 
         self.data.extend(bytearray(num_pages * constants.PAGE_SIZE_64K))
+        self._length_cache = len(self.data)
         return numpy.uint32(new_num_pages)

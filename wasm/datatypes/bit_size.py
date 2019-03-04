@@ -30,7 +30,7 @@ class BitSize(enum.Enum):
     b32 = numpy.uint8(32)
     b64 = numpy.uint8(64)
 
-    def unpack_int_bytes(self, raw_bytes: bytes, signed: bool) -> TUnpack:
+    def unpack_int_bytes(self, raw_bytes: Union[memoryview, bytes], signed: bool) -> TUnpack:
         if self is self.b8:
             if signed:
                 return numpy.frombuffer(raw_bytes, numpy.int8)[0]

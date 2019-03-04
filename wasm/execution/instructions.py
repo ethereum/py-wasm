@@ -18,15 +18,10 @@ class InstructionSequence(Sequence):
     Stateful stream of instructions for web assembly execution.
     """
     _instructions: Tuple[BaseInstruction, ...]
-    current: BaseInstruction
 
     def __init__(self, instructions: Iterable[BaseInstruction]) -> None:
         self._instructions = tuple(instructions)
         self._idx = -1
-        try:
-            self.current = self._instructions[0]
-        except IndexError:
-            pass
 
     def __str__(self) -> str:
         return f"[{' > '.join((str(instr) for instr in self._instructions))}]"
@@ -40,9 +35,7 @@ class InstructionSequence(Sequence):
     def __next__(self) -> BaseInstruction:
         self._idx += 1
         try:
-            instruction = self._instructions[self._idx]
-            self.current = instruction
-            return instruction
+            return self._instructions[self._idx]
         except IndexError:
             raise StopIteration
 
@@ -76,8 +69,3 @@ class InstructionSequence(Sequence):
 
     def seek(self, idx: int) -> None:
         self._idx = idx - 1
-        try:
-            self.current = self._instructions[self._idx]
-        except IndexError:
-            if hasattr(self, 'current'):
-                del self.current

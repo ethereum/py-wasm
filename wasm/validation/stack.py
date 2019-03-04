@@ -20,7 +20,7 @@ class ControlStack(BaseStack[ControlFrame]):
     """
     Stack used during expression validation for control frames
     """
-    def get_by_label_idx(self, key: LabelIdx) -> ControlFrame:
+    def get_label_by_idx(self, key: LabelIdx) -> ControlFrame:
         return self._stack[-1 * (key + 1)]
 
     def validate_label_idx(self, label_idx: LabelIdx) -> None:
