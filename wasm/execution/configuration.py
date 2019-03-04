@@ -389,7 +389,7 @@ class Configuration(BaseConfiguration):
         self._frame = frame
         self._frame_stack.push(frame)
         self._operand_stack = self._frame.active_operand_stack
-        self._instructions = self._frame.active_instructions
+        self._instructions = frame.active_instructions
 
     def pop_frame(self) -> Frame:
         if self.has_active_label:
