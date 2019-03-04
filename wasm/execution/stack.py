@@ -69,7 +69,7 @@ class ControlStack(BaseStack[Label]):
     """
     A stack used for labels during Web Assembly execution
     """
-    def get_by_label_idx(self, key: LabelIdx) -> Label:
+    def get_label_by_idx(self, key: LabelIdx) -> Label:
         return self._stack[-1 * (key + 1)]
 
 
@@ -80,8 +80,11 @@ class Frame:
     module: ModuleInstance
     locals: List[TValue]
     instructions: InstructionSequence
+    active_instructions: InstructionSequence
+    active_operand_stack: OperandStack
     arity: int
 
+    label: Label
     operand_stack: OperandStack
     control_stack: ControlStack
 
@@ -106,27 +109,31 @@ class Frame:
         self.control_stack = ControlStack()
         self.operand_stack = OperandStack()
 
+        self.active_instructions = self.instructions
+        self.active_operand_stack = self.operand_stack
+
+    def push_label(self, label: Label) -> None:
+        self.control_stack.push(label)
+        self.label = label
+        self.active_instructions = label.instructions
+        self.active_operand_stack = label.operand_stack
+
+    def pop_label(self) -> Label:
+        label = self.control_stack.pop()
+        if self.control_stack:
+            active_label = self.control_stack.peek()
+            self.label = active_label
+            self.active_instructions = active_label.instructions
+            self.active_operand_stack = active_label.operand_stack
+        else:
+            del self.label
+            self.active_instructions = self.instructions
+            self.active_operand_stack = self.operand_stack
+        return label
+
     @property
     def has_active_label(self) -> bool:
         return bool(self.control_stack)
-
-    @property
-    def label(self) -> Label:
-        return self.control_stack.peek()
-
-    @property
-    def active_instructions(self) -> InstructionSequence:
-        if self.has_active_label:
-            return self.label.instructions
-        else:
-            return self.instructions
-
-    @property
-    def active_operand_stack(self) -> OperandStack:
-        if self.has_active_label:
-            return self.label.operand_stack
-        else:
-            return self.operand_stack
 
 
 class FrameStack(BaseStack[Frame]):

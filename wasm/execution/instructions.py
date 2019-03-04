@@ -67,9 +67,5 @@ class InstructionSequence(Sequence):
     def pc(self, value: int) -> None:
         self.seek(value)
 
-    @property
-    def current(self) -> BaseInstruction:
-        return self[self.pc]
-
     def seek(self, idx: int) -> None:
         self._idx = idx - 1

@@ -52,7 +52,7 @@ def const_op(config: Configuration) -> None:
     """
     Common logic function for the various CONST opcodes.
     """
-    instruction = cast(TConst, config.instructions.current)
+    instruction = cast(TConst, config.current_instruction)
     logger.debug("%s(%s)", instruction.opcode.text, instruction)
 
     config.push_operand(instruction.value)
@@ -63,7 +63,7 @@ def ieqz_op(config: Configuration) -> None:
     Common logic function for the integer EQZ opcodes
     """
     value = config.pop_operand()
-    logger.debug("%s(%s)", config.instructions.current.opcode.text, value)
+    logger.debug("%s(%s)", config.current_instruction.opcode.text, value)
 
     if value == 0:
         config.push_operand(constants.U32_ONE)
@@ -79,7 +79,7 @@ def eq_op(config: Configuration) -> None:
     Common logic function for all EQ opcodes
     """
     b, a = config.pop2_operands()
-    logger.debug("%s(%s, %s)", config.instructions.current.opcode.text, a, b)
+    logger.debug("%s(%s, %s)", config.current_instruction.opcode.text, a, b)
 
     if a == b:
         config.push_operand(constants.U32_ONE)
@@ -92,7 +92,7 @@ def ne_op(config: Configuration) -> None:
     Common logic function for all NE opcodes
     """
     b, a = config.pop2_operands()
-    logger.debug("%s(%s, %s)", config.instructions.current.opcode.text, a, b)
+    logger.debug("%s(%s, %s)", config.current_instruction.opcode.text, a, b)
 
     if a == b:
         config.push_operand(constants.U32_ZERO)
@@ -108,7 +108,7 @@ def iltu_op(config: Configuration) -> None:
     Common logic function for the integer LTU opcodes
     """
     b, a = config.pop2_operands()
-    logger.debug("%s(%s, %s)", config.instructions.current.opcode.text, a, b)
+    logger.debug("%s(%s, %s)", config.current_instruction.opcode.text, a, b)
 
     if a < b:
         config.push_operand(constants.U32_ONE)
@@ -121,7 +121,7 @@ def ileu_op(config: Configuration) -> None:
     Common logic function for the integer LEU opcodes
     """
     b, a = config.pop2_operands()
-    logger.debug("%s(%s, %s)", config.instructions.current.opcode.text, a, b)
+    logger.debug("%s(%s, %s)", config.current_instruction.opcode.text, a, b)
 
     if a <= b:
         config.push_operand(constants.U32_ONE)
@@ -134,7 +134,7 @@ def igtu_op(config: Configuration) -> None:
     Common logic function for the integer GTU opcodes
     """
     b, a = config.pop2_operands()
-    logger.debug("%s(%s, %s)", config.instructions.current.opcode.text, a, b)
+    logger.debug("%s(%s, %s)", config.current_instruction.opcode.text, a, b)
 
     if a > b:
         config.push_operand(constants.U32_ONE)
@@ -147,7 +147,7 @@ def igeu_op(config: Configuration) -> None:
     Common logic function for the integer GEU opcodes
     """
     b, a = config.pop2_operands()
-    logger.debug("%s(%s, %s)", config.instructions.current.opcode.text, a, b)
+    logger.debug("%s(%s, %s)", config.current_instruction.opcode.text, a, b)
 
     if a >= b:
         config.push_operand(constants.U32_ONE)
@@ -162,7 +162,7 @@ def iXX_lts_op(config: Configuration) -> None:
     """
     Common logic function for the integer LTS opcodes
     """
-    instruction = cast(RelOp, config.instructions.current)
+    instruction = cast(RelOp, config.current_instruction)
     b, a = config.pop2_u64()
     b_s = instruction.valtype.to_signed(b)
     a_s = instruction.valtype.to_signed(a)
@@ -178,7 +178,7 @@ def iXX_les_op(config: Configuration) -> None:
     """
     Common logic function for the integer LES opcodes
     """
-    instruction = cast(RelOp, config.instructions.current)
+    instruction = cast(RelOp, config.current_instruction)
     b, a = config.pop2_u64()
     b_s = instruction.valtype.to_signed(b)
     a_s = instruction.valtype.to_signed(a)
@@ -194,7 +194,7 @@ def iXX_gts_op(config: Configuration) -> None:
     """
     Common logic function for the integer GTS opcodes
     """
-    instruction = cast(RelOp, config.instructions.current)
+    instruction = cast(RelOp, config.current_instruction)
     b, a = config.pop2_u64()
     b_s = instruction.valtype.to_signed(b)
     a_s = instruction.valtype.to_signed(a)
@@ -210,7 +210,7 @@ def iXX_ges_op(config: Configuration) -> None:
     """
     Common logic function for the integer GES opcodes
     """
-    instruction = cast(RelOp, config.instructions.current)
+    instruction = cast(RelOp, config.current_instruction)
     b, a = config.pop2_u64()
     b_s = instruction.valtype.to_signed(b)
     a_s = instruction.valtype.to_signed(a)
@@ -230,7 +230,7 @@ def iXX_add_op(config: Configuration) -> None:
     Common logic function for the integer ADD opcodes
     """
     b, a = config.pop2_u64()
-    logger.debug("%s(%s, %s)", config.instructions.current.opcode.text, a, b)
+    logger.debug("%s(%s, %s)", config.current_instruction.opcode.text, a, b)
 
     with allow_overflow():
         config.push_operand(a + b)
@@ -241,7 +241,7 @@ def iXX_sub_op(config: Configuration) -> None:
     Common logic function for the integer SUB opcodes
     """
     b, a = config.pop2_u64()
-    logger.debug("%s(%s, %s)", config.instructions.current.opcode.text, a, b)
+    logger.debug("%s(%s, %s)", config.current_instruction.opcode.text, a, b)
 
     with allow_overflow():
         config.push_operand(a - b)
@@ -255,7 +255,7 @@ def iXX_mul_op(config: Configuration) -> None:
     Common logic function for the integer MUL opcodes
     """
     b, a = config.pop2_u64()
-    logger.debug("%s(%s, %s)", config.instructions.current.opcode.text, a, b)
+    logger.debug("%s(%s, %s)", config.current_instruction.opcode.text, a, b)
 
     with allow_overflow():
         config.push_operand(a * b)
@@ -269,7 +269,7 @@ def idivu_op(config: Configuration) -> None:
     Common logic function for the integer DIVU opcodes
     """
     b, a = config.pop2_u32()
-    logger.debug("%s(%s, %s)", config.instructions.current.opcode.text, a, b)
+    logger.debug("%s(%s, %s)", config.current_instruction.opcode.text, a, b)
 
     if b == 0:
         raise Trap('DIVISION BY ZERO')
@@ -280,7 +280,7 @@ def iXX_divs_op(config: Configuration) -> None:
     """
     Common logic function for the integer DIVS opcodes
     """
-    instruction = cast(BinOp, config.instructions.current)
+    instruction = cast(BinOp, config.current_instruction)
     b, a = config.pop2_u32()
 
     b_s = instruction.valtype.to_signed(b)
@@ -313,7 +313,7 @@ def iXX_clz_op(config: Configuration) -> None:
     """
     Common logic function for the integer CLZ opcodes
     """
-    instruction = cast(TestOp, config.instructions.current)
+    instruction = cast(TestOp, config.current_instruction)
     value = config.pop_u64()
     logger.debug("%s(%s)", instruction.opcode.text, value)
 
@@ -331,7 +331,7 @@ def iXX_ctz_op(config: Configuration) -> None:
     """
     Common logic function for the integer CTZ opcodes
     """
-    instruction = cast(TestOp, config.instructions.current)
+    instruction = cast(TestOp, config.current_instruction)
     value = config.pop_u64()
     logger.debug("%s(%s)", instruction.opcode.text, value)
 
@@ -350,7 +350,7 @@ def ipopcnt_op(config: Configuration) -> None:
     """
     Common logic function for the integer POPCNT opcodes
     """
-    instruction = cast(UnOp, config.instructions.current)
+    instruction = cast(UnOp, config.current_instruction)
     value = config.pop_operand()
     logger.debug("%s(%s)", instruction.opcode.text, value)
 
@@ -368,7 +368,7 @@ def iremu_op(config: Configuration) -> None:
     Common logic function for the integer REMU opcodes
     """
     b, a = config.pop2_u64()
-    logger.debug("%s(%s, %s)", config.instructions.current.opcode.text, a, b)
+    logger.debug("%s(%s, %s)", config.current_instruction.opcode.text, a, b)
 
     if b == 0:
         raise Trap('DIVISION BY ZERO')
@@ -380,7 +380,7 @@ def iXX_rems_op(config: Configuration) -> None:
     """
     Common logic function for the integer REMS opcodes
     """
-    instruction = cast(BinOp, config.instructions.current)
+    instruction = cast(BinOp, config.current_instruction)
     b, a = config.pop2_u64()
     logger.debug("%s(%s, %s)", instruction.opcode.text, a, b)
 
@@ -404,7 +404,7 @@ def iand_op(config: Configuration) -> None:
     Common logic function for the integer AND opcodes
     """
     b, a = config.pop2_u64()
-    logger.debug("%s(%s, %s)", config.instructions.current.opcode.text, a, b)
+    logger.debug("%s(%s, %s)", config.current_instruction.opcode.text, a, b)
 
     config.push_operand(a & b)
 
@@ -414,7 +414,7 @@ def ior_op(config: Configuration) -> None:
     Common logic function for the integer OR opcodes
     """
     b, a = config.pop2_u64()
-    logger.debug("%s(%s, %s)", config.instructions.current.opcode.text, a, b)
+    logger.debug("%s(%s, %s)", config.current_instruction.opcode.text, a, b)
 
     config.push_operand(a | b)
 
@@ -424,7 +424,7 @@ def ixor_op(config: Configuration) -> None:
     Common logic function for the integer XOR opcodes
     """
     b, a = config.pop2_u64()
-    logger.debug("%s(%s, %s)", config.instructions.current.opcode.text, a, b)
+    logger.debug("%s(%s, %s)", config.current_instruction.opcode.text, a, b)
 
     config.push_operand(a ^ b)
 
@@ -436,7 +436,7 @@ def iXX_shl_op(config: Configuration) -> None:
     """
     Common logic function for the integer SHL opcodes
     """
-    instruction = cast(BinOp, config.instructions.current)
+    instruction = cast(BinOp, config.current_instruction)
     b, a = config.pop2_u64()
     logger.debug("%s(%s, %s)", instruction.opcode.text, a, b)
 
@@ -450,7 +450,7 @@ def iXX_shr_sXX_op(config: Configuration) -> None:
     """
     Common logic function for the integer SHR opcodes
     """
-    instruction = cast(BinOp, config.instructions.current)
+    instruction = cast(BinOp, config.current_instruction)
     b, a_raw = config.pop2_u64()
 
     if instruction.signed:
@@ -476,7 +476,7 @@ def iXX_rotl_op(config: Configuration) -> None:
     """
     Common logic function for the integer ROTL opcodes
     """
-    instruction = cast(BinOp, config.instructions.current)
+    instruction = cast(BinOp, config.current_instruction)
     b, a = config.pop2_u64()
 
     logger.debug("%s(%s, %s)", instruction.opcode.text, a, b)
@@ -494,7 +494,7 @@ def iXX_rotr_op(config: Configuration) -> None:
     """
     Common logic function for the integer ROTR opcodes
     """
-    instruction = cast(BinOp, config.instructions.current)
+    instruction = cast(BinOp, config.current_instruction)
     b, a = config.pop2_u64()
 
     logger.debug("%s(%s, %s)", instruction.opcode.text, a, b)
@@ -515,7 +515,7 @@ def flt_op(config: Configuration) -> None:
     """
     Common logic function for the float LT opcodes
     """
-    instruction = cast(RelOp, config.instructions.current)
+    instruction = cast(RelOp, config.current_instruction)
 
     b, a = config.pop2_f64()
 
@@ -543,7 +543,7 @@ def fgt_op(config: Configuration) -> None:
     """
     Common logic function for the float GT opcodes
     """
-    instruction = cast(RelOp, config.instructions.current)
+    instruction = cast(RelOp, config.current_instruction)
 
     b, a = config.pop2_f64()
 
@@ -571,7 +571,7 @@ def fle_op(config: Configuration) -> None:
     """
     Common logic function for the float LE opcodes
     """
-    instruction = cast(RelOp, config.instructions.current)
+    instruction = cast(RelOp, config.current_instruction)
 
     b, a = config.pop2_f64()
 
@@ -601,7 +601,7 @@ def fge_op(config: Configuration) -> None:
     """
     Common logic function for the float GT opcodes
     """
-    instruction = cast(RelOp, config.instructions.current)
+    instruction = cast(RelOp, config.current_instruction)
 
     b, a = config.pop2_f64()
 
@@ -634,7 +634,7 @@ def fabs_op(config: Configuration) -> None:
     """
     Common logic function for the float ABS opcodes
     """
-    instruction = cast(UnOp, config.instructions.current)
+    instruction = cast(UnOp, config.current_instruction)
 
     a = config.pop_f64()
 
@@ -688,7 +688,7 @@ def fneg_op(config: Configuration) -> None:
     """
     Common logic function for the float NEG opcodes
     """
-    instruction = cast(UnOp, config.instructions.current)
+    instruction = cast(UnOp, config.current_instruction)
 
     value = config.pop_f64()
 
@@ -703,7 +703,7 @@ def fceil_op(config: Configuration) -> None:
     """
     Common logic function for the float CEIL opcodes
     """
-    instruction = cast(UnOp, config.instructions.current)
+    instruction = cast(UnOp, config.current_instruction)
 
     value = config.pop_f64()
 
@@ -726,7 +726,7 @@ def ffloor_op(config: Configuration) -> None:
     """
     Common logic function for the float FLOOR opcodes
     """
-    instruction = cast(UnOp, config.instructions.current)
+    instruction = cast(UnOp, config.current_instruction)
 
     value = config.pop_f64()
 
@@ -747,7 +747,7 @@ def ftrunc_op(config: Configuration) -> None:
     """
     Common logic function for the float TRUNC opcodes
     """
-    instruction = cast(UnOp, config.instructions.current)
+    instruction = cast(UnOp, config.current_instruction)
 
     value = config.pop_f64()
 
@@ -771,7 +771,7 @@ def fnearest_op(config: Configuration) -> None:
     """
     Common logic function for the float NEAREST opcodes
     """
-    instruction = cast(UnOp, config.instructions.current)
+    instruction = cast(UnOp, config.current_instruction)
 
     value = config.pop_f64()
 
@@ -794,7 +794,7 @@ def fsqrt_op(config: Configuration) -> None:
     """
     Common logic function for the float SQRT opcodes
     """
-    instruction = cast(UnOp, config.instructions.current)
+    instruction = cast(UnOp, config.current_instruction)
 
     value = config.pop_f64()
 
@@ -867,7 +867,7 @@ def fadd_op(config: Configuration) -> None:
     """
     Common logic function for the float ADD opcodes
     """
-    instruction = cast(BinOp, config.instructions.current)
+    instruction = cast(BinOp, config.current_instruction)
 
     b, a = config.pop2_f64()
 
@@ -881,7 +881,7 @@ def fsub_op(config: Configuration) -> None:
     """
     Common logic function for the float SUB opcodes
     """
-    instruction = cast(BinOp, config.instructions.current)
+    instruction = cast(BinOp, config.current_instruction)
 
     b, a = config.pop2_f64()
 
@@ -904,7 +904,7 @@ def fmul_op(config: Configuration) -> None:
     """
     Common logic function for the float MUL opcodes
     """
-    instruction = cast(BinOp, config.instructions.current)
+    instruction = cast(BinOp, config.current_instruction)
 
     b, a = config.pop2_f64()
 
@@ -929,7 +929,7 @@ def fdiv_op(config: Configuration) -> None:
     """
     Common logic function for the float DIV opcodes
     """
-    instruction = cast(BinOp, config.instructions.current)
+    instruction = cast(BinOp, config.current_instruction)
 
     b, a = config.pop2_f64()
 
@@ -971,7 +971,7 @@ def fmin_op(config: Configuration) -> None:
     """
     Common logic function for the float MIN opcodes
     """
-    instruction = cast(BinOp, config.instructions.current)
+    instruction = cast(BinOp, config.current_instruction)
 
     b, a = config.pop2_f64()
 
@@ -995,7 +995,7 @@ def fmax_op(config: Configuration) -> None:
     """
     Common logic function for the float MAX opcodes
     """
-    instruction = cast(BinOp, config.instructions.current)
+    instruction = cast(BinOp, config.current_instruction)
 
     b, a = config.pop2_f64()
 
@@ -1022,7 +1022,7 @@ def fcopysign_op(config: Configuration) -> None:
     """
     Common logic function for the float COPYSIGN opcodes
     """
-    instruction = cast(BinOp, config.instructions.current)
+    instruction = cast(BinOp, config.current_instruction)
 
     b, a = config.pop2_f64()
 
@@ -1044,7 +1044,7 @@ def iwrap64_op(config: Configuration) -> None:
     """
     Logic function for the I32_WRAP_I64 opcode
     """
-    instruction = cast(Wrap, config.instructions.current)
+    instruction = cast(Wrap, config.current_instruction)
 
     value = config.pop_u64()
 
@@ -1058,7 +1058,7 @@ def iXX_trunc_usX_fXX_op(config: Configuration) -> None:
     Common logic function for the TRUNC opcodes which convert a float to an
     integer
     """
-    instruction = cast(Truncate, config.instructions.current)
+    instruction = cast(Truncate, config.current_instruction)
 
     value = config.pop_f32()
 
@@ -1096,7 +1096,7 @@ def i64extend_usX_op(config: Configuration) -> None:
     """
     Common logic function for the EXTEND opcodes
     """
-    instruction = cast(Extend, config.instructions.current)
+    instruction = cast(Extend, config.current_instruction)
 
     value = config.pop_u32()
 
@@ -1115,7 +1115,7 @@ def fXX_convert_usX_iXX_op(config: Configuration) -> None:
     """
     Common logic function for the CONVERT opcodes
     """
-    instruction = cast(Convert, config.instructions.current)
+    instruction = cast(Convert, config.current_instruction)
 
     base_value = config.pop_u64()
 
@@ -1133,7 +1133,7 @@ def f32demote_op(config: Configuration) -> None:
     """
     Logic function for the F32_DEMOTE_F64 opcode
     """
-    instruction = cast(Convert, config.instructions.current)
+    instruction = cast(Convert, config.current_instruction)
 
     value = config.pop_f64()
 
@@ -1146,7 +1146,7 @@ def f64promote_op(config: Configuration) -> None:
     """
     Logic function for the F64_PROMOTE_F32 opcode
     """
-    instruction = cast(Convert, config.instructions.current)
+    instruction = cast(Convert, config.current_instruction)
 
     value = config.pop_f32()
 
@@ -1165,7 +1165,7 @@ def XXX_reinterpret_XXX_op(config: Configuration) -> None:
     """
     Common logic function for the REINTERPRET opcodes
     """
-    instruction = cast(Convert, config.instructions.current)
+    instruction = cast(Convert, config.current_instruction)
 
     value = config.pop_f32()
 

@@ -69,11 +69,11 @@ from .imports import (
 from .indices import (
     parse_type_idx,
 )
-from .integers import (
-    parse_u32,
-)
 from .memory import (
     parse_memory,
+)
+from .size import (
+    parse_size,
 )
 from .tables import (
     parse_table,
@@ -304,7 +304,7 @@ def _parse_sections(stream: IO[bytes]) -> Iterable[SECTION_TYPES]:
 
         seen_section_ids.add(section_id)
 
-        for empty_id, empty_section in _next_empty_section(section_id, empty_section_iter):
+        for _, empty_section in _next_empty_section(section_id, empty_section_iter):
             missing_section_ids.add(section_id)
             yield empty_section
 
@@ -331,7 +331,7 @@ def validate_section_length(parser_fn: Callable[[IO[bytes]], TReturn]
         # Note: Section parsers all operate under the assumption that their `stream`
         # contains **only** the bytes for the given section.  It follows that
         # successful parsing for any section **must** consume the full stream.
-        declared_size = parse_u32(stream)
+        declared_size = parse_size(stream)
         raw_section = stream.read(declared_size)
 
         if len(raw_section) != declared_size:

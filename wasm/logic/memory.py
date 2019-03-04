@@ -33,12 +33,12 @@ def load_op(config: Configuration) -> None:
     """
     Logic function for the various *LOAD* memory opcodes.
     """
-    instruction = cast(MemoryOp, config.instructions.current)
+    instruction = cast(MemoryOp, config.current_instruction)
     logger.debug("%s()", instruction.opcode.text)
 
     memarg = instruction.memarg
 
-    memory_address = config.frame.module.memory_addrs[0]
+    memory_address = config.frame_module.memory_addrs[0]
     mem = config.store.mems[memory_address]
 
     base_offset = config.pop_u32()
@@ -74,12 +74,12 @@ def store_op(config: Configuration) -> None:
     """
     Logic function for the various *STORE* memory opcodes.
     """
-    instruction = cast(MemoryOp, config.instructions.current)
+    instruction = cast(MemoryOp, config.current_instruction)
     logger.debug("%s()", instruction.opcode.text)
 
     memarg = instruction.memarg
 
-    memory_address = config.frame.module.memory_addrs[0]
+    memory_address = config.frame_module.memory_addrs[0]
     mem = config.store.mems[memory_address]
 
     value = config.pop_operand()
@@ -104,9 +104,9 @@ def memory_size_op(config: Configuration) -> None:
     """
     Logic function for the MEMORY_SIZE opcode
     """
-    logger.debug("%s()", config.instructions.current.opcode.text)
+    logger.debug("%s()", config.current_instruction.opcode.text)
 
-    memory_address = config.frame.module.memory_addrs[0]
+    memory_address = config.frame_module.memory_addrs[0]
     mem = config.store.mems[memory_address]
     size = numpy.uint32(len(mem.data) // constants.PAGE_SIZE_64K)
     config.push_operand(size)
@@ -116,9 +116,9 @@ def memory_grow_op(config: Configuration) -> None:
     """
     Logic function for the MEMORY_GROW opcode
     """
-    logger.debug("%s()", config.instructions.current.opcode.text)
+    logger.debug("%s()", config.current_instruction.opcode.text)
 
-    memory_address = config.frame.module.memory_addrs[0]
+    memory_address = config.frame_module.memory_addrs[0]
     mem = config.store.mems[memory_address]
     current_num_pages = mem.num_pages
     num_pages = config.pop_u32()

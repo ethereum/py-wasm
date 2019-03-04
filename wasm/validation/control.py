@@ -100,7 +100,7 @@ def validate_br(instruction: Br, ctx: ExpressionContext) -> None:
     """
     ctx.control_stack.validate_label_idx(instruction.label_idx)
 
-    frame = ctx.control_stack.get_by_label_idx(instruction.label_idx)
+    frame = ctx.control_stack.get_label_by_idx(instruction.label_idx)
     expected_label_types = frame.label_types
 
     ctx.pop_operands_of_expected_types(expected_label_types)
@@ -113,7 +113,7 @@ def validate_br_if(instruction: BrIf, ctx: ExpressionContext) -> None:
     """
     ctx.control_stack.validate_label_idx(instruction.label_idx)
 
-    frame = ctx.control_stack.get_by_label_idx(instruction.label_idx)
+    frame = ctx.control_stack.get_label_by_idx(instruction.label_idx)
     label_types = frame.label_types
 
     ctx.pop_operand_and_assert_type(ValType.i32)
@@ -129,12 +129,12 @@ def validate_br_table(instruction: BrTable, ctx: ExpressionContext) -> None:
     """
     ctx.control_stack.validate_label_idx(instruction.default_idx)
 
-    frame = ctx.control_stack.get_by_label_idx(instruction.default_idx)
+    frame = ctx.control_stack.get_label_by_idx(instruction.default_idx)
     expected_label_types = frame.label_types
 
     for idx, label_idx in enumerate(instruction.label_indices):
         ctx.control_stack.validate_label_idx(label_idx)
-        label_frame = ctx.control_stack.get_by_label_idx(label_idx)
+        label_frame = ctx.control_stack.get_label_by_idx(label_idx)
 
         if label_frame.label_types != expected_label_types:
             raise ValidationError(

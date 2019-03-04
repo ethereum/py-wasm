@@ -2,6 +2,7 @@ from pathlib import (
     Path,
 )
 from typing import (
+    IO,
     Dict,
     Iterable,
     Optional,
@@ -77,7 +78,7 @@ def _get_import_addresses(runtime: 'Runtime',
                 break
         else:
             raise Unlinkable(
-                f"No export found with name '{import_.module_name}'"
+                f"No export found with name '{import_.as_name}'"
             )
 
 
@@ -234,6 +235,22 @@ class Runtime:
 
         return module
 
+    def load_buffer(self, buffer: IO) -> Module:
+        """
+        Load a Web Assembly module from its binary source file.
+        """
+        try:
+            module = parse_module(buffer)
+        except ParseError as err:
+            raise MalformedModule from err
+
+        try:
+            validate_module(module)
+        except ValidationError as err:
+            raise InvalidModule from err
+
+        return module
+
     def instantiate_module(self,
                            module: Module,
                            ) -> Tuple[ModuleInstance, Optional[Tuple[TValue, ...]]]:
@@ -319,6 +336,9 @@ class Runtime:
 
         return module_instance, result
 
+    def get_configuration(self) -> Configuration:
+        return Configuration(self.store)
+
     def invoke_function(self,
                         function_address: FunctionAddress,
                         function_args: Tuple[TValue, ...] = None,) -> Tuple[TValue, ...]:
@@ -338,7 +358,7 @@ class Runtime:
         for arg, valtype in zip(function_args, function.type.params):
             valtype.validate_arg(arg)
 
-        config = Configuration(self.store)
+        config = self.get_configuration()
 
         if isinstance(function, FunctionInstance):
             from wasm.logic.control import _setup_function_invocation
