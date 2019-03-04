@@ -27,7 +27,7 @@ lint:
 	tox -elint
 
 lint-roll:
-	isort --recursive wasm tests
+	isort --recursive wasm tests scripts
 	$(MAKE) lint
 
 test:
