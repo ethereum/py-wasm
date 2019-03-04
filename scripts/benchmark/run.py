@@ -77,14 +77,10 @@ def _run_basic_bench(runtime, module, fn_name, fn_args, times):
 def do_factorization_benchmarks(prime):
     runtime = Runtime()
 
-    if prime == 1117:
-        module, _ = runtime.instantiate_module(runtime.load_module(FACTORIZATION_1117_WASM))
-    elif prime == 9973:
-        module, _ = runtime.instantiate_module(runtime.load_module(FACTORIZATION_9973_WASM))
-    elif prime == 2147483647:
-        module, _ = runtime.instantiate_module(runtime.load_module(FACTORIZATION_2147483647_WASM))
-    else:
-        raise Exception("Only 1117, 9973, 2147483647 are supported")
+    factorization_file = BASE_DIR / f"factorization_{prime}_reikna_wasm.wasm"
+    if not factorization_file.exists():
+        raise Exception(f"factorization {prime} is not supported: {factorization_file} not found")
+    module, _ = runtime.instantiate_module(runtime.load_module(factorization_file))
 
     logging.info(f"BENCHMARKING: factorization of {prime}")
     delta = time_fn(runtime, module, 'main', (), 1)
@@ -94,16 +90,10 @@ def do_factorization_benchmarks(prime):
 def do_fibonacci_bigint_benchmarks(order):
     runtime = Runtime()
 
-    if order == 1:
-        module, _ = runtime.instantiate_module(runtime.load_module(FIBONACCI_1_WASM))
-    elif order == 11:
-        module, _ = runtime.instantiate_module(runtime.load_module(FIBONACCI_11_WASM))
-    elif order == 17:
-        module, _ = runtime.instantiate_module(runtime.load_module(FIBONACCI_17_WASM))
-    elif order == 38:
-        module, _ = runtime.instantiate_module(runtime.load_module(FIBONACCI_38_WASM))
-    else:
-        raise Exception("Only 1, 11, 17, 38 are supported")
+    fib_file = BASE_DIR / f"fibonacci_{order}_bigint_wasm.wasm"
+    if not fib_file.exists():
+        raise Exception(f"fibonacci {order} is not supported: {fib_file} not found")
+    module, _ = runtime.instantiate_module(runtime.load_module(fib_file))
 
     logging.info(f"BENCHMARKING: recursive computation of fibonacci number {order} (wasm)")
     delta = time_fn(runtime, module, 'main', (), 1)
@@ -113,14 +103,10 @@ def do_fibonacci_bigint_benchmarks(order):
 def do_recursive_keccak(depth):
     runtime = Runtime()
 
-    if depth == 1:
-        module, _ = runtime.instantiate_module(runtime.load_module(RECURSIVE_1_KECCAK))
-    elif depth == 10:
-        module, _ = runtime.instantiate_module(runtime.load_module(RECURSIVE_10_KECCAK))
-    elif depth == 100:
-        module, _ = runtime.instantiate_module(runtime.load_module(RECURSIVE_100_KECCAK))
-    else:
-        raise Exception("Only 1, 10, 100 are supported")
+    keccak_file = BASE_DIR / f"recursive_keccak_{depth}_wasm.wasm"
+    if not keccak_file.exists():
+        raise Exception(f"recursive keccak {depth} is not supported: {keccak_file} not found")
+    module, _ = runtime.instantiate_module(runtime.load_module(keccak_file))
 
     logging.info(f"BENCHMARKING: {depth} recursive keccak hashes")
     delta = time_fn(runtime, module, 'main', (), 1)
