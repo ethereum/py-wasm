@@ -8,7 +8,7 @@ from wasm.datatypes import (
 from wasm.exceptions import (
     ParseError,
 )
-from wasm.parsers.blocks import (
+from wasm.binary.blocks import (
     parse_blocktype,
 )
 

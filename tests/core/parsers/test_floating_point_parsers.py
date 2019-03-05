@@ -8,7 +8,7 @@ from hypothesis import (
 )
 import pytest
 
-from wasm.parsers.floats import (
+from wasm.binary.floats import (
     parse_f32,
     parse_f64,
 )

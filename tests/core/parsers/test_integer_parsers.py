@@ -5,7 +5,7 @@ import pytest
 from wasm.exceptions import (
     MalformedModule,
 )
-from wasm.parsers.integers import (
+from wasm.binary.integers import (
     parse_i32,
     parse_i64,
     parse_s32,

@@ -2,7 +2,7 @@ import io
 
 import pytest
 
-from wasm.parsers.leb128 import (
+from wasm.binary.leb128 import (
     parse_signed_leb128,
     parse_unsigned_leb128,
 )
