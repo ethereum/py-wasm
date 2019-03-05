@@ -43,6 +43,7 @@ class BaseConfiguration(ABC):
     """
     store: Store
     current_instruction: BaseInstruction
+    enable_logic_fn_logging = False
 
     def __init__(self, store: Store) -> None:
         self.store = store
