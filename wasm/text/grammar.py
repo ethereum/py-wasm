@@ -10,16 +10,16 @@ from wasm.exceptions import (
 )
 
 grammar = parsimonious.Grammar(r"""
-script = (_ cmd)*
+script = open (_ cmd)* close
 
 cmd =
   module /
-  ("register" string name?) /
+  (open "register" string name?) /
   action /
   assertion /
   meta
 
-assertion:
+assertion = open (
   ("assert_return"                _ action exprs) /
   ("assert_return_canonical_nan"  _ action) /
   ("assert_return_arithmetic_nan" _ action) /
@@ -27,110 +27,125 @@ assertion:
   ("assert_malformed"             _ module _ string) /
   ("assert_invalid"               _ module _ string) /
   ("assert_unlinkable"            _ module _ string) /
-  ("assert_trap"                  _ module _ string) /
+  ("assert_trap"                  _ module _ string)
+  ) close
 
-action:
+action = open (
   ("invoke" _ name? _ string exprs) /
   ("get" _ name? _ string)
+  ) close
 
-meta =
-  ("script" _ name? script) /
-  ("input"  _ name? string) /
-  ("output" _ name? string?)
+meta = open (
+  ("script" _ name? _ script) /
+  ("input"  _ name? _ string) /
+  ("output" _ name? _ string?)
+  ) close
 
 
-module =
-    ("module" _ name? _ sections) /
-    (                 _ sections) /
-    ("module"         _ sections /
+module = open (
+    ("module" _ name? _ secs) /
+    (                 _ secs) /
+    ("module"         _ secs) /
     ("module" _ name? _ "binary" strings) /
     ("module" _ name? _ "quote" strings)
+    ) close
 
 secs = typedef* _ func* _ import* _ export* _ table? _ memory? _ global* _ elem* _ data* _ start?
 
-start = "start" var
+start = open "start" var close
 
-typedef = "type" name? "func" params results
+typedef = open "type" name? "func" params results close
 
-import = "import" _ string _ string _ imkind
-export = "export" _ string _ exkind
+import = open "import" _ string _ string _ imkind close
+export = open "export" _ string _ exkind close
 
-imkind =
+imkind = open (
     ("func" _ name? _ func_type) /
     ("global" _ name? _ global_type) /
     ("table" _ name? _ table_type) /
     ("memory" _ name? _ memory_type)
-exkind =
+    ) close
+exkind = open (
     ("func" _ var) /
     ("global" _ var) /
     ("table" _ var) /
     ("memory" _ var)
+    ) close
 
-data =
+data = open (
     ("data" _ var? _ offset instrs strings) /
     ("data" _ var? _ expr strings)
-memory =
+    ) close
+memory = open (
     ("memory" _ name? memory_type) /
     ("memory" _ name? exports) /
     ("memory" _ name? _ ("import" _ string _ string) _ memory_type) /
     ("memory" _ name? exports_opt _ ("data" strings))
-elem =
+    ) close
+elem = open (
     ("elem" _ var? _ offset instrs vars) /
     ("elem" _ var? _ expr vars)
-table =
+    ) close
+table = open (
     ("table" _ name? _ table_type) /
     ("table" _ name? exports) /
     ("table" _ name? _ ("import" string _ string) _ table_type) /
     ("table" _ name? exports_opt _ elem_type _ ("elem" vars))
-global =
+    ) close
+global = open (
     ("global" _ name? _ global_type instrs) /
     ("global" _ name? exports) /
     ("global" _ name? _ ("import" _ string _ string) global_type)
-func =
+    ) close
+func = open (
     ("func" _ name? _ func_type locals instrs) /
     ("func" _ name? exports) /
     ("func" _ name? _ ("import" _ string _ string) _ func_type)
+    ) close
 
 exports_opt = (_ "export" _ string)*
 exports = (_ "export" _ string)+
 
-expr =
+exprs = (_ expr)+
+expr = open (
   op /
-  (op _ expr+) /
+  (op exprs) /
   ("block" _ name? _ block_type instrs) /
-  ("loop" _ name? _ block_type instrs) /
-  ("if" _ name? _ block_type _ ("then" instrs)) _ ("else" instrs)?) /
-  ("if" _ name? _ block_type _ expr+ _ ("then" _ instr*) ("else" instrs)?)
+  ("loop"  _ name? _ block_type instrs) /
+  ("if"    _ name? _ block_type       _ "then" instrs _ ("else" instrs)?) /
+  ("if"    _ name? _ block_type exprs _ "then" instrs _ ("else" instrs)?)
+  ) close
 
 instrs = (_ instr)*
-instr =
+instr = open (
   expr /
   op /
   ("block" _ name? _ block_type instrs _ "end" _ name?) /
-  ("loop" _ name? _ block_type instrs _ "end" _ name?) /
-  ("if" _ name? _ block_type instrs _ "end" _ name?) /
-  ("if" _ name? _ block_type instrs _ "else" _ name? instrs "end" _ name? )
+  ("loop"  _ name? _ block_type instrs _ "end" _ name?) /
+  ("if"    _ name? _ block_type instrs _ "end" _ name?) /
+  ("if"    _ name? _ block_type instrs _ "else" _ name? instrs "end" _ name? )
+  ) close
 
 elem_type = "funcref"
-block_type = ("result" valtypes)*
-func_type:   ("type" _ var)? params results
-global_type: val_type | ("mut" val_type)
-table_type:  nat _ nat? _ elem_type
-memory_type: nat _ nat?
+block_type = ("result" val_types)*
+func_type = ("type" _ var)? params results
+global_type = val_type / ("mut" val_type)
+table_type = nat _ nat? _ elem_type
+memory_type = nat _ nat?
 
 params = (_ param)*
-param = ("param" valtypes) | ("param" _ name _ val_type)
+param = ("param" val_types) / ("param" _ name _ val_type)
 results = (_ result)*
-result = "result" valtypes
+result = "result" val_types
 locals = (_ local)*
-local = ("local" valtypes) | ("local" _ name _ val_type)
+local = ("local" val_types) / ("local" _ name _ val_type)
 
 op =
   "unreachable" /
   "nop" /
   ("br" _ var) /
-  ("br_if _ var) /
-  ("br_table vars) /
+  ("br_if" _ var) /
+  ("br_table" vars) /
   "return" /
   ("call" _ var) /
   ("call_indirect" _ func_type) /
@@ -153,29 +168,29 @@ op =
 numeric_op =
     float_ops /
     integer_ops /
-    i32 ".wrap_" i64 /
-    i32 ".trunc_" float_types "_" sign /
-    i64 ".extend_" i32 "_" sign /
-    i64 ".trunc_" float_types "_" sign /
-    float_types ".convert_" integer_types "_" sign /
-    f32 ".demote_" f64 /
-    f64 ".promote" f32 /
-    i32 ".reinterpret_" f32 /
-    i64 ".reinterpret_" f64 /
-    f32 ".reinterpret_" i32 /
-    f64 ".reinterpret_" i64
+    (i32 ".wrap_" i64) /
+    (i64 ".extend_" i32 "_" sign) /
+    (i32 ".trunc_" float_types "_" sign) /
+    (i64 ".trunc_" float_types "_" sign) /
+    (float_types ".convert_" integer_types "_" sign) /
+    (f32 ".demote_" f64) /
+    (f64 ".promote" f32) /
+    (i32 ".reinterpret_" f32) /
+    (i64 ".reinterpret_" f64) /
+    (f32 ".reinterpret_" i32) /
+    (f64 ".reinterpret_" i64)
 
 
-float_ops = float_types "." (float_unop_names | float_binop_names | float_relop_names)
-integer_ops = integer_types "." (integer_binop_names | integer_relop_names)
-numeric_const_op = valtype ".const"
+float_ops = float_types "." (float_unop_names / float_binop_names / float_relop_names)
+integer_ops = integer_types "." (integer_binop_names / integer_relop_names)
+numeric_const_op = val_type ".const"
 
 integer_binop_names =
     "add" /
     "sub" /
     "mul" /
-    "div_" sign /
-    "rem_" sign /
+    ("div_" sign) /
+    ("rem_" sign) /
     "and" /
     "or" /
     "xor" /
@@ -204,10 +219,10 @@ integer_relop_names =
     "eqz" /
     "eq" /
     "ne" /
-    "lt_" sign /
-    "gt_" sign /
-    "le_" sign /
-    "ge_" sign
+    ("lt_" sign) /
+    ("gt_" sign) /
+    ("le_" sign) /
+    ("ge_" sign)
 float_relop_names =
     "eq" /
     "ne" /
@@ -252,7 +267,7 @@ name = "$" (
     "|" / ":" / "'" / "`"
     )+
 
-char = letter | digit
+char = letter / digit
 letter = ~"[a-zA-Z]"
 
 newline = "\n"
@@ -260,9 +275,9 @@ tab = "\t"
 backslash = "\\"
 
 escaped_hex_char = backslash hexdigit hexdigit
-escaped_unicode_char = "\u" hexdigit+
+escaped_unicode_char = "\\u" hexdigit+
 
-escaped_backslash "\\\\"
+escaped_backslash = "\\\\"
 
 single_quote = "'"
 double_quote = "\""
@@ -270,15 +285,18 @@ double_quote = "\""
 escaped_single_quote = "\\\'"
 escaped_double_quote = "\\\""
 
-float = num "." num? (("e" / "E") num)? / "0x" hexnum "." hexnum? (("p" / "P") num)?
-int = nat / "+" nat / "-" nat
-nat = num / "0x" hexnum
+float = (num "." num? (("e" / "E") num)?) / ("0x" hexnum "." hexnum? (("p" / "P") num)?)
+int = nat / ("+" nat) / ("-" nat)
+nat = num / ("0x" hexnum)
 
 hexnum = hexdigit (_? hexdigit)*
 hexdigit = ~"[0-9a-fA-F]"
 
+open = "(" _
+close = _ ")"
 num = digit (_? digit)*
 digit = ~"[0-9]"
+_ = (" " / "\n" / "/t")*
 """)
 
 
@@ -324,6 +342,7 @@ class NodeVisitor(parsimonious.NodeVisitor):
         try:
             return super().parse(type_str)
         except parsimonious.ParseError as e:
+            arst = e
             raise ParseError(e.text, e.pos, e.expr)
 
 
