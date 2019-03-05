@@ -81,3 +81,11 @@ class ExportInstance(NamedTuple):
     @property
     def function_address(self) -> FunctionAddress:
         return cast(FunctionAddress, self.value)
+
+    @property
+    def is_memory(self):
+        return isinstance(self.value, MemoryAddress)
+
+    @property
+    def memory_address(self) -> MemoryAddress:
+        return cast(MemoryAddress, self.value)
