@@ -119,31 +119,47 @@ instr = open (
   ) close
 
 op =
-  "unreachable" /
-  "nop" /
-  ("br" _ var) /
-  ("br_if" _ var) /
-  ("br_table" vars) /
-  "return" /
-  ("call" _ var) /
-  ("call_indirect" _ func_type) /
-  "drop" /
-  "select" /
-  ("local.get" _ var) /
-  ("local.set" _ var) /
-  ("local.tee" _ var) /
-  ("global.get" _ var) /
-  ("global.set" _ var) /
-  (integer_types ".load" ("8" / "16" / "32")? "_" sign (_ offset)? (_ align)?) /
-  (float_types ".load" (_ offset?) (_ align)?) /
-  (integer_types ".store" ("8" / "16")? (_ offset)? (_ align)?) /
-  (float_types ".store" (_ offset)? (_ align)?) /
-  "memory.size" /
-  "memory.grow" /
-  (numeric_const_op _ value) /
-  numeric_op
+    control_ops /
+    parametric_ops /
+    variable_ops /
+    memory_ops /
+    numeric_ops
 
-numeric_op =
+
+control_ops =
+    "unreachable" /
+    "nop" /
+    ("br" _ var) /
+    ("br_if" _ var) /
+    ("br_table" vars) /
+    "return" /
+    ("call" _ var) /
+    ("call_indirect" _ func_type) /
+
+parametric_ops =
+    "drop" /
+    "select" /
+
+variable_ops =
+    ("local.get" _ var) /
+    ("local.set" _ var) /
+    ("local.tee" _ var) /
+    ("global.get" _ var) /
+    ("global.set" _ var) /
+
+memory_ops =
+    (integer_types ".load" ("8" / "16" / "32")? "_" sign (_ offset)? (_ align)?) /
+    (float_types ".load" (_ offset?) (_ align)?) /
+    (integer_types ".store" ("8" / "16")? (_ offset)? (_ align)?) /
+    (float_types ".store" (_ offset)? (_ align)?) /
+    "memory.size" /
+    "memory.grow" /
+
+align = "align=" ("1" / "2" / "4" / "8" / "16" / "32")
+offset = "offset=" nat
+
+numeric_ops =
+    (numeric_const_op _ value) /
     float_ops /
     integer_ops /
     (i32 ".wrap_" i64) /
@@ -161,7 +177,18 @@ numeric_op =
 
 float_ops = float_types "." (float_unop_names / float_binop_names / float_relop_names)
 integer_ops = integer_types "." (integer_binop_names / integer_relop_names)
-numeric_const_op = valtype ".const"
+
+block_type = ("result" valtypes)*
+func_type = ("type" _ var)? params results
+global_type = valtype / ("mut" valtype)
+table_type = nat _ nat? _ elem_type
+memory_type = nat _ nat?
+
+elem_type = "funcref"
+
+"""
+
+cache = """
 
 integer_binop_names =
     "add" /
@@ -211,24 +238,14 @@ float_relop_names =
 
 sign = "s" / "u"
 
-align = "align=" ("1" / "2" / "4" / "8" / "16" / "32")
-offset = "offset=" nat
-
-elem_type = "funcref"
-block_type = ("result" valtypes)*
-func_type = ("type" _ var)? params results
-global_type = valtype / ("mut" valtype)
-table_type = nat _ nat? _ elem_type
-memory_type = nat _ nat?
-
-"""
-
-cache = """
-
 """
 
 GRAMMAR = parsimonious.Grammar(r"""
-component = results / params / locals
+component = results / params / locals / op
+
+op = numeric_const_op
+
+numeric_const_op = open valtype ".const" _ value close
 
 params = param params_tail*
 params_tail = (_ param)
@@ -236,7 +253,7 @@ param = open any_param close
 any_param = bare_param / named_param
 
 named_param = "param" _ name _ valtype
-bare_param  = "param"          valtypes
+bare_param  = "param" _        valtypes
 
 results = result results_tail*
 results_tail = _ result
@@ -301,12 +318,12 @@ float = (num "." num? (("e" / "E") num)?) / ("0x" hexnum "." hexnum? (("p" / "P"
 int = nat / ("+" nat) / ("-" nat)
 nat = num / ("0x" hexnum)
 
-hexnum = hexdigit (_? hexdigit)*
+hexnum = hexdigit+
 hexdigit = ~"[0-9a-fA-F]"
 
 open = "(" _?
 close = _? ")"
-num = digit (_? digit)*
+num = digit+
 digit = ~"[0-9]"
 _ = whitespace
 whitespace = whitespace_chars+

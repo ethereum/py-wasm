@@ -5,9 +5,6 @@ from parsimonious import (
     expressions,
 )
 
-from wasm._utils.decorators import (
-    to_tuple,
-)
 from wasm._utils.toolz import (
     concatv,
 )
@@ -16,6 +13,12 @@ from wasm.datatypes import (
 )
 from wasm.exceptions import (
     ParseError,
+)
+from wasm.instructions.numeric import (
+    I32Const,
+    I64Const,
+    F32Const,
+    F64Const,
 )
 
 from .grammar import GRAMMAR
@@ -58,37 +61,74 @@ class NodeVisitor(parsimonious.NodeVisitor):
     """
     grammar = GRAMMAR
 
-    def visit_components(self, node, visited_children):
-        head, tail = visited_children
-        if tail:
-            assert False
-            return concatv(head, tuple(item for ws, item in tail))
-        else:
-            return head
-
-    def visit_component_tail(self, node, visited_children):
-        assert False
-
     def visit_component(self, node, visited_children):
         return visited_children[0]
 
     @staticmethod
-    def _extract_simple_valtypes(node, visited_children):
+    def _process_tail(node, visited_children):
+        ws, tail = visited_children
+        assert is_empty(ws)
+        return tail
+
+    @staticmethod
+    def _join_multi_head_with_tail(node, visited_children):
+        head, tail = visited_children
+        return tuple(concatv(head, *tail))
+
+    @staticmethod
+    def _join_single_head_with_tail(node, visited_children):
+        head, tail = visited_children
+        return tuple(concatv((head,), tail))
+
+    #
+    # Numeric Constant
+    #
+    def visit_numeric_const_op(self, node, visited_children):
+        lparen, valtype, txt, ws, value, rparen = visited_children
+        assert is_empty(lparen, txt, ws, rparen)
+        if valtype is ValType.i32:
+            return I32Const(value)
+        elif valtype is ValType.i64:
+            return I64Const(value)
+        elif valtype is ValType.f32:
+            return F32Const(value)
+        elif valtype is ValType.f64:
+            return F64Const(value)
+        else:
+            raise Exception("INVALID")
+
+    #
+    # Params
+    #
+    def visit_params(self, node, visited_children):
+        return self._join_multi_head_with_tail(node, visited_children)
+
+    def visit_params_tail(self, node, visited_children):
+        return self._process_tail(node, visited_children)
+
+    def visit_param(self, node, visited_children):
+        lparen, params, rparen = visited_children
+        assert is_empty(lparen, rparen)
+        return params
+
+    def visit_named_param(self, node, visited_children):
+        ws0, txt, name, ws1, valtype = visited_children
+        assert is_empty(ws0, txt, ws1)
+        return (Param(valtype, name),)
+
+    def visit_bare_param(self, node, visited_children):
         txt, ws, valtypes = visited_children
         assert is_empty(txt, ws)
-        return valtypes
+        return tuple(Param(valtype) for valtype in valtypes)
 
     #
     # Results
     #
     def visit_results(self, node, visited_children):
-        head, tail = visited_children
-        return tuple(concatv((head,), tail))
+        return self._join_single_head_with_tail(node, visited_children)
 
     def visit_results_tail(self, node, visited_children):
-        ws, results = visited_children
-        assert is_empty(ws)
-        return results
+        return self._process_tail(node, visited_children)
 
     def visit_result(self, node, visited_children):
         lparen, txt, ws, valtypes, rparen = visited_children
@@ -99,13 +139,10 @@ class NodeVisitor(parsimonious.NodeVisitor):
     # Locals
     #
     def visit_locals(self, node, visited_children):
-        head, tail = visited_children
-        return tuple(concatv(head, *tail))
+        return self._join_multi_head_with_tail(node, visited_children)
 
     def visit_locals_tail(self, node, visited_children):
-        ws, locals = visited_children
-        assert is_empty(ws)
-        return locals
+        return self._process_tail(node, visited_children)
 
     def visit_local(self, node, visited_children):
         lparen, locals, rparen = visited_children
@@ -127,12 +164,10 @@ class NodeVisitor(parsimonious.NodeVisitor):
     #
     def visit_valtypes(self, node, visited_children):
         head, tail = visited_children
-        return concatv((head,), tail)
+        return tuple(concatv((head,), tail))
 
     def visit_valtypes_tail(self, node, visited_children):
-        ws, valtypes = visited_children
-        assert is_empty(ws)
-        return valtypes
+        return self._process_tail(node, visited_children)
 
     def visit_valtype(self, node, visited_children):
         return ValType.from_str(node.text)
@@ -140,13 +175,15 @@ class NodeVisitor(parsimonious.NodeVisitor):
     #
     # Simple Values
     #
-    def visit_digits(self, node, visited_children):
+    def visit_num(self, node, visited_children):
         return int(node.text)
 
     def visit_name(self, node, visited_children):
         return node.text
 
+    #
     # Structure Values
+    #
     def visit_open(self, node, visited_children):
         return None
 

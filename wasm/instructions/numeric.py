@@ -1,6 +1,5 @@
 import enum
 from typing import (
-    NamedTuple,
     Optional,
 )
 
@@ -25,76 +24,53 @@ from .base import (
 #
 # Numeric
 #
+class BaseNumericConstant(SimpleOp):
+    def __str__(self) -> str:
+        return f"{self.opcode.text}[{self.value}]"
+
+
 @register
-class I32Const(NamedTuple):
-    opcode: BinaryOpcode
-    valtype: ValType
+class I32Const(BaseNumericConstant):
+    opcode = BinaryOpcode.I32_CONST
+    valtype = ValType.i32
+
     value: numpy.uint32
 
-    def __str__(self) -> str:
-        return f"{self.opcode.text}[{self.value}]"
-
-    @classmethod
-    def from_opcode(cls,
-                    opcode: BinaryOpcode,
-                    value: numpy.uint32) -> 'I32Const':
-        if opcode is not BinaryOpcode.I32_CONST:
-            raise TypeError(f"Invalid opcode: {opcode}")
-        return cls(opcode, ValType.i32, value)
+    def __init__(self, value: numpy.uint32) -> None:
+        self.value = value
 
 
 @register
-class I64Const(NamedTuple):
-    opcode: BinaryOpcode
-    valtype: ValType
+class I64Const(BaseNumericConstant):
+    opcode = BinaryOpcode.I64_CONST
+    valtype = ValType.i64
+
     value: numpy.uint64
 
-    def __str__(self) -> str:
-        return f"{self.opcode.text}[{self.value}]"
-
-    @classmethod
-    def from_opcode(cls,
-                    opcode: BinaryOpcode,
-                    value: numpy.uint64) -> 'I64Const':
-        if opcode is not BinaryOpcode.I64_CONST:
-            raise TypeError(f"Invalid opcode: {opcode}")
-        return cls(opcode, ValType.i64, value)
+    def __init__(self, value: numpy.uint64) -> None:
+        self.value = value
 
 
 @register
-class F32Const(NamedTuple):
-    opcode: BinaryOpcode
-    valtype: ValType
+class F32Const(BaseNumericConstant):
+    opcode = BinaryOpcode.F32_CONST
+    valtype = ValType.f32
+
     value: numpy.float32
 
-    def __str__(self) -> str:
-        return f"{self.opcode.text}[{self.value}]"
-
-    @classmethod
-    def from_opcode(cls,
-                    opcode: BinaryOpcode,
-                    value: numpy.float32) -> 'F32Const':
-        if opcode is not BinaryOpcode.F32_CONST:
-            raise TypeError(f"Invalid opcode: {opcode}")
-        return cls(opcode, ValType.f32, value)
+    def __init__(self, value: numpy.float32) -> None:
+        self.value = value
 
 
 @register
-class F64Const(NamedTuple):
-    opcode: BinaryOpcode
-    valtype: ValType
+class F64Const(BaseNumericConstant):
+    opcode = BinaryOpcode.F64_CONST
+    valtype = ValType.f64
+
     value: numpy.float64
 
-    def __str__(self) -> str:
-        return f"{self.opcode.text}[{self.value}]"
-
-    @classmethod
-    def from_opcode(cls,
-                    opcode: BinaryOpcode,
-                    value: numpy.float64) -> 'F64Const':
-        if opcode is not BinaryOpcode.F64_CONST:
-            raise TypeError(f"Invalid opcode: {opcode}")
-        return cls(opcode, ValType.f64, value)
+    def __init__(self, value: numpy.float64) -> None:
+        self.value = value
 
 
 class Comparison(enum.Enum):
