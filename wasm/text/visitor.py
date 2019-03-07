@@ -9,7 +9,6 @@ from wasm._utils.decorators import (
     to_tuple,
 )
 from wasm._utils.toolz import (
-    concat,
     concatv,
 )
 from wasm.datatypes import (
@@ -22,6 +21,7 @@ from wasm.exceptions import (
 from .grammar import GRAMMAR
 from .ir import (
     Local,
+    Param,
 )
 
 
@@ -125,13 +125,14 @@ class NodeVisitor(parsimonious.NodeVisitor):
     #
     # WASM Values
     #
-    @to_tuple
     def visit_valtypes(self, node, visited_children):
-        first, tail = visited_children
-        yield first
-        for ws, valtype in tail:
-            assert is_empty(ws)
-            yield valtype
+        head, tail = visited_children
+        return concatv((head,), tail)
+
+    def visit_valtypes_tail(self, node, visited_children):
+        ws, valtypes = visited_children
+        assert is_empty(ws)
+        return valtypes
 
     def visit_valtype(self, node, visited_children):
         return ValType.from_str(node.text)

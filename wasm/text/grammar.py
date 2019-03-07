@@ -211,18 +211,15 @@ float_relop_names =
 
 sign = "s" / "u"
 
+align = "align=" ("1" / "2" / "4" / "8" / "16" / "32")
+offset = "offset=" nat
+
 elem_type = "funcref"
 block_type = ("result" valtypes)*
 func_type = ("type" _ var)? params results
 global_type = valtype / ("mut" valtype)
 table_type = nat _ nat? _ elem_type
 memory_type = nat _ nat?
-
-params = (_ param)*
-param = named_param / bare_param
-
-named_param = open "param" _ name _ valtype close
-bare_param = open "param" valtypes close
 
 """
 
@@ -231,7 +228,15 @@ cache = """
 """
 
 GRAMMAR = parsimonious.Grammar(r"""
-component = (results / locals)
+component = results / params / locals
+
+params = param params_tail*
+params_tail = (_ param)
+param = open any_param close
+any_param = bare_param / named_param
+
+named_param = "param" _ name _ valtype
+bare_param  = "param"          valtypes
 
 results = result results_tail*
 results_tail = _ result
@@ -243,12 +248,10 @@ local = open any_local close
 any_local = bare_local / named_local
 
 named_local = "local" _ name _ valtype
-bare_local =  "local" _        valtypes
+bare_local  = "local" _        valtypes
 
-align = "align=" ("1" / "2" / "4" / "8" / "16" / "32")
-offset = "offset=" nat
-
-valtypes = valtype (_ valtype)*
+valtypes = valtype valtypes_tail*
+valtypes_tail = _ valtype
 valtype = integer_types / float_types
 
 float_types = f32 / f64

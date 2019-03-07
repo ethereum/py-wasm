@@ -21,6 +21,7 @@ f64 = ValType.f64
         ('(local f64)', (Local(f64),)),
         ('(local i32 i64)', (Local(i32), Local(i64))),
         ('(local f32 f64)', (Local(f32), Local(f64))),
+        ('(local f32 f64 i32 i64)', (Local(f32), Local(f64), Local(i32), Local(i64))),
         # named
         ('(local $i i32)', (Local(i32, '$i'),)),
         # multi

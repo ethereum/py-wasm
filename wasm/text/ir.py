@@ -11,3 +11,8 @@ from wasm.datatypes import (
 class Local(NamedTuple):
     valtype: ValType
     name: Optional[str] = None
+
+
+class Param(NamedTuple):
+    valtype: ValType
+    name: Optional[str] = None
