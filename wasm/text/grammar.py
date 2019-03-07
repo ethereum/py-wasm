@@ -158,8 +158,31 @@ memory_ops =
 align = "align=" ("1" / "2" / "4" / "8" / "16" / "32")
 offset = "offset=" nat
 
-numeric_ops =
-    (numeric_const_op _ value) /
+
+block_type = ("result" valtypes)*
+func_type = ("type" _ var)? params results
+global_type = valtype / ("mut" valtype)
+table_type = nat _ nat? _ elem_type
+memory_type = nat _ nat?
+
+elem_type = "funcref"
+
+"""
+
+cache = """
+
+
+"""
+
+GRAMMAR = parsimonious.Grammar(r"""
+component = results / params / locals / op
+
+op = numeric_op
+
+numeric_op = open inner_numeric_op close
+
+inner_numeric_op =
+    inner_numeric_const /
     float_ops /
     integer_ops /
     (i32 ".wrap_" i64) /
@@ -174,21 +197,10 @@ numeric_ops =
     (f32 ".reinterpret_" i32) /
     (f64 ".reinterpret_" i64)
 
+inner_numeric_const = valtype ".const" _ value
 
 float_ops = float_types "." (float_unop_names / float_binop_names / float_relop_names)
 integer_ops = integer_types "." (integer_binop_names / integer_relop_names)
-
-block_type = ("result" valtypes)*
-func_type = ("type" _ var)? params results
-global_type = valtype / ("mut" valtype)
-table_type = nat _ nat? _ elem_type
-memory_type = nat _ nat?
-
-elem_type = "funcref"
-
-"""
-
-cache = """
 
 integer_binop_names =
     "add" /
@@ -237,13 +249,6 @@ float_relop_names =
     "ge"
 
 sign = "s" / "u"
-
-"""
-
-GRAMMAR = parsimonious.Grammar(r"""
-component = results / params / locals / op
-
-op = numeric_const_op
 
 numeric_const_op = open valtype ".const" _ value close
 

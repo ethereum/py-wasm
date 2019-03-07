@@ -81,11 +81,19 @@ class NodeVisitor(parsimonious.NodeVisitor):
         return tuple(concatv((head,), tail))
 
     #
+    # Numeric ops
+    #
+    def visit_numeric_op(self, node, visited_children):
+        lparen, instruction, rparen = visited_children
+        assert is_empty(lparen, rparen)
+        return instruction
+
+    #
     # Numeric Constant
     #
-    def visit_numeric_const_op(self, node, visited_children):
-        lparen, valtype, txt, ws, value, rparen = visited_children
-        assert is_empty(lparen, txt, ws, rparen)
+    def visit_inner_numeric_const(self, node, visited_children):
+        valtype, txt, ws, value = visited_children
+        assert is_empty(txt, ws)
         if valtype is ValType.i32:
             return I32Const(value)
         elif valtype is ValType.i64:
