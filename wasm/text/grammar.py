@@ -1,15 +1,7 @@
-import functools
-
 import parsimonious
-from parsimonious import (
-    expressions,
-)
 
-from wasm.exceptions import (
-    ParseError,
-)
 
-grammar = parsimonious.Grammar(r"""
+UNTESTED = """
 script = open (_ cmd)* close
 
 cmd =
@@ -54,7 +46,7 @@ secs = typedef* _ func* _ import* _ export* _ table? _ memory? _ global* _ elem*
 
 start = open "start" var close
 
-typedef = open "type" name? "func" params results close
+typedef = open "type" name? open "func" params result close close
 
 import = open "import" _ string _ string _ imkind close
 export = open "export" _ string _ exkind close
@@ -73,34 +65,34 @@ exkind = open (
     ) close
 
 data = open (
-    ("data" _ var? _ offset instrs strings) /
+    ("data" _ var? _ open offset instrs close strings) /
     ("data" _ var? _ expr strings)
     ) close
 memory = open (
     ("memory" _ name? memory_type) /
     ("memory" _ name? exports) /
-    ("memory" _ name? _ ("import" _ string _ string) _ memory_type) /
-    ("memory" _ name? exports_opt _ ("data" strings))
+    ("memory" _ name? _ open "import" _ string _ string close _ memory_type) /
+    ("memory" _ name? exports_opt _ open "data" strings close)
     ) close
 elem = open (
-    ("elem" _ var? _ offset instrs vars) /
+    ("elem" _ var? _ open "offset" instrs close vars) /
     ("elem" _ var? _ expr vars)
     ) close
 table = open (
     ("table" _ name? _ table_type) /
     ("table" _ name? exports) /
-    ("table" _ name? _ ("import" string _ string) _ table_type) /
-    ("table" _ name? exports_opt _ elem_type _ ("elem" vars))
+    ("table" _ name? open "import" string _ string close table_type) /
+    ("table" _ name? exports_opt _ elem_type _ open "elem" vars close)
     ) close
 global = open (
     ("global" _ name? _ global_type instrs) /
     ("global" _ name? exports) /
-    ("global" _ name? _ ("import" _ string _ string) global_type)
+    ("global" _ name? open "import" _ string _ string close global_type)
     ) close
 func = open (
     ("func" _ name? _ func_type locals instrs) /
     ("func" _ name? exports) /
-    ("func" _ name? _ ("import" _ string _ string) _ func_type)
+    ("func" _ name? open "import" _ string _ string close func_type)
     ) close
 
 exports_opt = (_ "export" _ string)*
@@ -112,8 +104,8 @@ expr = open (
   (op exprs) /
   ("block" _ name? _ block_type instrs) /
   ("loop"  _ name? _ block_type instrs) /
-  ("if"    _ name? _ block_type       _ "then" instrs _ ("else" instrs)?) /
-  ("if"    _ name? _ block_type exprs _ "then" instrs _ ("else" instrs)?)
+  ("if"    _ name? _ block_type       open "then" instrs close (open "else" instrs close)?) /
+  ("if"    _ name? _ block_type exprs open "then" instrs close (open "else" instrs close)?)
   ) close
 
 instrs = (_ instr)*
@@ -125,20 +117,6 @@ instr = open (
   ("if"    _ name? _ block_type instrs _ "end" _ name?) /
   ("if"    _ name? _ block_type instrs _ "else" _ name? instrs "end" _ name? )
   ) close
-
-elem_type = "funcref"
-block_type = ("result" val_types)*
-func_type = ("type" _ var)? params results
-global_type = val_type / ("mut" val_type)
-table_type = nat _ nat? _ elem_type
-memory_type = nat _ nat?
-
-params = (_ param)*
-param = ("param" val_types) / ("param" _ name _ val_type)
-results = (_ result)*
-result = "result" val_types
-locals = (_ local)*
-local = ("local" val_types) / ("local" _ name _ val_type)
 
 op =
   "unreachable" /
@@ -183,7 +161,7 @@ numeric_op =
 
 float_ops = float_types "." (float_unop_names / float_binop_names / float_relop_names)
 integer_ops = integer_types "." (integer_binop_names / integer_relop_names)
-numeric_const_op = val_type ".const"
+numeric_const_op = valtype ".const"
 
 integer_binop_names =
     "add" /
@@ -231,14 +209,47 @@ float_relop_names =
     "le" /
     "ge"
 
+sign = "s" / "u"
+
+elem_type = "funcref"
+block_type = ("result" valtypes)*
+func_type = ("type" _ var)? params results
+global_type = valtype / ("mut" valtype)
+table_type = nat _ nat? _ elem_type
+memory_type = nat _ nat?
+
+params = (_ param)*
+param = named_param / bare_param
+
+named_param = open "param" _ name _ valtype close
+bare_param = open "param" valtypes close
+
+"""
+
+cache = """
+
+"""
+
+GRAMMAR = parsimonious.Grammar(r"""
+component = (results / locals)
+
+results = result results_tail*
+results_tail = _ result
+result = open "result" _ valtypes close
+
+locals = local locals_tail*
+locals_tail = (_ local)
+local = open any_local close
+any_local = bare_local / named_local
+
+named_local = "local" _ name _ valtype
+bare_local =  "local" _        valtypes
 
 align = "align=" ("1" / "2" / "4" / "8" / "16" / "32")
 offset = "offset=" nat
 
-val_types = (_ val_type)*
-val_type = integer_types / float_types
-
-sign = "s" / "u"
+valtypes = valtype (_ valtype)*
+valtype = integer_types / float_types
 
 float_types = f32 / f64
 integer_types = i32 / i64
@@ -248,11 +259,9 @@ i64 = "i64"
 f32 = "f32"
 f64 = "f64"
 
-vars = (_ var)+
 var = nat / name
 value = int / float
 
-strings = (_ string)*
 string = double_quote (
     char / newline / tab / escaped_backslash /
     escaped_single_quote / escaped_double_quote /
@@ -292,61 +301,11 @@ nat = num / ("0x" hexnum)
 hexnum = hexdigit (_? hexdigit)*
 hexdigit = ~"[0-9a-fA-F]"
 
-open = "(" _
-close = _ ")"
+open = "(" _?
+close = _? ")"
 num = digit (_? digit)*
 digit = ~"[0-9]"
-_ = (" " / "\n" / "/t")*
+_ = whitespace
+whitespace = whitespace_chars+
+whitespace_chars = " " / "\n" / "/t"
 """)
-
-
-class NodeVisitor(parsimonious.NodeVisitor):
-    """
-    Parsimonious node visitor which performs both parsing of type strings and
-    post-processing of parse trees.  Parsing operations are cached.
-    """
-    grammar = grammar
-
-    ############
-    def visit_digits(self, node, visited_children):
-        return int(node.text)
-
-    def generic_visit(self, node, visited_children):
-        if isinstance(node.expr, expressions.OneOf):
-            # Unwrap value chosen from alternatives
-            return visited_children[0]
-
-        if isinstance(node.expr, expressions.Optional):
-            # Unwrap optional value or return `None`
-            if len(visited_children) != 0:
-                return visited_children[0]
-
-            return None
-
-        return tuple(visited_children)
-
-    @functools.lru_cache(maxsize=None)
-    def parse(self, type_str):
-        """
-        Parses a type string into an appropriate instance of
-        :class:`~eth_abi.grammar.ABIType`.  If a type string cannot be parsed,
-        throws :class:`~eth_abi.exceptions.ParseError`.
-
-        :param type_str: The type string to be parsed.
-        :returns: An instance of :class:`~eth_abi.grammar.ABIType` containing
-            information about the parsed type string.
-        """
-        if not isinstance(type_str, str):
-            raise TypeError('Can only parse string values: got {}'.format(type(type_str)))
-
-        try:
-            return super().parse(type_str)
-        except parsimonious.ParseError as e:
-            arst = e
-            raise ParseError(e.text, e.pos, e.expr)
-
-
-visitor = NodeVisitor()
-
-
-parse = visitor.parse

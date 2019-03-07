@@ -22,7 +22,7 @@ class MemoryType(NamedTuple):
     https://webassembly.github.io/spec/core/bikeshed/index.html#memory-types%E2%91%A0
     """
     min: numpy.uint32
-    max: Optional[numpy.uint32]
+    max: Optional[numpy.uint32] = None
 
 
 class Memory(NamedTuple):
