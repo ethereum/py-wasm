@@ -136,18 +136,6 @@ control_ops =
     ("call" _ var) /
     ("call_indirect" _ func_type) /
 
-parametric_ops =
-    "drop" /
-    "select" /
-
-variable_ops =
-    ("local.get" _ var) /
-    ("local.set" _ var) /
-    ("local.tee" _ var) /
-    ("global.get" _ var) /
-    ("global.set" _ var) /
-
-
 block_type = ("result" valtypes)*
 func_type = ("type" _ var)? params results
 global_type = valtype / ("mut" valtype)
@@ -164,21 +152,41 @@ cache = """
 """
 
 GRAMMAR = parsimonious.Grammar(r"""
-component = results / params / locals / op
+component = results / params / locals / func_type / op
 
-op = numeric_op / memory_op
+op = numeric_op / memory_op / variable_op / parametric_op
+
+func_type = open "func" (_ params)? (_ results)? close
+
+parametric_op = open any_parametric_op close
+any_parametric_op = "drop" / "select"
+
+variable_op = open any_variable_op close
+
+any_variable_op = (local_variable_op / global_variable_op) _ var
+
+global_variable_op = "global.get" / "global.set"
+local_variable_op ="local.get" / "local.set" / "local.tee"
 
 memory_op = open inner_memory_op close
 inner_memory_op =
-    memory_load_op /
-    (integer_types ".store" ("8" / "16")? memory_arg) /
-    (float_types ".store" memory_arg) /
-    "memory.size" /
-    "memory.grow"
+    memory_access_op /
+    memory_size_op /
+    memory_grow_op
+
+memory_size_op = "memory.size"
+memory_grow_op = "memory.grow"
+
+memory_access_op = memory_load_op / memory_store_op
+
+memory_store_op = memory_store_float_op / memory_store_integer_op
+memory_store_float_op = float_types ".store" memory_arg
+memory_store_integer_op = integer_types ".store" (("8" / "16" / "32") memory_arg)?
 
 memory_load_op = memory_load_float_op / memory_load_integer_op
 memory_load_float_op = float_types ".load" memory_arg
 memory_load_integer_op = integer_types ".load" (("8" / "16" / "32") "_" sign memory_arg)?
+
 memory_arg = (_ offset)? (_ align)?
 
 align = "align=" ("1" / "2" / "4" / "8" / "16" / "32")
@@ -277,10 +285,11 @@ numeric_const_op = open valtype ".const" _ value close
 params = param params_tail*
 params_tail = (_ param)
 param = open any_param close
-any_param = bare_param / named_param
+any_param = bare_param / named_param / empty_param
 
 named_param = "param" _ name _ valtype
 bare_param  = "param" _        valtypes
+empty_param = "param"
 
 results = result results_tail*
 results_tail = _ result

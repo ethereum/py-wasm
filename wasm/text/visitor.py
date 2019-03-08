@@ -14,6 +14,14 @@ from wasm.datatypes import (
 from wasm.exceptions import (
     ParseError,
 )
+from wasm.instructions.variable import (
+    LocalOp,
+    GlobalOp,
+)
+from wasm.instructions.parametric import (
+    Drop,
+    Select,
+)
 from wasm.instructions.numeric import (
     Reinterpret,
     Demote,
@@ -33,6 +41,8 @@ from wasm.instructions.numeric import (
 from wasm.instructions.memory import (
     MemoryArg,
     MemoryOp,
+    MemorySize,
+    MemoryGrow,
 )
 from wasm.opcodes import (
     BinaryOpcode,
@@ -43,6 +53,8 @@ from .grammar import GRAMMAR
 from .ir import (
     Local,
     Param,
+    UnresolvedVariableOp,
+    UnresolvedFunctionType,
 )
 
 
@@ -100,6 +112,21 @@ MEMORY_ARG_DEFAULTS = {
     BinaryOpcode.I32_LOAD8_U: MemoryArg(0, 1),
     BinaryOpcode.I32_LOAD16_S: MemoryArg(0, 2),
     BinaryOpcode.I32_LOAD16_U: MemoryArg(0, 2),
+    BinaryOpcode.I64_LOAD8_S: MemoryArg(0, 1),
+    BinaryOpcode.I64_LOAD8_U: MemoryArg(0, 1),
+    BinaryOpcode.I64_LOAD16_S: MemoryArg(0, 2),
+    BinaryOpcode.I64_LOAD16_U: MemoryArg(0, 2),
+    BinaryOpcode.I64_LOAD32_S: MemoryArg(0, 4),
+    BinaryOpcode.I64_LOAD32_U: MemoryArg(0, 4),
+    BinaryOpcode.I32_STORE: MemoryArg(0, 4),
+    BinaryOpcode.I64_STORE: MemoryArg(0, 8),
+    BinaryOpcode.F32_STORE: MemoryArg(0, 4),
+    BinaryOpcode.F64_STORE: MemoryArg(0, 8),
+    BinaryOpcode.I32_STORE8: MemoryArg(0, 1),
+    BinaryOpcode.I32_STORE16: MemoryArg(0, 2),
+    BinaryOpcode.I64_STORE8: MemoryArg(0, 1),
+    BinaryOpcode.I64_STORE16: MemoryArg(0, 2),
+    BinaryOpcode.I64_STORE32: MemoryArg(0, 4),
 }
 
 
@@ -137,6 +164,76 @@ class NodeVisitor(parsimonious.NodeVisitor):
         return tuple(concatv((head,), tail))
 
     #
+    # Function Type
+    #
+    def visit_func_type(self, node, visited_children):
+        lparen, txt, raw_params, raw_results, rparen = visited_children
+        assert is_empty(lparen, txt, rparen)
+
+        if raw_params is None:
+            params = tuple()
+        else:
+            ws, params = raw_params
+
+        if raw_results is None:
+            results = tuple()
+        else:
+            ws, results = raw_results
+
+        return UnresolvedFunctionType(params, results)
+
+    #
+    # Parametric ops
+    #
+    def visit_parametric_op(self, node, visited_children):
+        lparen, instruction, rparen = visited_children
+        assert is_empty(lparen, rparen)
+        return instruction
+
+    def visit_any_parametric_op(self, node, visited_children):
+        if node.text == "drop":
+            return Drop()
+        elif node.text == "select":
+            return Select()
+        else:
+            raise Exception("INVALID")
+
+    #
+    # Variable ops
+    #
+    def visit_variable_op(self, node, visited_children):
+        lparen, instruction, rparen = visited_children
+        assert is_empty(lparen, rparen)
+        return instruction
+
+    def visit_any_variable_op(self, node, visited_children):
+        (instruction_class, opcode), ws, var = visited_children
+        if isinstance(var, str):
+            return UnresolvedVariableOp(opcode, var)
+        else:
+            return instruction_class.from_opcode(opcode, var)
+
+    def visit_local_variable_op(self, node, visited_children):
+        _, _, action = node.text.partition('.')
+        if action == 'get':
+            return LocalOp, BinaryOpcode.GET_LOCAL
+        elif action == 'set':
+            return LocalOp, BinaryOpcode.SET_LOCAL
+        elif action == 'tee':
+            return LocalOp, BinaryOpcode.TEE_LOCAL
+        else:
+            raise Exception("INVALID")
+
+    def visit_global_variable_op(self, node, visited_children):
+        _, _, action = node.text.partition('.')
+        if action == 'get':
+            return GlobalOp, BinaryOpcode.GET_GLOBAL
+        elif action == 'set':
+            return GlobalOp, BinaryOpcode.SET_GLOBAL
+        else:
+            raise Exception("INVALID")
+
+    #
     # Memory ops
     #
     def visit_memory_op(self, node, visited_children):
@@ -144,7 +241,13 @@ class NodeVisitor(parsimonious.NodeVisitor):
         assert is_empty(lparen, rparen)
         return instruction
 
-    def visit_memory_load_op(self, node, visited_children):
+    def visit_memory_size_op(self, node, visited_children):
+        return MemorySize()
+
+    def visit_memory_grow_op(self, node, visited_children):
+        return MemoryGrow()
+
+    def visit_memory_access_op(self, node, visited_children):
         memarg, = visited_children
 
         opcode = TEXT_TO_OPCODE[node.text]
@@ -155,12 +258,30 @@ class NodeVisitor(parsimonious.NodeVisitor):
 
         return MemoryOp.from_opcode(opcode, memarg)
 
-    def visit_memory_load_float_op(self, node, visited_children):
+    def visit_memory_store_float_op(self, node, visited_children):
         valtype, txt, tail = visited_children
         assert is_empty(valtype, txt)
         if tail is None:
             return None
-        assert False
+        raise Exception("UNHANDLED")
+
+    def visit_memory_store_integer_op(self, node, visited_children):
+        valtype, txt, tail = visited_children
+        assert is_empty(valtype, txt)
+        if tail is None:
+            return None
+        else:
+            size, memarg = tail
+            assert is_empty(size)
+            return memarg
+
+    def visit_memory_load_float_op(self, node, visited_children):
+        # TODO: identical to `visit_memory_store_float_op`
+        valtype, txt, tail = visited_children
+        assert is_empty(valtype, txt)
+        if tail is None:
+            return None
+        raise Exception("UNHANDLED")
 
     def visit_memory_load_integer_op(self, node, visited_children):
         valtype, txt, tail = visited_children
@@ -373,15 +494,6 @@ class NodeVisitor(parsimonious.NodeVisitor):
 
     @functools.lru_cache(maxsize=None)
     def parse(self, type_str):
-        """
-        Parses a type string into an appropriate instance of
-        :class:`~eth_abi.grammar.ABIType`.  If a type string cannot be parsed,
-        throws :class:`~eth_abi.exceptions.ParseError`.
-
-        :param type_str: The type string to be parsed.
-        :returns: An instance of :class:`~eth_abi.grammar.ABIType` containing
-            information about the parsed type string.
-        """
         if not isinstance(type_str, str):
             raise TypeError('Can only parse string values: got {}'.format(type(type_str)))
 

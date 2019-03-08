@@ -15,6 +15,7 @@ f64 = ValType.f64
     'sexpr,expected',
     (
         # simple
+        ('(param)', ()),
         ('(param i32)', (Param(i32),)),
         # multiple
         ('(param i32 i64)', (Param(i32), Param(i64),)),
