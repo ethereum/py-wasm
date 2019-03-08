@@ -15,6 +15,10 @@ from wasm.exceptions import (
     ParseError,
 )
 from wasm.instructions.numeric import (
+    Reinterpret,
+    Demote,
+    Promote,
+    Convert,
     I32Const,
     BinOp,
     I64Const,
@@ -24,6 +28,11 @@ from wasm.instructions.numeric import (
     TestOp,
     Wrap,
     Extend,
+    Truncate,
+)
+from wasm.instructions.memory import (
+    MemoryArg,
+    MemoryOp,
 )
 from wasm.opcodes import (
     BinaryOpcode,
@@ -54,6 +63,44 @@ def _is_empty(value):
         return all(_is_empty(item) for item in value)
     else:
         return False
+
+
+TRUNC_LOOKUP = {
+    'i32.trunc_f32_s': BinaryOpcode.I32_TRUNC_S_F32,
+    'i32.trunc_f32_u': BinaryOpcode.I32_TRUNC_U_F64,
+    'i32.trunc_f64_s': BinaryOpcode.I32_TRUNC_S_F32,
+    'i32.trunc_f64_u': BinaryOpcode.I32_TRUNC_U_F64,
+    'i64.trunc_f32_s': BinaryOpcode.I64_TRUNC_S_F32,
+    'i64.trunc_f32_u': BinaryOpcode.I64_TRUNC_U_F64,
+    'i64.trunc_f64_s': BinaryOpcode.I64_TRUNC_S_F32,
+    'i64.trunc_f64_u': BinaryOpcode.I64_TRUNC_U_F64,
+}
+CONVERT_LOOKUP = {
+    'f32.convert_i32_s': BinaryOpcode.F32_CONVERT_S_I32,
+    'f32.convert_i32_u': BinaryOpcode.F32_CONVERT_U_I32,
+    'f32.convert_i64_s': BinaryOpcode.F32_CONVERT_S_I64,
+    'f32.convert_i64_u': BinaryOpcode.F32_CONVERT_U_I64,
+    'f64.convert_i32_s': BinaryOpcode.F64_CONVERT_S_I32,
+    'f64.convert_i32_u': BinaryOpcode.F64_CONVERT_U_I32,
+    'f64.convert_i64_s': BinaryOpcode.F64_CONVERT_S_I64,
+    'f64.convert_i64_u': BinaryOpcode.F64_CONVERT_U_I64,
+}
+REINTERPRET_LOOKUP = {
+    'i32.reinterpret_f32': BinaryOpcode.I32_REINTERPRET_F32,
+    'i64.reinterpret_f64': BinaryOpcode.I64_REINTERPRET_F64,
+    'f32.reinterpret_i32': BinaryOpcode.F32_REINTERPRET_I32,
+    'f64.reinterpret_i64': BinaryOpcode.F64_REINTERPRET_I64,
+}
+MEMORY_ARG_DEFAULTS = {
+    BinaryOpcode.I32_LOAD: MemoryArg(0, 4),
+    BinaryOpcode.I64_LOAD: MemoryArg(0, 8),
+    BinaryOpcode.F32_LOAD: MemoryArg(0, 4),
+    BinaryOpcode.F64_LOAD: MemoryArg(0, 8),
+    BinaryOpcode.I32_LOAD8_S: MemoryArg(0, 1),
+    BinaryOpcode.I32_LOAD8_U: MemoryArg(0, 1),
+    BinaryOpcode.I32_LOAD16_S: MemoryArg(0, 2),
+    BinaryOpcode.I32_LOAD16_U: MemoryArg(0, 2),
+}
 
 
 class NodeVisitor(parsimonious.NodeVisitor):
@@ -90,6 +137,57 @@ class NodeVisitor(parsimonious.NodeVisitor):
         return tuple(concatv((head,), tail))
 
     #
+    # Memory ops
+    #
+    def visit_memory_op(self, node, visited_children):
+        lparen, instruction, rparen = visited_children
+        assert is_empty(lparen, rparen)
+        return instruction
+
+    def visit_memory_load_op(self, node, visited_children):
+        memarg, = visited_children
+
+        opcode = TEXT_TO_OPCODE[node.text]
+        if memarg is None:
+            memarg = MEMORY_ARG_DEFAULTS[opcode]
+        else:
+            assert isinstance(memarg, MemoryArg)
+
+        return MemoryOp.from_opcode(opcode, memarg)
+
+    def visit_memory_load_float_op(self, node, visited_children):
+        valtype, txt, tail = visited_children
+        assert is_empty(valtype, txt)
+        if tail is None:
+            return None
+        assert False
+
+    def visit_memory_load_integer_op(self, node, visited_children):
+        valtype, txt, tail = visited_children
+        assert is_empty(valtype, txt)
+        if tail is None:
+            return None
+        else:
+            size, ws, _, memarg = tail
+            assert is_empty(size, ws)
+            return memarg
+
+    def visit_memory_arg(self, node, visited_children):
+        offset, align = visited_children
+        if offset is None and align is None:
+            return None
+        elif offset is None or align is None:
+            raise Exception("INVALID")
+        else:
+            return MemoryArg(offset, align)
+
+    def visit_offset(self, node, visited_children):
+        assert False
+
+    def visit_align(self, node, visited_children):
+        assert False
+
+    #
     # Numeric ops
     #
     def visit_numeric_op(self, node, visited_children):
@@ -97,9 +195,20 @@ class NodeVisitor(parsimonious.NodeVisitor):
         assert is_empty(lparen, rparen)
         return instruction
 
-    #
-    # Numeric RelOp
-    #
+    def visit_constop(self, node, visited_children):
+        valtype, txt, ws, value = visited_children
+        assert is_empty(txt, ws)
+        if valtype is ValType.i32:
+            return I32Const(value)
+        elif valtype is ValType.i64:
+            return I64Const(value)
+        elif valtype is ValType.f32:
+            return F32Const(value)
+        elif valtype is ValType.f64:
+            return F64Const(value)
+        else:
+            raise Exception("INVALID")
+
     def visit_extendop(self, node, visited_children):
         i64, txt, i32, _, sign = visited_children
         assert is_empty(i64, txt, i32, _)
@@ -126,22 +235,23 @@ class NodeVisitor(parsimonious.NodeVisitor):
         opcode = TEXT_TO_OPCODE[node.text]
         return BinOp.from_opcode(opcode)
 
-    #
-    # Numeric Constant
-    #
-    def visit_inner_numeric_const(self, node, visited_children):
-        valtype, txt, ws, value = visited_children
-        assert is_empty(txt, ws)
-        if valtype is ValType.i32:
-            return I32Const(value)
-        elif valtype is ValType.i64:
-            return I64Const(value)
-        elif valtype is ValType.f32:
-            return F32Const(value)
-        elif valtype is ValType.f64:
-            return F64Const(value)
-        else:
-            raise Exception("INVALID")
+    def visit_truncop(self, node, visited_children):
+        opcode = TRUNC_LOOKUP[node.text]
+        return Truncate.from_opcode(opcode)
+
+    def visit_convertop(self, node, visited_children):
+        opcode = CONVERT_LOOKUP[node.text]
+        return Convert.from_opcode(opcode)
+
+    def visit_demoteop(self, node, visited_children):
+        return Demote()
+
+    def visit_promoteop(self, node, visited_children):
+        return Promote()
+
+    def visit_reinterpretop(self, node, visited_children):
+        opcode = REINTERPRET_LOOKUP[node.text]
+        return Reinterpret.from_opcode(opcode)
 
     #
     # Params

@@ -147,17 +147,6 @@ variable_ops =
     ("global.get" _ var) /
     ("global.set" _ var) /
 
-memory_ops =
-    (integer_types ".load" ("8" / "16" / "32")? "_" sign (_ offset)? (_ align)?) /
-    (float_types ".load" (_ offset?) (_ align)?) /
-    (integer_types ".store" ("8" / "16")? (_ offset)? (_ align)?) /
-    (float_types ".store" (_ offset)? (_ align)?) /
-    "memory.size" /
-    "memory.grow" /
-
-align = "align=" ("1" / "2" / "4" / "8" / "16" / "32")
-offset = "offset=" nat
-
 
 block_type = ("result" valtypes)*
 func_type = ("type" _ var)? params results
@@ -177,35 +166,57 @@ cache = """
 GRAMMAR = parsimonious.Grammar(r"""
 component = results / params / locals / op
 
-op = numeric_op
+op = numeric_op / memory_op
+
+memory_op = open inner_memory_op close
+inner_memory_op =
+    memory_load_op /
+    (integer_types ".store" ("8" / "16")? memory_arg) /
+    (float_types ".store" memory_arg) /
+    "memory.size" /
+    "memory.grow"
+
+memory_load_op = memory_load_float_op / memory_load_integer_op
+memory_load_float_op = float_types ".load" memory_arg
+memory_load_integer_op = integer_types ".load" (("8" / "16" / "32") "_" sign memory_arg)?
+memory_arg = (_ offset)? (_ align)?
+
+align = "align=" ("1" / "2" / "4" / "8" / "16" / "32")
+offset = "offset=" nat
 
 numeric_op = open inner_numeric_op close
 
 inner_numeric_op =
-    inner_numeric_const /
+    constop /
     testop /
     unop /
     relop /
     binop /
     wrapop /
     extendop /
-    (integer_types ".trunc_" float_types "_" sign) /
-    (float_types ".convert_" integer_types "_" sign) /
-    (f32 ".demote_" f64) /
-    (f64 ".promote" f32) /
+    truncop /
+    convertop /
+    demoteop /
+    promoteop /
+    reinterpretop
+
+
+reinterpretop =
     (i32 ".reinterpret_" f32) /
     (i64 ".reinterpret_" f64) /
     (f32 ".reinterpret_" i32) /
     (f64 ".reinterpret_" i64)
-
-inner_numeric_const = valtype ".const" _ value
-
+promoteop = f64 ".promote_" f32
+demoteop = f32 ".demote_" f64
+convertop = float_types ".convert_" integer_types "_" sign
+truncop = integer_types ".trunc_" float_types "_" sign
 extendop = i64 ".extend_" i32 "_" sign
 wrapop = i32 ".wrap_" i64
 unop = float_unop
 relop = integer_relop / float_relop
 binop = integer_binop / float_binop
 testop = integer_types ".eqz"
+constop = valtype ".const" _ value
 
 float_unop  = float_types "." float_unop_names
 float_binop = float_types "." float_binop_names

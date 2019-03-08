@@ -3,6 +3,10 @@ import pytest
 from wasm.text import parse
 from wasm.datatypes import ValType
 from wasm.instructions.numeric import (
+    Reinterpret,
+    Demote,
+    Promote,
+    Convert,
     TestOp as _TestOp,  # pytest tries to collect it otherwise
     BinOp,
     I32Const,
@@ -12,6 +16,7 @@ from wasm.instructions.numeric import (
     RelOp,
     Wrap,
     Extend,
+    Truncate,
 )
 from wasm.opcodes import BinaryOpcode
 
@@ -69,5 +74,67 @@ def test_sexpression_unop_binop_relop_instruction_parsing(sexpr, expected):
     ),
 )
 def test_sexpression_wrap_and_extend_instruction_parsing(sexpr, expected):
+    actual = parse(sexpr)
+    assert actual == expected
+
+
+@pytest.mark.parametrize(
+    'sexpr,expected',
+    (
+        ('(i32.trunc_f32_s)', Truncate.from_opcode(BinaryOpcode.I32_TRUNC_S_F32)),
+        ('(i32.trunc_f32_u)', Truncate.from_opcode(BinaryOpcode.I32_TRUNC_U_F64)),
+        ('(i32.trunc_f64_s)', Truncate.from_opcode(BinaryOpcode.I32_TRUNC_S_F32)),
+        ('(i32.trunc_f64_u)', Truncate.from_opcode(BinaryOpcode.I32_TRUNC_U_F64)),
+        ('(i64.trunc_f32_s)', Truncate.from_opcode(BinaryOpcode.I64_TRUNC_S_F32)),
+        ('(i64.trunc_f32_u)', Truncate.from_opcode(BinaryOpcode.I64_TRUNC_U_F64)),
+        ('(i64.trunc_f64_s)', Truncate.from_opcode(BinaryOpcode.I64_TRUNC_S_F32)),
+        ('(i64.trunc_f64_u)', Truncate.from_opcode(BinaryOpcode.I64_TRUNC_U_F64)),
+    )
+)
+def test_sexpression_trunc_instruction_parsing(sexpr, expected):
+    actual = parse(sexpr)
+    assert actual == expected
+
+
+@pytest.mark.parametrize(
+    'sexpr,expected',
+    (
+        ('(f32.convert_i32_s)', Convert.from_opcode(BinaryOpcode.F32_CONVERT_S_I32)),
+        ('(f32.convert_i32_u)', Convert.from_opcode(BinaryOpcode.F32_CONVERT_U_I32)),
+        ('(f32.convert_i64_s)', Convert.from_opcode(BinaryOpcode.F32_CONVERT_S_I64)),
+        ('(f32.convert_i64_u)', Convert.from_opcode(BinaryOpcode.F32_CONVERT_U_I64)),
+        ('(f64.convert_i32_s)', Convert.from_opcode(BinaryOpcode.F64_CONVERT_S_I32)),
+        ('(f64.convert_i32_u)', Convert.from_opcode(BinaryOpcode.F64_CONVERT_U_I32)),
+        ('(f64.convert_i64_s)', Convert.from_opcode(BinaryOpcode.F64_CONVERT_S_I64)),
+        ('(f64.convert_i64_u)', Convert.from_opcode(BinaryOpcode.F64_CONVERT_U_I64)),
+    )
+)
+def test_sexpression_convert_instruction_parsing(sexpr, expected):
+    actual = parse(sexpr)
+    assert actual == expected
+
+
+@pytest.mark.parametrize(
+    'sexpr,expected',
+    (
+        ('(f32.demote_f64)', Demote()),
+        ('(f64.promote_f32)', Promote()),
+    ),
+)
+def test_sexpression_demote_and_promote_instruction_parsing(sexpr, expected):
+    actual = parse(sexpr)
+    assert actual == expected
+
+
+@pytest.mark.parametrize(
+    'sexpr,expected',
+    (
+        ('(i32.reinterpret_f32)', Reinterpret.from_opcode(BinaryOpcode.I32_REINTERPRET_F32)),
+        ('(i64.reinterpret_f64)', Reinterpret.from_opcode(BinaryOpcode.I64_REINTERPRET_F64)),
+        ('(f32.reinterpret_i32)', Reinterpret.from_opcode(BinaryOpcode.F32_REINTERPRET_I32)),
+        ('(f64.reinterpret_i64)', Reinterpret.from_opcode(BinaryOpcode.F64_REINTERPRET_I64)),
+    )
+)
+def test_sexpression_reinterpret_instruction_parsing(sexpr, expected):
     actual = parse(sexpr)
     assert actual == expected

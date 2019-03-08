@@ -58,6 +58,9 @@ class MemoryOp(Interned):
     def __str__(self) -> str:
         return f"{self.opcode.text}[align={self.memarg.align},offset={self.memarg.offset}]"
 
+    def __repr__(self) -> str:
+        return f"<MemoryOp: {self}>"
+
     @property
     def memory_bit_size(self) -> BitSize:
         if self.declared_bit_size is None:
