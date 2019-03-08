@@ -420,14 +420,13 @@ class Truncate(Interned):
 
 @register
 class Extend(Interned):
+    valtype = ValType.i64
+    from_valtype = ValType.i32
+
     def __init__(self,
                  opcode: BinaryOpcode,
-                 valtype: ValType,
-                 from_valtype: ValType,
                  signed: bool) -> None:
         self.opcode = opcode
-        self.valtype = valtype
-        self.from_valtype = from_valtype
         self.signed = signed
 
     def __str__(self) -> str:
@@ -436,9 +435,9 @@ class Extend(Interned):
     @classmethod
     def from_opcode(cls, opcode: BinaryOpcode) -> 'Extend':
         if opcode is BinaryOpcode.I64_EXTEND_S_I32:
-            return cls(opcode, ValType.i64, ValType.i32, True)
+            return cls(opcode, True)
         elif opcode is BinaryOpcode.I64_EXTEND_U_I32:
-            return cls(opcode, ValType.i64, ValType.i32, False)
+            return cls(opcode, False)
         else:
             raise Exception(f"Invariant: got unknown opcode {opcode}")
 

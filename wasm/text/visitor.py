@@ -16,9 +16,18 @@ from wasm.exceptions import (
 )
 from wasm.instructions.numeric import (
     I32Const,
+    BinOp,
     I64Const,
     F32Const,
     F64Const,
+    RelOp,
+    TestOp,
+    Wrap,
+    Extend,
+)
+from wasm.opcodes import (
+    BinaryOpcode,
+    TEXT_TO_OPCODE,
 )
 
 from .grammar import GRAMMAR
@@ -87,6 +96,35 @@ class NodeVisitor(parsimonious.NodeVisitor):
         lparen, instruction, rparen = visited_children
         assert is_empty(lparen, rparen)
         return instruction
+
+    #
+    # Numeric RelOp
+    #
+    def visit_extendop(self, node, visited_children):
+        i64, txt, i32, _, sign = visited_children
+        assert is_empty(i64, txt, i32, _)
+
+        if sign is True:
+            return Extend.from_opcode(BinaryOpcode.I64_EXTEND_S_I32)
+        elif sign is False:
+            return Extend.from_opcode(BinaryOpcode.I64_EXTEND_U_I32)
+        else:
+            raise Exception("INVALID")
+
+    def visit_wrapop(self, node, visited_children):
+        return Wrap()
+
+    def visit_testop(self, node, visited_children):
+        opcode = TEXT_TO_OPCODE[node.text]
+        return TestOp.from_opcode(opcode)
+
+    def visit_relop(self, node, visited_children):
+        opcode = TEXT_TO_OPCODE[node.text]
+        return RelOp.from_opcode(opcode)
+
+    def visit_binop(self, node, visited_children):
+        opcode = TEXT_TO_OPCODE[node.text]
+        return BinOp.from_opcode(opcode)
 
     #
     # Numeric Constant
@@ -183,6 +221,14 @@ class NodeVisitor(parsimonious.NodeVisitor):
     #
     # Simple Values
     #
+    def visit_sign(self, node, visited_children):
+        if node.text == 's':
+            return True
+        elif node.text == 'u':
+            return False
+        else:
+            raise Exception("INVALID")
+
     def visit_num(self, node, visited_children):
         return int(node.text)
 

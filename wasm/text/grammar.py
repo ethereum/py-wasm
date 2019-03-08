@@ -183,12 +183,13 @@ numeric_op = open inner_numeric_op close
 
 inner_numeric_op =
     inner_numeric_const /
-    float_ops /
-    integer_ops /
-    (i32 ".wrap_" i64) /
-    (i64 ".extend_" i32 "_" sign) /
-    (i32 ".trunc_" float_types "_" sign) /
-    (i64 ".trunc_" float_types "_" sign) /
+    testop /
+    unop /
+    relop /
+    binop /
+    wrapop /
+    extendop /
+    (integer_types ".trunc_" float_types "_" sign) /
     (float_types ".convert_" integer_types "_" sign) /
     (f32 ".demote_" f64) /
     (f64 ".promote" f32) /
@@ -199,8 +200,19 @@ inner_numeric_op =
 
 inner_numeric_const = valtype ".const" _ value
 
-float_ops = float_types "." (float_unop_names / float_binop_names / float_relop_names)
-integer_ops = integer_types "." (integer_binop_names / integer_relop_names)
+extendop = i64 ".extend_" i32 "_" sign
+wrapop = i32 ".wrap_" i64
+unop = float_unop
+relop = integer_relop / float_relop
+binop = integer_binop / float_binop
+testop = integer_types ".eqz"
+
+float_unop  = float_types "." float_unop_names
+float_binop = float_types "." float_binop_names
+float_relop = float_types "." float_relop_names
+
+integer_binop = integer_types "." integer_binop_names
+integer_relop = integer_types "." integer_relop_names
 
 integer_binop_names =
     "add" /
@@ -233,7 +245,6 @@ float_binop_names =
     "max" /
     "copysign"
 integer_relop_names =
-    "eqz" /
     "eq" /
     "ne" /
     ("lt_" sign) /
