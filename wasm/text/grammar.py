@@ -154,9 +154,29 @@ cache = """
 GRAMMAR = parsimonious.Grammar(r"""
 component = results / params / locals / func_type / op
 
-op = numeric_op / memory_op / variable_op / parametric_op
+op = numeric_op / memory_op / variable_op / parametric_op / control_op
 
-func_type = open "func" (_ params)? (_ results)? close
+control_op = open any_control_op close
+any_control_op =
+    "unreachable" /
+    "nop" /
+    ("br" _ var) /
+    ("br_if" _ var) /
+    ("br_table" vars) /
+    return_op /
+    call_op /
+    call_indirect_op
+
+return_op = "return"
+
+call_op = "call" _ var
+call_indirect_op = "call_indirect" _ typeuse
+
+func_type = open "func" _ typeuse close
+
+typeuse = typeuse_direct / typeuse_params_and_results / params / results
+typeuse_direct = open "type" _ var close
+typeuse_params_and_results = params _ results
 
 parametric_op = open any_parametric_op close
 any_parametric_op = "drop" / "select"
@@ -293,7 +313,10 @@ empty_param = "param"
 
 results = result results_tail*
 results_tail = _ result
-result = open "result" _ valtypes close
+result = open any_result close
+any_result = declared_result / empty_result
+declared_result = "result" _ valtypes
+empty_result = "result"
 
 locals = local locals_tail*
 locals_tail = (_ local)
@@ -315,6 +338,8 @@ i64 = "i64"
 f32 = "f32"
 f64 = "f64"
 
+vars = var vars_tail*
+vars_tail = _ var
 var = nat / name
 value = int / float
 

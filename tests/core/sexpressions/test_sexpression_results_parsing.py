@@ -14,10 +14,11 @@ f64 = ValType.f64
     'sexpr,expected',
     (
         # simple
-        ('(result i32)', ((i32,),)),
-        ('(result i32 i64)', ((i32, i64),)),
+        ('(result)', ()),
+        ('(result i32)', (i32,)),
+        ('(result i32 i64)', (i32, i64)),
         # many
-        ('(result i32) (result i64)', ((i32,), (i64,))),
+        ('(result i32) (result i64)', (i32, i64)),
     ),
 )
 def test_sexpression_results_parsing(sexpr, expected):

@@ -2,6 +2,7 @@ from typing import (
     NamedTuple,
     Optional,
     Tuple,
+    Union,
 )
 
 from wasm.datatypes import (
@@ -30,3 +31,19 @@ class UnresolvedVariableOp(NamedTuple):
 class UnresolvedFunctionType(NamedTuple):
     params: Tuple[Param, ...]
     results: Tuple[ValType, ...]
+
+
+class UnresolvedTypeIdx(NamedTuple):
+    name: str
+
+
+class UnresolvedCallIndirect(NamedTuple):
+    type_idx: Union[UnresolvedFunctionType, UnresolvedTypeIdx]
+
+
+class UnresolvedFunctionIdx(NamedTuple):
+    name: str
+
+
+class UnresolvedCall(NamedTuple):
+    func_idx: UnresolvedFunctionIdx

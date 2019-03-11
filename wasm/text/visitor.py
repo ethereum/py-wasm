@@ -9,10 +9,16 @@ from wasm._utils.toolz import (
     concatv,
 )
 from wasm.datatypes import (
+    TypeIdx,
     ValType,
+    FunctionIdx,
 )
 from wasm.exceptions import (
     ParseError,
+)
+from wasm.instructions.control import (
+    Call,
+    Return,
 )
 from wasm.instructions.variable import (
     LocalOp,
@@ -53,7 +59,11 @@ from .grammar import GRAMMAR
 from .ir import (
     Local,
     Param,
+    UnresolvedCall,
     UnresolvedVariableOp,
+    UnresolvedCallIndirect,
+    UnresolvedTypeIdx,
+    UnresolvedFunctionIdx,
     UnresolvedFunctionType,
 )
 
@@ -164,21 +174,84 @@ class NodeVisitor(parsimonious.NodeVisitor):
         return tuple(concatv((head,), tail))
 
     #
+    # Control ops
+    #
+    def visit_control_op(self, node, visited_children):
+        lparen, instruction, rparen = visited_children
+        assert is_empty(lparen, rparen)
+        return instruction
+
+    def visit_return_op(self, node, visited_children):
+        assert False
+
+    def visit_call_op(self, node, visited_children):
+        txt, ws, function_idx = visited_children
+
+        if isinstance(function_idx, str):
+            return UnresolvedCall(UnresolvedFunctionIdx(function_idx))
+        elif isinstance(function_idx, int):
+            return Call(FunctionIdx(function_idx))
+        else:
+            raise Exception("INVALID")
+
+    def visit_call_indirect_op(self, node, visited_children):
+        txt, ws, typeuse = visited_children
+        assert is_empty(txt, ws)
+
+        if len(typeuse) == 2:
+            params, results = typeuse
+            func_type = UnresolvedFunctionType(params, results)
+            return UnresolvedCallIndirect(func_type)
+        elif isinstance(typeuse, UnresolvedTypeIdx):
+            return UnresolvedCallIndirect(typeuse)
+        else:
+            raise Exception("INVALID")
+
+    #
     # Function Type
     #
     def visit_func_type(self, node, visited_children):
-        lparen, txt, raw_params, raw_results, rparen = visited_children
+        lparen, txt, (params, results), rparen = visited_children
         assert is_empty(lparen, txt, rparen)
 
-        if raw_params is None:
-            params = tuple()
-        else:
-            ws, params = raw_params
+        return UnresolvedFunctionType(params, results)
 
-        if raw_results is None:
-            results = tuple()
+    def visit_typeuse(self, node, visited_children):
+        typeuse, = visited_children
+        if isinstance(typeuse, TypeIdx):
+            return typeuse
+        elif isinstance(typeuse, UnresolvedFunctionType):
+            return typeuse
+        elif isinstance(typeuse, UnresolvedTypeIdx):
+            return typeuse
+        elif is_empty(*visited_children):
+            return UnresolvedFunctionType((), ())
+        elif isinstance(typeuse, tuple) and all(isinstance(item, Param) for item in typeuse):
+            return UnresolvedFunctionType(typeuse, ())
+        elif isinstance(typeuse, tuple) and all(isinstance(item, ValType) for item in typeuse):
+            return UnresolvedFunctionType((), typeuse)
         else:
-            ws, results = raw_results
+            raise Exception("INVALID")
+
+    def visit_typeuse_direct(self, node, visited_children):
+        lparen, text, ws, var, rparen = visited_children
+        assert is_empty(lparen, text, ws, rparen)
+        if isinstance(var, str):
+            return UnresolvedTypeIdx(var)
+        elif isinstance(var, int):
+            return TypeIdx(var)
+        else:
+            raise Exception("INVALID")
+
+    def visit_typeuse_params_and_results(self, node, visited_children):
+        params, ws, results = visited_children
+        assert is_empty(ws)
+
+        if params is None:
+            params = tuple()
+
+        if results is None:
+            results = tuple()
 
         return UnresolvedFunctionType(params, results)
 
@@ -402,15 +475,23 @@ class NodeVisitor(parsimonious.NodeVisitor):
     # Results
     #
     def visit_results(self, node, visited_children):
-        return self._join_single_head_with_tail(node, visited_children)
+        return self._join_multi_head_with_tail(node, visited_children)
 
     def visit_results_tail(self, node, visited_children):
         return self._process_tail(node, visited_children)
 
     def visit_result(self, node, visited_children):
-        lparen, txt, ws, valtypes, rparen = visited_children
-        assert is_empty(lparen, txt, ws, rparen)
+        lparen, valtypes, rparen = visited_children
+        assert is_empty(lparen, rparen)
         return valtypes
+
+    def visit_declared_result(self, node, visited_children):
+        txt, ws, valtypes = visited_children
+        assert is_empty(txt, ws)
+        return valtypes
+
+    def visit_empty_result(self, node, visited_children):
+        return tuple()
 
     #
     # Locals
