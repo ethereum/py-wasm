@@ -7,6 +7,7 @@ from typing import (
 
 from wasm.datatypes import (
     ValType,
+    LabelIdx,
 )
 from wasm.opcodes import (
     BinaryOpcode,
@@ -37,6 +38,10 @@ class UnresolvedTypeIdx(NamedTuple):
     name: str
 
 
+class UnresolvedLabelIdx(NamedTuple):
+    name: str
+
+
 class UnresolvedCallIndirect(NamedTuple):
     type_idx: Union[UnresolvedFunctionType, UnresolvedTypeIdx]
 
@@ -47,3 +52,16 @@ class UnresolvedFunctionIdx(NamedTuple):
 
 class UnresolvedCall(NamedTuple):
     func_idx: UnresolvedFunctionIdx
+
+
+class UnresolvedBr(NamedTuple):
+    label_idx: UnresolvedLabelIdx
+
+
+class UnresolvedBrIf(NamedTuple):
+    label_idx: UnresolvedLabelIdx
+
+
+class UnresolvedBrTable(NamedTuple):
+    label_indices: Tuple[Union[UnresolvedLabelIdx, LabelIdx], ...]
+    default_idx: Union[UnresolvedLabelIdx, LabelIdx]

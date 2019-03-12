@@ -160,14 +160,18 @@ control_op = open any_control_op close
 any_control_op =
     "unreachable" /
     "nop" /
-    ("br" _ var) /
-    ("br_if" _ var) /
-    ("br_table" vars) /
+    br_if_op /
+    br_table_op /
+    br_op /
     return_op /
     call_op /
     call_indirect_op
 
 return_op = "return"
+
+br_if_op = "br_if" _ var
+br_table_op = "br_table" _ vars
+br_op = "br" _ var
 
 call_op = "call" _ var
 call_indirect_op = "call_indirect" _ typeuse

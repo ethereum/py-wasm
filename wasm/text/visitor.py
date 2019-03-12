@@ -5,11 +5,16 @@ from parsimonious import (
     expressions,
 )
 
+from wasm._utils.decorators import (
+    to_tuple,
+)
 from wasm._utils.toolz import (
+    cons,
     concatv,
 )
 from wasm.datatypes import (
     TypeIdx,
+    LabelIdx,
     ValType,
     FunctionIdx,
 )
@@ -19,6 +24,9 @@ from wasm.exceptions import (
 from wasm.instructions.control import (
     Call,
     Return,
+    Br,
+    BrIf,
+    BrTable,
 )
 from wasm.instructions.variable import (
     LocalOp,
@@ -65,6 +73,10 @@ from .ir import (
     UnresolvedTypeIdx,
     UnresolvedFunctionIdx,
     UnresolvedFunctionType,
+    UnresolvedBr,
+    UnresolvedBrIf,
+    UnresolvedBrTable,
+    UnresolvedLabelIdx,
 )
 
 
@@ -140,6 +152,17 @@ MEMORY_ARG_DEFAULTS = {
 }
 
 
+@to_tuple
+def process_vars(resolved_cls, unresolved_cls, vars):
+    for var in vars:
+        if isinstance(var, str):
+            yield unresolved_cls(var)
+        elif isinstance(var, int):
+            yield resolved_cls(var)
+        else:
+            raise Exception("INVALID")
+
+
 class NodeVisitor(parsimonious.NodeVisitor):
     """
     Parsimonious node visitor which performs both parsing of type strings and
@@ -171,7 +194,7 @@ class NodeVisitor(parsimonious.NodeVisitor):
     @staticmethod
     def _join_single_head_with_tail(node, visited_children):
         head, tail = visited_children
-        return tuple(concatv((head,), tail))
+        return tuple(cons(head, tail))
 
     #
     # Control ops
@@ -181,8 +204,46 @@ class NodeVisitor(parsimonious.NodeVisitor):
         assert is_empty(lparen, rparen)
         return instruction
 
+    def visit_br_table_op(self, node, visited_children):
+        txt, ws, all_label_indices = visited_children
+        assert is_empty(txt, ws)
+        is_resolved = (
+            all(isinstance(label_idx, int) for label_idx in all_label_indices)
+        )
+        *label_indices, default_idx = process_vars(LabelIdx, UnresolvedLabelIdx, all_label_indices)
+        if is_resolved:
+            return BrTable(
+                label_indices=tuple(label_indices),
+                default_idx=default_idx,
+            )
+        else:
+            return UnresolvedBrTable(
+                label_indices=tuple(label_indices),
+                default_idx=default_idx,
+            )
+
+    def visit_br_if_op(self, node, visited_children):
+        txt, ws, label_idx = visited_children
+        assert is_empty(txt, ws)
+        if isinstance(label_idx, int):
+            return BrIf(LabelIdx(label_idx))
+        elif isinstance(label_idx, str):
+            return UnresolvedBrIf(UnresolvedLabelIdx(label_idx))
+        else:
+            raise Exception("INVALID")
+
+    def visit_br_op(self, node, visited_children):
+        txt, ws, label_idx = visited_children
+        assert is_empty(txt, ws)
+        if isinstance(label_idx, int):
+            return Br(LabelIdx(label_idx))
+        elif isinstance(label_idx, str):
+            return UnresolvedBr(UnresolvedLabelIdx(label_idx))
+        else:
+            raise Exception("INVALID")
+
     def visit_return_op(self, node, visited_children):
-        assert False
+        return Return()
 
     def visit_call_op(self, node, visited_children):
         txt, ws, function_idx = visited_children
@@ -211,10 +272,9 @@ class NodeVisitor(parsimonious.NodeVisitor):
     # Function Type
     #
     def visit_func_type(self, node, visited_children):
-        lparen, txt, (params, results), rparen = visited_children
-        assert is_empty(lparen, txt, rparen)
-
-        return UnresolvedFunctionType(params, results)
+        lparen, txt, ws, func_type, rparen = visited_children
+        assert is_empty(lparen, txt, ws, rparen)
+        return func_type
 
     def visit_typeuse(self, node, visited_children):
         typeuse, = visited_children
@@ -530,6 +590,15 @@ class NodeVisitor(parsimonious.NodeVisitor):
     def visit_valtype(self, node, visited_children):
         return ValType.from_str(node.text)
 
+    def visit_vars_tail(self, node, visited_children):
+        ws, var = visited_children
+        assert is_empty(ws)
+        return var
+
+    def visit_vars(self, node, visited_children):
+        head, tail = visited_children
+        return tuple(cons(head, tail))
+
     #
     # Simple Values
     #
@@ -581,5 +650,5 @@ class NodeVisitor(parsimonious.NodeVisitor):
         try:
             return super().parse(type_str)
         except parsimonious.ParseError as e:
-            arst = e
+            arst = e  # noqa: F841
             raise ParseError(e.text, e.pos, e.expr)
