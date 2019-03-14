@@ -180,3 +180,9 @@ OPCODE_TO_TEXT: Dict[BinaryOpcode, str] = {
     BinaryOpcode.F32_REINTERPRET_I32: "f32.reinterpret/i32",
     BinaryOpcode.F64_REINTERPRET_I64: "f64.reinterpret/i64",
 }
+
+
+TEXT_TO_OPCODE: Dict[str, BinaryOpcode] = {
+    value: key
+    for key, value in OPCODE_TO_TEXT.items()
+}

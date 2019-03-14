@@ -37,7 +37,7 @@ from wasm.exceptions import (
     Unlinkable,
     ValidationError,
 )
-from wasm.parsers import (
+from wasm.binary import (
     parse_module,
 )
 from wasm.typing import (

@@ -1,5 +1,6 @@
 from typing import (
     TYPE_CHECKING,
+    Any,
     NamedTuple,
     Sequence,
     Tuple,
@@ -100,6 +101,19 @@ class BrTable(Interned):
             f"labels={':'.join((str(l) for l in self.label_indices))},"
             f"default={self.default_idx}]"
         )
+
+    def __repr__(self) -> str:
+        return f"<BrTable: {str(self)}>"
+
+    def __eq__(self, other: Any) -> bool:
+        if not isinstance(other, BrTable):
+            return False
+        elif self.default_idx != self.default_idx:
+            return False
+        elif self.label_indices != other.label_indices:
+            return False
+        else:
+            return True
 
 
 @register

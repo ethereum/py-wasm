@@ -8,7 +8,7 @@ from wasm.exceptions import (
 from wasm.opcodes import (
     BinaryOpcode,
 )
-from wasm.parsers.numeric import (
+from wasm.binary.numeric import (
     parse_numeric_constant_instruction,
 )
 

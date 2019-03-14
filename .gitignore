@@ -115,3 +115,4 @@ prof/**
 
 # WASM Spec submodule
 ./spec/**
+./tests/spec/fixtures/**

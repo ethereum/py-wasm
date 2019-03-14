@@ -59,13 +59,13 @@ def parse_numeric_constant_instruction(opcode: BinaryOpcode,
     Parse a single CONST Numeric instruction.
     """
     if opcode is BinaryOpcode.I32_CONST:
-        return I32Const.from_opcode(opcode, parse_i32(stream))
+        return I32Const(parse_i32(stream))
     elif opcode is BinaryOpcode.I64_CONST:
-        return I64Const.from_opcode(opcode, parse_i64(stream))
+        return I64Const(parse_i64(stream))
     elif opcode is BinaryOpcode.F32_CONST:
-        return F32Const.from_opcode(opcode, parse_f32(stream))
+        return F32Const(parse_f32(stream))
     elif opcode is BinaryOpcode.F64_CONST:
-        return F64Const.from_opcode(opcode, parse_f64(stream))
+        return F64Const(parse_f64(stream))
     else:
         raise Exception("Invariant")
 

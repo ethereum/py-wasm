@@ -53,6 +53,7 @@ setup(
         "numpy>=1.16.0,<2",
         "toolz>0.9.0,<1;implementation_name=='pypy'",
         "cytoolz>=0.9.0,<1.0.0;implementation_name=='cpython'",
+        "parsimonious>=0.8.1,<0.9",
     ],
     setup_requires=['setuptools-markdown'],
     python_requires='>=3.5, <4',
