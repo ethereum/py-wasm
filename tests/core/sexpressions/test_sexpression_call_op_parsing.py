@@ -42,7 +42,7 @@ f64 = ValType.f64
     ),
 )
 def test_sexpression_call_indirect_instruction_parsing(sexpr, expected):
-    actual = parse(sexpr)
+    actual, = parse(sexpr)
     assert actual == expected
 
 
@@ -54,5 +54,5 @@ def test_sexpression_call_indirect_instruction_parsing(sexpr, expected):
     ),
 )
 def test_sexpression_call_instruction_parsing(sexpr, expected):
-    actual = parse(sexpr)
+    actual, = parse(sexpr)
     assert actual == expected

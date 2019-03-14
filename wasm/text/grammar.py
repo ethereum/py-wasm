@@ -118,23 +118,6 @@ instr = open (
   ("if"    _ name? _ block_type instrs _ "else" _ name? instrs "end" _ name? )
   ) close
 
-op =
-    control_ops /
-    parametric_ops /
-    variable_ops /
-    memory_ops /
-    numeric_ops
-
-
-control_ops =
-    "unreachable" /
-    "nop" /
-    ("br" _ var) /
-    ("br_if" _ var) /
-    ("br_table" vars) /
-    "return" /
-    ("call" _ var) /
-    ("call_indirect" _ func_type) /
 
 block_type = ("result" valtypes)*
 func_type = ("type" _ var)? params results
@@ -148,24 +131,57 @@ elem_type = "funcref"
 
 cache = """
 
+instr =
+  expr /
+  ("loop"  _ name? _ block_type instrs _ "end" _ name?) /
+  ("if"    _ name? _ block_type instrs _ "end" _ name?) /
+  ("if"    _ name? _ block_type instrs _ "else" _ name? instrs "end" _ name? )
 
+exprs = (_ expr)+
+expr = open (
+  (op exprs) /
+  ("if"    _ name? _ block_type       open "then" instrs close (open "else" instrs close)?) /
+  ("if"    _ name? _ block_type exprs open "then" instrs close (open "else" instrs close)?)
+  ) close
+
+
+named_block_instr = "block" _ name)? results? instrs _ "end" _ name?) /
 """
 
 GRAMMAR = parsimonious.Grammar(r"""
-component = results / params / locals / func_type / op
+component = results / params / locals / func_type / op / instrs
+
+instrs = instr instrs_tail*
+instrs_tail = (_ instr)
+instr = open any_instr close
+any_instr =
+    folded_instr /
+    op /
+    block_instr /
+    loop_instr
+
+loop_instr = "loop"  (_ name)? loop_tail?
+loop_tail = (_ result)? (_ instrs)?
+
+block_instr = "block" (_ name)? block_tail?
+block_tail = (_ result)? (_ instrs)?
+
+folded_instr = op _ instrs
 
 op = numeric_op / memory_op / variable_op / parametric_op / control_op
 
-control_op = open any_control_op close
-any_control_op =
-    "unreachable" /
-    "nop" /
+control_op =
+    unreachable_op /
+    nop_op /
     br_if_op /
     br_table_op /
     br_op /
     return_op /
     call_op /
     call_indirect_op
+
+unreachable_op = "unreachable"
+nop_op = "nop"
 
 return_op = "return"
 
@@ -182,18 +198,14 @@ typeuse = typeuse_direct / typeuse_params_and_results / params / results
 typeuse_direct = open "type" _ var close
 typeuse_params_and_results = params _ results
 
-parametric_op = open any_parametric_op close
-any_parametric_op = "drop" / "select"
+parametric_op = "drop" / "select"
 
-variable_op = open any_variable_op close
-
-any_variable_op = (local_variable_op / global_variable_op) _ var
+variable_op = (local_variable_op / global_variable_op) _ var
 
 global_variable_op = "global.get" / "global.set"
 local_variable_op ="local.get" / "local.set" / "local.tee"
 
-memory_op = open inner_memory_op close
-inner_memory_op =
+memory_op =
     memory_access_op /
     memory_size_op /
     memory_grow_op
@@ -216,9 +228,7 @@ memory_arg = (_ offset)? (_ align)?
 align = "align=" ("1" / "2" / "4" / "8" / "16" / "32")
 offset = "offset=" nat
 
-numeric_op = open inner_numeric_op close
-
-inner_numeric_op =
+numeric_op =
     constop /
     testop /
     unop /
@@ -244,7 +254,7 @@ convertop = float_types ".convert_" integer_types "_" sign
 truncop = integer_types ".trunc_" float_types "_" sign
 extendop = i64 ".extend_" i32 "_" sign
 wrapop = i32 ".wrap_" i64
-unop = float_unop
+unop = integer_unop / float_unop
 relop = integer_relop / float_relop
 binop = integer_binop / float_binop
 testop = integer_types ".eqz"
@@ -254,9 +264,14 @@ float_unop  = float_types "." float_unop_names
 float_binop = float_types "." float_binop_names
 float_relop = float_types "." float_relop_names
 
+integer_unop = integer_types "." integer_unop_names
 integer_binop = integer_types "." integer_binop_names
 integer_relop = integer_types "." integer_relop_names
 
+integer_unop_names =
+    "clz" /
+    "ctz" /
+    "popcnt"
 integer_binop_names =
     "add" /
     "sub" /
@@ -271,6 +286,13 @@ integer_binop_names =
     "shr_u" /
     "rotl" /
     "rotr"
+integer_relop_names =
+    "eq" /
+    "ne" /
+    ("lt_" sign) /
+    ("gt_" sign) /
+    ("le_" sign) /
+    ("ge_" sign)
 float_unop_names =
     "abs" /
     "neg" /
@@ -287,13 +309,6 @@ float_binop_names =
     "min" /
     "max" /
     "copysign"
-integer_relop_names =
-    "eq" /
-    "ne" /
-    ("lt_" sign) /
-    ("gt_" sign) /
-    ("le_" sign) /
-    ("ge_" sign)
 float_relop_names =
     "eq" /
     "ne" /
@@ -303,8 +318,6 @@ float_relop_names =
     "ge"
 
 sign = "s" / "u"
-
-numeric_const_op = open valtype ".const" _ value close
 
 params = param params_tail*
 params_tail = (_ param)

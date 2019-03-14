@@ -39,5 +39,5 @@ from wasm.text.ir import (
     ),
 )
 def test_sexpression_br_instructions_parsing(sexpr, expected):
-    actual = parse(sexpr)
+    actual, = parse(sexpr)
     assert actual == expected

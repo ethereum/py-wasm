@@ -9,6 +9,9 @@ from wasm.datatypes import (
     ValType,
     LabelIdx,
 )
+from wasm.instructions.control import (
+    Block,
+)
 from wasm.opcodes import (
     BinaryOpcode,
 )
@@ -65,3 +68,8 @@ class UnresolvedBrIf(NamedTuple):
 class UnresolvedBrTable(NamedTuple):
     label_indices: Tuple[Union[UnresolvedLabelIdx, LabelIdx], ...]
     default_idx: Union[UnresolvedLabelIdx, LabelIdx]
+
+
+class NamedBlock(NamedTuple):
+    name: str
+    block: Block

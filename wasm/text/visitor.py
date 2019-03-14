@@ -27,6 +27,10 @@ from wasm.instructions.control import (
     Br,
     BrIf,
     BrTable,
+    Nop,
+    Unreachable,
+    Block,
+    End,
 )
 from wasm.instructions.variable import (
     LocalOp,
@@ -42,6 +46,7 @@ from wasm.instructions.numeric import (
     Promote,
     Convert,
     I32Const,
+    UnOp,
     BinOp,
     I64Const,
     F32Const,
@@ -65,6 +70,7 @@ from wasm.opcodes import (
 
 from .grammar import GRAMMAR
 from .ir import (
+    NamedBlock,
     Local,
     Param,
     UnresolvedCall,
@@ -196,13 +202,83 @@ class NodeVisitor(parsimonious.NodeVisitor):
         head, tail = visited_children
         return tuple(cons(head, tail))
 
+    @staticmethod
+    def _unwrap_parens(node, visited_children):
+        lparen, thing, rparen = visited_children
+        assert is_empty(lparen, rparen)
+        return thing
+
+    #
+    # Instructions
+    #
+    def visit_instrs(self, node, visited_children):
+        head, tail = visited_children
+        joined = self._join_multi_head_with_tail(node, visited_children)
+        print('HEAD:', head)
+        print('TAIL:', tail)
+        print('JOINED:', joined)
+        return joined
+        return self._join_multi_head_with_tail(node, visited_children)
+
+    def visit_instrs_tail(self, node, visited_children):
+        assert False
+
+    def visit_instr(self, node, visited_children):
+        return self._unwrap_parens(node, visited_children)
+
+    def visit_loop_instr(self, node, visited_children):
+        assert False
+
+    def visit_block_instr(self, node, visited_children):
+        txt, raw_name, (block_type, instructions) = visited_children
+        assert is_empty(txt)
+
+        block = Block(block_type, instructions)
+
+        if raw_name is None:
+            return block
+        else:
+            ws, name = raw_name
+            assert is_empty(ws)
+            return NamedBlock(name, block)
+
+    def visit_op(self, node, visited_children):
+        op, = visited_children
+        return (op,)
+
+    def visit_block_tail(self, node, visited_children):
+        raw_block_type, raw_instructions = visited_children
+
+        if raw_block_type is None:
+            block_type = tuple()
+        else:
+            ws, block_type = raw_block_type
+            assert is_empty(ws)
+
+        if raw_instructions is None:
+            instructions = End.as_tail()
+        else:
+            ws, instructions = raw_instructions
+            assert is_empty(ws)
+
+        print('INSTRUCTIONS:', instructions)
+
+        return block_type, instructions
+
+    def visit_folded_instr(self, node, visited_children):
+        head, ws, tail = visited_children
+        return tail + head
+
     #
     # Control ops
     #
-    def visit_control_op(self, node, visited_children):
-        lparen, instruction, rparen = visited_children
-        assert is_empty(lparen, rparen)
-        return instruction
+    def visit_nop_op(self, node, visited_children):
+        assert is_empty(visited_children)
+        return Nop()
+
+    def visit_unreachable_op(self, node, visited_children):
+        assert is_empty(visited_children)
+        return Unreachable()
 
     def visit_br_table_op(self, node, visited_children):
         txt, ws, all_label_indices = visited_children
@@ -319,11 +395,6 @@ class NodeVisitor(parsimonious.NodeVisitor):
     # Parametric ops
     #
     def visit_parametric_op(self, node, visited_children):
-        lparen, instruction, rparen = visited_children
-        assert is_empty(lparen, rparen)
-        return instruction
-
-    def visit_any_parametric_op(self, node, visited_children):
         if node.text == "drop":
             return Drop()
         elif node.text == "select":
@@ -335,11 +406,6 @@ class NodeVisitor(parsimonious.NodeVisitor):
     # Variable ops
     #
     def visit_variable_op(self, node, visited_children):
-        lparen, instruction, rparen = visited_children
-        assert is_empty(lparen, rparen)
-        return instruction
-
-    def visit_any_variable_op(self, node, visited_children):
         (instruction_class, opcode), ws, var = visited_children
         if isinstance(var, str):
             return UnresolvedVariableOp(opcode, var)
@@ -369,11 +435,6 @@ class NodeVisitor(parsimonious.NodeVisitor):
     #
     # Memory ops
     #
-    def visit_memory_op(self, node, visited_children):
-        lparen, instruction, rparen = visited_children
-        assert is_empty(lparen, rparen)
-        return instruction
-
     def visit_memory_size_op(self, node, visited_children):
         return MemorySize()
 
@@ -444,11 +505,6 @@ class NodeVisitor(parsimonious.NodeVisitor):
     #
     # Numeric ops
     #
-    def visit_numeric_op(self, node, visited_children):
-        lparen, instruction, rparen = visited_children
-        assert is_empty(lparen, rparen)
-        return instruction
-
     def visit_constop(self, node, visited_children):
         valtype, txt, ws, value = visited_children
         assert is_empty(txt, ws)
@@ -480,6 +536,10 @@ class NodeVisitor(parsimonious.NodeVisitor):
     def visit_testop(self, node, visited_children):
         opcode = TEXT_TO_OPCODE[node.text]
         return TestOp.from_opcode(opcode)
+
+    def visit_unop(self, node, visited_children):
+        opcode = TEXT_TO_OPCODE[node.text]
+        return UnOp.from_opcode(opcode)
 
     def visit_relop(self, node, visited_children):
         opcode = TEXT_TO_OPCODE[node.text]
@@ -517,9 +577,7 @@ class NodeVisitor(parsimonious.NodeVisitor):
         return self._process_tail(node, visited_children)
 
     def visit_param(self, node, visited_children):
-        lparen, params, rparen = visited_children
-        assert is_empty(lparen, rparen)
-        return params
+        return self._unwrap_parens(node, visited_children)
 
     def visit_named_param(self, node, visited_children):
         ws0, txt, name, ws1, valtype = visited_children
@@ -541,9 +599,7 @@ class NodeVisitor(parsimonious.NodeVisitor):
         return self._process_tail(node, visited_children)
 
     def visit_result(self, node, visited_children):
-        lparen, valtypes, rparen = visited_children
-        assert is_empty(lparen, rparen)
-        return valtypes
+        return self._unwrap_parens(node, visited_children)
 
     def visit_declared_result(self, node, visited_children):
         txt, ws, valtypes = visited_children
@@ -563,9 +619,7 @@ class NodeVisitor(parsimonious.NodeVisitor):
         return self._process_tail(node, visited_children)
 
     def visit_local(self, node, visited_children):
-        lparen, locals, rparen = visited_children
-        assert is_empty(lparen, rparen)
-        return locals
+        return self._unwrap_parens(node, visited_children)
 
     def visit_named_local(self, node, visited_children):
         ws0, txt, name, ws1, valtype = visited_children

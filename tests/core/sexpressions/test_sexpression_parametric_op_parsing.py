@@ -15,5 +15,5 @@ from wasm.instructions.parametric import (
     ),
 )
 def test_sexpression_parametric_instruction_parsing(sexpr, expected):
-    actual = parse(sexpr)
+    actual, = parse(sexpr)
     assert actual == expected

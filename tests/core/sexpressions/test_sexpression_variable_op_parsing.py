@@ -29,5 +29,5 @@ from wasm.opcodes import BinaryOpcode
     ),
 )
 def test_sexpression_local_variable_parsing(sexpr, expected):
-    actual = parse(sexpr)
+    actual, = parse(sexpr)
     assert actual == expected

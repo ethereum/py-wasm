@@ -15,6 +15,7 @@ from wasm.instructions.numeric import (
     F64Const,
     RelOp,
     Wrap,
+    UnOp,
     Extend,
     Truncate,
 )
@@ -38,14 +39,16 @@ f64 = ValType.f64
     ),
 )
 def test_sexpression_numeric_constant_parsing(sexpr, expected):
-    actual = parse(sexpr)
+    actual, = parse(sexpr)
     assert actual == expected
 
 
+UNOPS = tuple(op for op in BinaryOpcode if op.is_unop)
 RELOPS = tuple(op for op in BinaryOpcode if op.is_relop)
 BINOPS = tuple(op for op in BinaryOpcode if op.is_binop)
 TESTOPS = tuple(op for op in BinaryOpcode if op.is_testop)
 OP_PAIRS = (
+    (UNOPS, UnOp),
     (RELOPS, RelOp),
     (BINOPS, BinOp),
     (TESTOPS, _TestOp),
@@ -61,7 +64,7 @@ OP_PAIRS = (
     ),
 )
 def test_sexpression_unop_binop_relop_instruction_parsing(sexpr, expected):
-    actual = parse(sexpr)
+    actual, = parse(sexpr)
     assert actual == expected
 
 
@@ -74,7 +77,7 @@ def test_sexpression_unop_binop_relop_instruction_parsing(sexpr, expected):
     ),
 )
 def test_sexpression_wrap_and_extend_instruction_parsing(sexpr, expected):
-    actual = parse(sexpr)
+    actual, = parse(sexpr)
     assert actual == expected
 
 
@@ -92,7 +95,7 @@ def test_sexpression_wrap_and_extend_instruction_parsing(sexpr, expected):
     )
 )
 def test_sexpression_trunc_instruction_parsing(sexpr, expected):
-    actual = parse(sexpr)
+    actual, = parse(sexpr)
     assert actual == expected
 
 
@@ -110,7 +113,7 @@ def test_sexpression_trunc_instruction_parsing(sexpr, expected):
     )
 )
 def test_sexpression_convert_instruction_parsing(sexpr, expected):
-    actual = parse(sexpr)
+    actual, = parse(sexpr)
     assert actual == expected
 
 
@@ -122,7 +125,7 @@ def test_sexpression_convert_instruction_parsing(sexpr, expected):
     ),
 )
 def test_sexpression_demote_and_promote_instruction_parsing(sexpr, expected):
-    actual = parse(sexpr)
+    actual, = parse(sexpr)
     assert actual == expected
 
 
@@ -136,5 +139,5 @@ def test_sexpression_demote_and_promote_instruction_parsing(sexpr, expected):
     )
 )
 def test_sexpression_reinterpret_instruction_parsing(sexpr, expected):
-    actual = parse(sexpr)
+    actual, = parse(sexpr)
     assert actual == expected
