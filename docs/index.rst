@@ -1,7 +1,7 @@
 py-wasm
 ==============================
 
-A python implementation of the web assembly interpreter
+A python implementation of the WebAssembly interpreter
 
 Contents
 --------

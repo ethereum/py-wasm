@@ -26,7 +26,7 @@ from .instructions import (
 
 class OperandStack(BaseStack[TValue]):
     """
-    A stack used for operands during Web Assembly execution
+    A stack used for operands during WebAssembly execution
     """
     pass
 
@@ -67,7 +67,7 @@ class Label:
 
 class ControlStack(BaseStack[Label]):
     """
-    A stack used for labels during Web Assembly execution
+    A stack used for labels during WebAssembly execution
     """
     def get_label_by_idx(self, key: LabelIdx) -> Label:
         return self._stack[-1 * (key + 1)]
@@ -138,6 +138,6 @@ class Frame:
 
 class FrameStack(BaseStack[Frame]):
     """
-    A stack used for frames during Web Assembly execution
+    A stack used for frames during WebAssembly execution
     """
     pass

@@ -7,7 +7,7 @@
 [![Docs build](https://readthedocs.org/projects/py-wasm/badge/?version=latest)](http://py-wasm.readthedocs.io/en/latest/?badge=latest)
    
 
-A python implementation of the web assembly interpreter
+A python implementation of the WebAssembly interpreter
 
 Read more in the [documentation on ReadTheDocs](https://py-wasm.readthedocs.io/). [View the change log](https://py-wasm.readthedocs.io/en/latest/releases.html).
 
@@ -106,7 +106,7 @@ The test suite in this library is run using `pytest`.
 pytest tests/
 ```
 
-Part of the test suite includes the *spec* tests from the official Web Assembly
+Part of the test suite includes the *spec* tests from the official WebAssembly
 spec.  These are found under `./tests/spec`.
 
 It is often useful to view logging output when running tests.  This can be done with:

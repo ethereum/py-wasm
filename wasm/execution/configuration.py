@@ -39,7 +39,7 @@ from .stack import (
 
 class BaseConfiguration(ABC):
     """
-    Base class for the Configuration object used for execution Web Assembly
+    Base class for the Configuration object used for execution WebAssembly
     """
     store: Store
     current_instruction: BaseInstruction

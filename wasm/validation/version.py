@@ -16,7 +16,7 @@ TVersion = Tuple[numpy.uint8, numpy.uint8, numpy.uint8, numpy.uint8]
 
 def validate_version(version: TVersion) -> None:
     """
-    Validate the parsed version string for a Web Assembly module.
+    Validate the parsed version string for a WebAssembly module.
     """
     if version != constants.VERSION_1:
         raise ValidationError(
