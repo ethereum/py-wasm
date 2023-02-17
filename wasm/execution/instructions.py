@@ -15,7 +15,7 @@ from wasm.instructions import (
 
 class InstructionSequence(Sequence):
     """
-    Stateful stream of instructions for web assembly execution.
+    Stateful stream of instructions for WebAssembly execution.
     """
     _instructions: Tuple[BaseInstruction, ...]
 

@@ -254,7 +254,7 @@ man_pages = [
 #  dir menu entry, description, category)
 texinfo_documents = [
   ('index', 'py-wasm', 'py-wasm Documentation',
-   'Jason Carver', 'py-wasm', 'A python implementation of the web assembly interpreter',
+   'Jason Carver', 'py-wasm', 'A python implementation of the WebAssembly interpreter',
    'Miscellaneous'),
 ]
 

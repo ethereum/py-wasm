@@ -238,7 +238,7 @@ def normalize_sections(sections: Tuple[SECTION_TYPES, ...]) -> T_SECTIONS:
 
 def parse_sections(stream: IO[bytes]) -> T_SECTIONS:
     """
-    Parse the sections of a Web Assembly module.
+    Parse the sections of a WebAssembly module.
     """
     sections = _parse_sections(stream)
     return normalize_sections(sections)

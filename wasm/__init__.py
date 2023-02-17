@@ -9,7 +9,7 @@ from .execution import (  # noqa: F401
 
 if sys.byteorder != 'little':
     raise ImportError(
-        f"Web assembly operates on little endian encoded values. This library's "
+        f"WebAssembly operates on little endian encoded values. This library's "
         f"use of numpy uses the system's endianness.  The current system's "
         f"endianness is {sys.byteorder} which isn't compatible."
     )

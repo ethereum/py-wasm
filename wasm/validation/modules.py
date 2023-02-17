@@ -146,7 +146,7 @@ def validate_function_types(module: Module) -> None:
 
 def validate_module(module: Module) -> Tuple[Tuple[TExtern, ...], Tuple[TExtern, ...]]:
     """
-    Validatie a web Assembly module.
+    Validatie a webAssembly module.
     """
     validate_function_types(module)
 

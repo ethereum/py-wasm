@@ -42,7 +42,7 @@ setup(
     name='py-wasm',
     # *IMPORTANT*: Don't manually change the version here. Use `make bump`, as described in readme
     version='0.1.0-alpha.0',
-    description="""py-wasm: A python implementation of the web assembly interpreter""",
+    description="""py-wasm: A python implementation of the WebAssembly interpreter""",
     long_description_markdown_filename='README.md',
     author='Jason Carver',
     author_email='ethcalibur+pip@gmail.com',

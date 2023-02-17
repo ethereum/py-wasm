@@ -183,7 +183,7 @@ def _compute_data_offsets(store: Store,
 
 class Runtime:
     """
-    Represents the *runtime* for the py-wasm Web Assembly interpreter.
+    Represents the *runtime* for the py-wasm WebAssembly interpreter.
     """
     store: Store
     modules: Dict[str, ModuleInstance]
@@ -217,7 +217,7 @@ class Runtime:
 
     def load_module(self, file_path: Path) -> Module:
         """
-        Load a Web Assembly module from its binary source file.
+        Load a WebAssembly module from its binary source file.
         """
         if file_path.suffix != ".wasm":
             raise Exception("Unsupported file type: {file_path.suffix}")
@@ -237,7 +237,7 @@ class Runtime:
 
     def load_buffer(self, buffer: IO) -> Module:
         """
-        Load a Web Assembly module from its binary source file.
+        Load a WebAssembly module from its binary source file.
         """
         try:
             module = parse_module(buffer)
@@ -255,7 +255,7 @@ class Runtime:
                            module: Module,
                            ) -> Tuple[ModuleInstance, Optional[Tuple[TValue, ...]]]:
         """
-        Instantiate a Web Assembly module into this runtime environment.
+        Instantiate a WebAssembly module into this runtime environment.
         """
         # Ensure the module is valid
         try:
